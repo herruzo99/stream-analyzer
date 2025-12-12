@@ -32,6 +32,13 @@ const createInitialUiState = () => ({
     interactiveManifestShowSubstituted: true,
     interactiveManifestHoveredItem: null,
     interactiveManifestSelectedItem: null,
+    // --- Manifest Search State ---
+    manifestSearch: {
+        term: '',
+        matchIndices: [],
+        currentResultIndex: -1, // The index within matchIndices array (0 to N-1)
+    },
+    // -----------------------------
     interactiveSegmentCurrentPage: 1,
     interactiveSegmentActiveTab: 'inspector',
     interactiveSegmentSelectedItem: null,
@@ -52,6 +59,10 @@ const createInitialUiState = () => ({
     segmentExplorerScrollToTarget: false,
     segmentMatrixClickMode: 'inspect',
     highlightedCompliancePathId: null,
+    highlightedComplianceCategory: null,
+    highlightedQcMetric: null,
+    highlightedTimeRange: null, // { start: number, end: number } | null
+    highlightedIssueId: null, // Specific issue UUID for precise QC highlighting
     comparisonHideSameRows: false,
     comparisonHideUnusedFeatures: true,
     expandedComparisonTables: new Set(),
@@ -82,7 +93,7 @@ const createInitialUiState = () => ({
     },
     inactivityTimeoutOverride: null,
     globalPollingIntervalOverride: null,
-    pollingMode: 'smart', // 'smart' (adaptive) | 'fixed' (exact)
+    pollingMode: 'smart',
     showAllDrmFields: false,
     segmentPollingSelectorState: {
         expandedStreamIds: new Set(),
@@ -102,6 +113,7 @@ const createInitialUiState = () => ({
     signalMonitorSize: 'normal',
     manifestComparisonViewMode: 'table',
     playerTelemetrySidebarOpen: true,
+    pendingPlayerRequest: null,
 });
 
 export const useUiStore = createStore((set, get) => ({
@@ -138,6 +150,7 @@ export const useUiStore = createStore((set, get) => ({
             };
         });
 
+        // ... existing explorer tab logic ...
         const { streams, activeStreamId } = useAnalysisStore.getState();
         if (tabName === 'explorer' && streams) {
             const activeStream = streams.find((s) => s.id === activeStreamId);
@@ -182,7 +195,58 @@ export const useUiStore = createStore((set, get) => ({
         }
     },
 
+    // --- Manifest Search Actions ---
+    setManifestSearchTerm: (term) =>
+        set((state) => ({
+            manifestSearch: {
+                ...state.manifestSearch,
+                term,
+            },
+        })),
+    setManifestSearchMatches: (indices) =>
+        set((state) => ({
+            manifestSearch: {
+                ...state.manifestSearch,
+                matchIndices: indices,
+                currentResultIndex:
+                    indices.length > 0 ? 0 : -1,
+            },
+        })),
+    nextManifestSearchResult: () =>
+        set((state) => {
+            const { matchIndices, currentResultIndex } = state.manifestSearch;
+            if (matchIndices.length === 0) return {};
+            const nextIndex =
+                currentResultIndex >= matchIndices.length - 1
+                    ? 0
+                    : currentResultIndex + 1;
+            return {
+                manifestSearch: {
+                    ...state.manifestSearch,
+                    currentResultIndex: nextIndex,
+                },
+            };
+        }),
+    prevManifestSearchResult: () =>
+        set((state) => {
+            const { matchIndices, currentResultIndex } = state.manifestSearch;
+            if (matchIndices.length === 0) return {};
+            const prevIndex =
+                currentResultIndex <= 0
+                    ? matchIndices.length - 1
+                    : currentResultIndex - 1;
+            return {
+                manifestSearch: {
+                    ...state.manifestSearch,
+                    currentResultIndex: prevIndex,
+                },
+            };
+        }),
+    // ---------------------------------
+
     setActiveSidebar: (sidebar) => set({ activeSidebar: sidebar }),
+    
+    // ... rest of actions unchanged
     setMultiPlayerActiveTab: (tab) => set({ multiPlayerActiveTab: tab }),
     toggleMultiPlayerViewMode: () =>
         set((state) => ({
@@ -272,6 +336,14 @@ export const useUiStore = createStore((set, get) => ({
         set({ featureAnalysisStandardVersion: version }),
     setHighlightedCompliancePathId: (pathId) =>
         set({ highlightedCompliancePathId: pathId }),
+    setHighlightedComplianceCategory: (category) =>
+        set({ highlightedComplianceCategory: category }),
+    setHighlightedQcMetric: (metric) => 
+        set({ highlightedQcMetric: metric }),
+    setHighlightedTimeRange: (range) =>
+        set({ highlightedTimeRange: range }),
+    setHighlightedIssueId: (id) =>
+        set({ highlightedIssueId: id }),
     toggleComparisonTable: (tableId) =>
         set((state) => {
             const newSet = new Set(state.expandedComparisonTables);
@@ -442,6 +514,17 @@ export const useUiStore = createStore((set, get) => ({
     setTimelineHoveredItem: (item) => set({ timelineHoveredItem: item }),
     setTimelineSelectedItem: (item) => set({ timelineSelectedItem: item }),
     setTimelineActiveTab: (tab) => set({ timelineActiveTab: tab }),
+    
+    requestPlayerPlayback: ({ startTime, autoPlay }) => {
+        set({ 
+            pendingPlayerRequest: { startTime, autoPlay },
+            activeTab: 'player-simulation' 
+        });
+    },
+    clearPendingPlayerRequest: () => {
+        set({ pendingPlayerRequest: null });
+    },
+
     reset: () => set(createInitialUiState()),
 }));
 

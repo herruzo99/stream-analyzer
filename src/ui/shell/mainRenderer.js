@@ -12,7 +12,7 @@ import './components/app-shell.js';
 import { advertisingView } from '@/features/advertising/ui/index';
 import { comparisonView } from '@/features/comparison/ui/index';
 import { complianceView } from '@/features/compliance/ui/index';
-import { drmView } from '@/features/drm/ui/index.js'; // New View
+import { drmView } from '@/features/drm/ui/index.js';
 import { featuresView } from '@/features/featureAnalysis/ui/index';
 import { integratorsReportView } from '@/features/integratorsReport/ui/index';
 import { interactiveManifestView } from '@/features/interactiveManifest/ui/index';
@@ -22,8 +22,10 @@ import { multiPlayerView } from '@/features/multiPlayer/ui/index';
 import { networkAnalysisView } from '@/features/networkAnalysis/ui/index';
 import { parserCoverageView } from '@/features/parserCoverage/ui/index';
 import { playerView } from '@/features/playerSimulation/ui/index';
+import { regressionView } from '@/features/regression/ui/index.js'; // NEW
 import { segmentComparisonView } from '@/features/segmentComparison/ui/index';
 import { segmentExplorerView } from '@/features/segmentExplorer/ui/index';
+import { qcDashboardView } from '@/features/signalQuality/ui/qc-dashboard.js';
 import { summaryView } from '@/features/summary/ui/index';
 import { timelineView } from '@/features/timeline/ui/index.js';
 
@@ -35,6 +37,7 @@ const viewMap = {
     timeline: timelineView,
     features: featuresView,
     compliance: complianceView,
+    regression: regressionView, // NEW ROUTE
     'parser-coverage': parserCoverageView,
     'player-simulation': playerView,
     'multi-player': multiPlayerView,
@@ -44,9 +47,11 @@ const viewMap = {
     'interactive-manifest': interactiveManifestView,
     updates: manifestUpdatesView,
     'segment-comparison': segmentComparisonView,
-    drm: drmView, // Register DRM View
+    drm: drmView,
+    'qc-dashboard': qcDashboardView,
 };
 
+// ... rest of the file remains exactly the same ...
 let initialDomContext;
 let isShellRendered = false;
 let currentMountedViewKey = null;

@@ -30,7 +30,16 @@ function renderInputView() {
         <div
             class="absolute top-0 left-0 right-0 p-6 flex justify-between items-start z-50 pointer-events-none"
         >
-            <div class="pointer-events-auto"></div>
+            <div class="pointer-events-auto flex items-center gap-3">
+                <img
+                    src="/icon.png"
+                    class="w-10 h-10 object-contain drop-shadow-md"
+                    alt="Stream Analyzer"
+                />
+                <span class="font-bold text-2xl text-white tracking-tight"
+                    >Stream Analyzer</span
+                >
+            </div>
             <div class="flex gap-4 pointer-events-auto">
                 <button
                     @click=${aboutClickHandler}

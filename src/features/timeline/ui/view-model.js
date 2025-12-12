@@ -31,8 +31,10 @@ const fmtNum = (val, decimals = 2) =>
 function normalizeTrackItems(items, timeOffset) {
     if (!items) return [];
     return items.map((item) => {
-        const newStart = Math.max(0, item.start - timeOffset);
-        const newEnd = Math.max(0, item.end - timeOffset);
+        // For VOD, timeOffset is minStart (shifts to 0).
+        // For Live, timeOffset is 0 (keeps absolute).
+        const newStart = item.start - timeOffset;
+        const newEnd = item.end - timeOffset;
         return {
             ...item,
             originalStart: item.start,
@@ -396,6 +398,8 @@ function getHlsTimingMetrics(stream) {
 function createVisualTracks(stream) {
     const tracks = [];
     let contentMaxTime = 0;
+    let contentStartTime = Infinity;
+
     const manifest = stream.manifest;
 
     // 1. Media Segments (Determine content range first)
@@ -414,8 +418,6 @@ function createVisualTracks(stream) {
         if (vidRep) segments = vidRep.segments;
     }
 
-    let contentStartTime = Infinity;
-
     if (segments.length > 0) {
         const items = [];
         const sorted = [...segments]
@@ -425,6 +427,7 @@ function createVisualTracks(stream) {
 
         sorted.forEach((seg) => {
             const relativeTime = seg.time / seg.timescale;
+            // Dash: periodStart is often relative to AST, effectively absolute time if AST is epoch
             const start = (seg.periodStart || 0) + relativeTime;
             const duration = seg.duration / seg.timescale;
             const end = start + duration;
@@ -473,19 +476,45 @@ function createVisualTracks(stream) {
 
     if (contentStartTime === Infinity) contentStartTime = 0;
 
+    // Detect if timeline is Epoch-based (Absolute Time > ~Year 2020 in seconds)
+    // 1.6e9 is roughly Year 2020.
+    const isEpochTimeline = contentStartTime > 1600000000;
+
     // 2. Periods
+    // Map Period boundaries to the same time axis
     const periodItems = manifest.periods.map((p, i) => {
-        const start = p.start || 0;
+        let start = p.start || 0;
+
+        // FIX: If segments are absolute (Epoch) but Period starts are relative (0),
+        // we must shift the Period start by AST to align them.
+        if (isEpochTimeline && stream.manifest.availabilityStartTime) {
+            const ast =
+                new Date(stream.manifest.availabilityStartTime).getTime() /
+                1000;
+            // Only shift if start is small (relative)
+            if (start < 1000000) {
+                start += ast;
+            }
+        }
+
         let duration = p.duration;
-        if (duration === null) duration = Math.max(contentMaxTime - start, 0);
-        const end = Math.max(start + duration, contentMaxTime);
+
+        // If VOD and no duration, infer from next period or max segment time
+        // If Live, 'duration' might be null for the last period
+        if (duration === null || duration === undefined) {
+            // Extend to cover content
+            const potentialDuration = contentMaxTime - start;
+            duration = Math.max(0, potentialDuration);
+        }
+
+        const end = start + duration;
         if (end > contentMaxTime) contentMaxTime = end;
 
         return {
             id: p.id || `period-${i}`,
             start,
             end,
-            duration: end - start,
+            duration,
             label: `Period ${i + 1}`,
             type: 'period',
             data: { id: p.id, start },
@@ -499,27 +528,22 @@ function createVisualTracks(stream) {
         items: periodItems,
     });
 
-    // 3. Ad Breaks (Filtered using content range)
+    // 3. Ad Breaks
     if (stream.adAvails && stream.adAvails.length > 0) {
-        // ARCHITECTURAL FIX: Filter out ad avails with invalid timestamps.
-        // If content is using absolute time (e.g. > 1000s), we ignore 0-based ad avails
-        // which are likely unconfirmed heuristics or relative timeline artifacts.
-        const isAbsoluteTime = contentStartTime > 1000;
-
+        // Filter logic for ad avails
         const validAvails = stream.adAvails.filter((ad) => {
             if (ad.startTime < 0) return false;
-            if (isAbsoluteTime && ad.startTime < 1000) return false; // Filter relative ads in absolute timeline
+            // If content is absolute, filter out relative ad markers (0-based)
+            // unless they are very close to start time (which is huge)
+            if (isEpochTimeline && ad.startTime < 1000) return false;
             return true;
         });
 
         if (validAvails.length > 0) {
             const adItems = validAvails.map((ad) => {
                 const end = ad.startTime + ad.duration;
-                // Only expand total content time if the ad is plausibly near the content
-                // Otherwise it might be a far-future ad that squashes the view
                 if (end > contentMaxTime && end < contentMaxTime + 3600)
                     contentMaxTime = end;
-
                 return {
                     id: ad.id,
                     start: ad.startTime,
@@ -530,7 +554,6 @@ function createVisualTracks(stream) {
                     data: { ...ad },
                 };
             });
-            // Insert Ads at index 0 (Bottom of chart usually, or top depending on renderer)
             tracks.unshift({
                 id: 'ads',
                 label: 'Ad Avails',
@@ -546,38 +569,53 @@ function createVisualTracks(stream) {
 export function createTimelineViewModel(stream) {
     if (!stream) return null;
 
-    const { tracks, _contentMaxTime } = createVisualTracks(stream);
+    const { tracks } = createVisualTracks(stream);
     const isLive = stream.manifest.type === 'dynamic';
 
     let timeOffset = 0;
-    let totalDuration = stream.manifest.duration;
+    let chartMin = 0;
+    let chartMax = 100;
 
+    // Gather all items to determine bounds
     const allItems = tracks.flatMap((t) => t.items);
+    let minStart = 0;
+    let maxEnd = 0;
+
     if (allItems.length > 0) {
-        const minStart = Math.min(...allItems.map((i) => i.start));
-        const maxEnd = Math.max(...allItems.map((i) => i.end));
+        minStart = Math.min(...allItems.map((i) => i.start));
+        maxEnd = Math.max(...allItems.map((i) => i.end));
+    }
 
-        if (isLive) {
-            timeOffset = minStart;
-            totalDuration = maxEnd - minStart;
-        } else {
-            // FIX: For VOD with large start times (e.g. extracted periods),
-            // also normalize to the content start to avoid huge empty gaps.
-            // But only if the start is significantly large (> 60s) to avoid shifting normal 0-start VODs unnecessarily.
-            if (minStart > 60) {
-                timeOffset = minStart;
-                totalDuration = maxEnd - minStart;
-            } else {
-                const contentSpan = maxEnd - minStart;
-                totalDuration = totalDuration || contentSpan;
-            }
+    if (isLive) {
+        // --- LIVE MODE ---
+        // Do NOT shift times to 0. Keep them absolute (AST relative).
+        timeOffset = 0;
+
+        // Determine visible window
+        // Use DVR window from manifest, or fallback to a reasonable default (e.g., 2 minutes)
+        const dvrWindow = stream.manifest.timeShiftBufferDepth || 120;
+
+        // Ideally, maxEnd is the "Live Edge".
+        // Show [LiveEdge - DVR, LiveEdge]
+        chartMax = maxEnd;
+        chartMin = Math.max(minStart, maxEnd - dvrWindow);
+
+        // If the calculated window is empty or inverted (e.g. start-up), default to 60s
+        if (chartMax <= chartMin) {
+            chartMin = Math.max(0, chartMax - 60);
         }
+    } else {
+        // --- VOD MODE ---
+        // Shift timeline to start at 0
+        timeOffset = minStart;
+        chartMin = 0;
+        chartMax = Math.max(0, maxEnd - minStart);
+
+        // Safety for empty VOD
+        if (chartMax === 0) chartMax = 100;
     }
 
-    if (!totalDuration || totalDuration <= 0) {
-        totalDuration = 30;
-    }
-
+    // Normalize tracks based on the determined offset
     const normalizedTracks = tracks.map((t) => {
         const normalizedItems = normalizeTrackItems(t.items, timeOffset);
         return {
@@ -604,8 +642,8 @@ export function createTimelineViewModel(stream) {
                 'tracks',
                 'layers',
                 'neutral',
-                'Total number of video tracks (DASH Representations or HLS Variants) detected.',
-                `AdaptationSet count: ${stream.manifest.summary?.content.totalVideoTracks}`
+                'Total number of video tracks detected.',
+                ''
             ),
             m(
                 'Audio',
@@ -614,7 +652,7 @@ export function createTimelineViewModel(stream) {
                 'audioLines',
                 'neutral',
                 'Total number of audio tracks detected.',
-                `AdaptationSet count: ${stream.manifest.summary?.content.totalAudioTracks}`
+                ''
             ),
             m(
                 'Security',
@@ -628,9 +666,7 @@ export function createTimelineViewModel(stream) {
                 stream.manifest.summary?.security?.isEncrypted
                     ? 'success'
                     : 'neutral',
-                stream.manifest.summary?.security?.isEncrypted
-                    ? 'Content is encrypted. DRM system signaling detected.'
-                    : 'Content is unencrypted (Clear). No DRM signaling found.',
+                'Encryption Status',
                 stream.manifest.summary?.security?.systems
                     ?.map((s) => s.systemId)
                     .join(', ') || 'None'
@@ -644,8 +680,8 @@ export function createTimelineViewModel(stream) {
 
     return {
         tracks: normalizedTracks,
-        timeOffset,
-        totalDuration: Math.max(totalDuration, 10),
+        timeOffset, // Passed to chart for tooltips
+        chartBounds: { min: chartMin, max: chartMax }, // Explicit bounds for ECharts
         isLive,
         metricsGroups: [healthInsights, timingMetrics, contentStats],
         driftHistory: isLive ? driftCalculator.getHistory(stream.id) : [],

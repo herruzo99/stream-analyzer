@@ -105,6 +105,45 @@ async function applyInterventions(
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Reads a specific number of bytes from a ReadableStream and then cancels the stream.
+ * Used for manual range extraction when server returns 200 OK.
+ * @param {ReadableStream} stream
+ * @param {number} length
+ * @returns {Promise<ArrayBuffer>}
+ */
+async function readPartialStream(stream, length) {
+    const reader = stream.getReader();
+    const chunks = [];
+    let receivedLength = 0;
+
+    try {
+        while (receivedLength < length) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            chunks.push(value);
+            receivedLength += value.length;
+        }
+
+        // Concatenate chunks
+        const result = new Uint8Array(Math.min(receivedLength, length));
+        let position = 0;
+        for (const chunk of chunks) {
+            const bytesToCopy = Math.min(
+                chunk.length,
+                result.length - position
+            );
+            result.set(chunk.subarray(0, bytesToCopy), position);
+            position += bytesToCopy;
+        }
+
+        return result.buffer;
+    } finally {
+        reader.cancel('Manual range read complete');
+    }
+}
+
 export async function fetchWithAuth(
     url,
     auth,
@@ -128,7 +167,6 @@ export async function fetchWithAuth(
     );
 
     if (intervention.action === 'block' && intervention.response) {
-        // Log blocked request immediately if context is provided
         if (safeLoggingContext.streamId !== undefined) {
             self.postMessage({
                 type: 'worker:network-event',
@@ -167,7 +205,8 @@ export async function fetchWithAuth(
                 },
             });
         }
-        return intervention.response;
+        // Force cast to satisfy caller expecting Response-like object
+        return /** @type {Response} */ (intervention.response);
     }
 
     if (intervention.action === 'delay' && intervention.delayMs) {
@@ -187,8 +226,21 @@ export async function fetchWithAuth(
         headers.set(key, value);
     }
 
-    if (range && !headers.has('Range')) {
-        headers.set('Range', `bytes=${range}`);
+    // --- ARCHITECTURAL FIX: Parse Range ---
+    // If range is provided, calculate expected length for manual slicing fallback
+    let expectedLength = 0;
+    let rangeStart = 0;
+
+    if (range) {
+        if (!headers.has('Range')) {
+            headers.set('Range', `bytes=${range}`);
+        }
+        const parts = range.split('-');
+        rangeStart = parseInt(parts[0], 10);
+        const rangeEnd = parseInt(parts[1], 10);
+        if (!isNaN(rangeStart) && !isNaN(rangeEnd)) {
+            expectedLength = rangeEnd - rangeStart + 1;
+        }
     }
 
     const effectiveMethod = method || (body ? 'POST' : 'GET');
@@ -235,10 +287,68 @@ export async function fetchWithAuth(
     const response = await fetchWithRetry(initialUrl.href, options);
     const endTime = performance.now();
 
+    // --- ARCHITECTURAL FIX: Handle 200 OK on Range Request ---
+    // If we requested a range but got 200 OK (full file), use the stream reader
+    // to read only the requested bytes and abort the rest to save bandwidth/memory.
+    let responseProxy = response;
+    let manualArrayBuffer = null;
+
+    if (range && response.status === 200 && response.body) {
+        const contentLength = Number(response.headers.get('content-length'));
+        // Only intervene if the content length suggests we got way more than we asked for
+        // (e.g. > 2x expected) or if content-length is missing.
+        if (!contentLength || contentLength > expectedLength * 2) {
+            console.warn(
+                `[Network] Server ignored Range header for ${url}. Manual slicing active. Requested: ${expectedLength} bytes.`
+            );
+            
+            // We create a proxy for arrayBuffer() to implement the manual read/cancel
+            manualArrayBuffer = async () => {
+                // FIXED: Removed the second getReader() call to prevent locking error
+                try {
+                    // For efficiency, we only support this optimization if rangeStart is 0 or small,
+                    // OR we accept the read penalty. For analysis, saving 200MB download is worth reading 3KB header.
+                    
+                    // We read until we cover the requested range (0...rangeEnd)
+                    // If rangeStart > 0, we still have to download the bytes before it, 
+                    // but we discard them from the final buffer.
+                    // IMPORTANT: We abort the download immediately after `rangeEnd`.
+                    
+                    const neededLength = rangeStart + expectedLength;
+                    const fullData = await readPartialStream(response.body, neededLength);
+                    
+                    // Slice out the exact requested range
+                    return fullData.slice(rangeStart, rangeStart + expectedLength);
+                } catch (e) {
+                     console.error("Manual range read failed", e);
+                     throw e;
+                }
+            };
+
+            responseProxy = /** @type {Response} */ ({
+                ok: response.ok,
+                status: 206, // Fake 206 for the caller logic
+                statusText: 'Partial Content (Manual)',
+                headers: response.headers,
+                url: response.url,
+                arrayBuffer: manualArrayBuffer,
+                text: async () => {
+                    const buf = await manualArrayBuffer();
+                    return new TextDecoder().decode(buf);
+                }
+            });
+        }
+    }
+
     // Capture Response Body
     let responseBodyForLog = null;
-    if (shouldLogBody && response.ok) {
-        responseBodyForLog = await captureBody(response);
+    if (shouldLogBody && responseProxy.ok) {
+        // We skip logging body for manually handled ranges to avoid double-read complexity
+        if (!manualArrayBuffer) {
+             responseBodyForLog = await captureBody(response.clone());
+        } else {
+             responseBodyForLog = "[Manual Range - Body Omitted]";
+        }
     }
 
     if (
@@ -265,16 +375,16 @@ export async function fetchWithAuth(
                 request: {
                     method: options.method,
                     headers: requestHeadersLog,
-                    body: requestBodyForLog, // Pass captured body
+                    body: requestBodyForLog,
                 },
                 response: {
-                    status: response.status,
-                    statusText: response.statusText,
+                    status: responseProxy.status, // Log the effective status (e.g. 206)
+                    statusText: responseProxy.statusText,
                     headers: responseHeaders,
                     contentLength:
                         Number(response.headers.get('content-length')) || null,
                     contentType: response.headers.get('content-type'),
-                    body: responseBodyForLog, // Pass captured body
+                    body: responseBodyForLog,
                 },
                 timing: {
                     startTime,
@@ -282,7 +392,6 @@ export async function fetchWithAuth(
                     duration: endTime - startTime,
                     breakdown: null,
                 },
-                // Mark delayed requests in the audit
                 auditStatus:
                     intervention.action === 'delay' ? 'warn' : undefined,
                 auditIssues:
@@ -304,13 +413,15 @@ export async function fetchWithAuth(
         finalResponseHeaders[key] = value;
     });
 
-    return {
-        ok: response.ok,
-        status: response.status,
-        statusText: response.statusText,
+    // Force cast the proxy to Response to satisfy TS return type,
+    // assuming the consumer only uses the implemented methods.
+    return /** @type {Response} */ ({
+        ok: responseProxy.ok,
+        status: responseProxy.status,
+        statusText: responseProxy.statusText,
         headers: finalResponseHeaders,
-        url: response.url,
-        arrayBuffer: () => response.arrayBuffer(),
-        text: () => response.text(),
-    };
+        url: responseProxy.url,
+        arrayBuffer: () => responseProxy.arrayBuffer(),
+        text: () => responseProxy.text(),
+    });
 }

@@ -78,32 +78,33 @@ export class HexViewComponent extends HTMLElement {
             activeSegmentHighlightRange,
         } = state;
 
-        const newSelOffset = interactiveSegmentSelectedItem?.item?.offset ?? -1;
-        const newSelEnd =
-            newSelOffset !== -1
-                ? newSelOffset +
-                  (interactiveSegmentSelectedItem?.item?.size || 1)
-                : -1;
+        const item = interactiveSegmentSelectedItem?.item;
+        
+        // FIX: Calculate end offset correctly using item size
+        const newSelOffset = item?.offset ?? -1;
+        const newSelEnd = newSelOffset !== -1 
+            ? newSelOffset + (typeof item.size === 'number' ? item.size : 1)
+            : -1;
 
         let newHovOffset = -1;
         let newHovEnd = -1;
 
         if (interactiveSegmentHighlightedItem) {
-            const { item, field } = interactiveSegmentHighlightedItem;
-            if (item) {
-                // Specific field highlighting (e.g. from Inspector hover)
-                if (field && item.details && item.details[field]) {
-                    const fieldData = item.details[field];
+            const { item: hItem, field } = interactiveSegmentHighlightedItem;
+            if (hItem) {
+                // Specific field highlighting
+                if (field && hItem.details && hItem.details[field]) {
+                    const fieldData = hItem.details[field];
                     if (typeof fieldData.offset === 'number') {
                         newHovOffset = fieldData.offset;
                         newHovEnd = fieldData.offset + fieldData.length;
                     }
                 }
 
-                // Fallback to whole item highlighting if no field specified or found
-                if (newHovOffset === -1 && typeof item.offset === 'number') {
-                    newHovOffset = item.offset;
-                    newHovEnd = item.offset + (item.size || 1);
+                // Fallback to whole item
+                if (newHovOffset === -1 && typeof hItem.offset === 'number') {
+                    newHovOffset = hItem.offset;
+                    newHovEnd = hItem.offset + (typeof hItem.size === 'number' ? hItem.size : 1);
                 }
             }
         }
@@ -262,16 +263,21 @@ export class HexViewComponent extends HTMLElement {
         const byteNodes = new Array(16);
         const asciiNodes = new Array(16);
 
+        const isByteSelected = (idx) => idx >= selOffset && idx < selEnd;
+        const isByteHovered = (idx) => idx >= hovOffset && idx < hovEnd;
+
         for (let i = 0; i < 16; i++) {
             const byteOffset = rowStartOffset + i;
 
             if (byteOffset >= endOffset) {
-                byteNodes[i] = html`<span
-                    class="inline-block w-6 h-5 text-center text-slate-800"
-                    >..</span
-                >`;
+                const paddingClass =
+                    i > 0
+                        ? 'inline-block w-6 h-5 text-center text-slate-800 border border-transparent -ml-px'
+                        : 'inline-block w-6 h-5 text-center text-slate-800 border border-transparent';
+
+                byteNodes[i] = html`<span class="${paddingClass}">..</span>`;
                 asciiNodes[i] = html`<span
-                    class="inline-block w-4 h-5 text-center text-slate-800"
+                    class="inline-block w-4 h-5 text-center text-slate-800 border border-transparent"
                     >.</span
                 >`;
                 continue;
@@ -280,52 +286,84 @@ export class HexViewComponent extends HTMLElement {
             const byte = this._view[byteOffset];
             const colorIdx = rowColors[i];
 
-            let baseClass = '';
-            let textClass = 'text-slate-400';
-
-            if (colorIdx !== -1 && palette[colorIdx]) {
-                const colorName = palette[colorIdx];
-                if (colorName === 'slate') {
-                    baseClass = 'bg-slate-800/60';
-                } else {
-                    baseClass = `bg-${colorName}-900/40`;
-                    textClass = 'text-slate-300';
-                }
-            }
-
-            let highlightClass = '';
-            const isSelected = byteOffset >= selOffset && byteOffset < selEnd;
-            const isHovered =
-                !isSelected && byteOffset >= hovOffset && byteOffset < hovEnd;
+            const isSelected = isByteSelected(byteOffset);
+            const isHovered = !isSelected && isByteHovered(byteOffset);
             const isRange =
+                !isSelected &&
+                !isHovered &&
                 rangeStart !== -1 &&
                 byteOffset >= rangeStart &&
                 byteOffset <= rangeEnd;
 
+            let bgClass = '';
+            let textClass = 'text-slate-400';
+            let borderClass = 'border-transparent';
+
             if (isSelected) {
-                highlightClass =
-                    'bg-blue-600 font-bold text-white z-10 shadow-sm';
-                textClass = 'text-white';
+                bgClass = 'bg-blue-600';
+                textClass = 'text-white font-bold';
             } else if (isHovered) {
-                // Solid hover state
-                highlightClass = 'bg-slate-700 text-white z-10';
-                textClass = 'text-white';
+                bgClass = 'bg-slate-600';
+                textClass = 'text-white font-bold';
             } else if (isRange) {
-                baseClass = 'bg-yellow-500/30';
+                bgClass = 'bg-yellow-500/30';
                 textClass = 'text-yellow-100';
+            } else if (colorIdx !== -1 && palette[colorIdx]) {
+                const colorName = palette[colorIdx];
+                if (colorName === 'slate') {
+                    bgClass = 'bg-slate-800/60';
+                } else {
+                    bgClass = `bg-${colorName}-900/40`;
+                    textClass = 'text-slate-300';
+                }
+            }
+
+            const isActive = isSelected || isHovered;
+
+            if (isActive) {
+                const checkNeighbor = (idx) => {
+                    if (isSelected) return isByteSelected(idx);
+                    if (isHovered)
+                        return isByteHovered(idx) && !isByteSelected(idx);
+                    return false;
+                };
+
+                const isTopSame = checkNeighbor(byteOffset - 16);
+                const isBottomSame = checkNeighbor(byteOffset + 16);
+                const isLeftSame = i > 0 && checkNeighbor(byteOffset - 1);
+                const isRightSame = i < 15 && checkNeighbor(byteOffset + 1);
+
+                const borderColor = isSelected ? 'white/60' : 'white/40';
+
+                const t = !isTopSame
+                    ? `border-t-${borderColor}`
+                    : 'border-t-transparent';
+                const b = !isBottomSame
+                    ? `border-b-${borderColor}`
+                    : 'border-b-transparent';
+                const l = !isLeftSame
+                    ? `border-l-${borderColor}`
+                    : 'border-l-transparent';
+                const r = !isRightSame
+                    ? `border-r-${borderColor}`
+                    : 'border-r-transparent';
+
+                borderClass = `${t} ${b} ${l} ${r}`;
             }
 
             const hexByte = byte.toString(16).padStart(2, '0').toUpperCase();
             const char =
                 byte >= 32 && byte <= 126 ? String.fromCharCode(byte) : '.';
 
+            const spacingClass = i > 0 ? '-ml-px' : '';
+
             byteNodes[i] = html`<span
-                class="inline-block text-center w-6 h-5 leading-5 text-[11px] cursor-crosshair relative ${baseClass} ${highlightClass} ${textClass}"
+                class="inline-block text-center w-6 h-5 leading-5 text-[11px] cursor-crosshair relative border ${bgClass} ${textClass} ${borderClass} ${spacingClass}"
                 data-byte-offset="${byteOffset}"
                 >${hexByte}</span
             >`;
             asciiNodes[i] = html`<span
-                class="inline-block text-center w-4 h-5 leading-5 text-[11px] relative ${baseClass} ${highlightClass} ${textClass}"
+                class="inline-block text-center w-4 h-5 leading-5 text-[11px] relative border ${bgClass} ${textClass} ${borderClass} ${spacingClass}"
                 >${char}</span
             >`;
         }
@@ -343,11 +381,11 @@ export class HexViewComponent extends HTMLElement {
                         .padStart(8, '0')
                         .toUpperCase()}
                 </div>
-                <div class="flex px-3 select-none shrink-0 gap-px">
+                <div class="flex px-3 select-none shrink-0">
                     ${byteNodes}
                 </div>
                 <div class="w-px bg-slate-800/50 mx-2 shrink-0"></div>
-                <div class="flex select-none shrink-0 gap-px">
+                <div class="flex select-none shrink-0">
                     ${asciiNodes}
                 </div>
             </div>

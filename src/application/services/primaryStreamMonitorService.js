@@ -1,34 +1,48 @@
 import { eventBus } from '@/application/event-bus';
-import { playerService } from '@/features/playerSimulation/application/playerService';
 import { workerService } from '@/infrastructure/worker/workerService';
 import { appLog } from '@/shared/utils/debug';
 import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
-import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import { useUiStore } from '@/state/uiStore';
 import { EVENTS } from '@/types/events';
 
+// Map<streamId, { timerId: number, pollInterval: number, lastPollTime: number }>
 const pollers = new Map();
 const oneTimePollers = new Map();
 let inactivityTimer = null;
 const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000;
 
+// Tracks adaptive state: { unchangedStreak: number, missedSegmentStreak: number }
 const backoffState = new Map();
 
 function getBackoffState(streamId) {
     if (!backoffState.has(streamId)) {
-        backoffState.set(streamId, { unchangedCount: 0 });
+        backoffState.set(streamId, {
+            unchangedStreak: 0,
+            missedSegmentStreak: 0,
+        });
     }
     return backoffState.get(streamId);
 }
 
 async function monitorStream(streamId) {
+    // 1. Identity Check: Capture the current poller instance.
+    const activePoller = pollers.get(streamId);
+    if (!activePoller) return;
+
+    // --- ARCHITECTURAL FIX: Decoupling ---
+    // We no longer check getStreamPollingMode() to yield control.
+    // The Analyzer polling must run independently to maintain global state freshness.
+
     const stream = useAnalysisStore
         .getState()
         .streams.find((s) => s.id === streamId);
+        
     if (!stream || (!stream.originalUrl && !stream.resolvedUrl)) {
         stopMonitoring(streamId);
         return;
     }
+
+    activePoller.lastPollTime = performance.now();
 
     try {
         const latestUpdate = stream.manifestUpdates[0];
@@ -38,20 +52,14 @@ async function monitorStream(streamId) {
 
         const urlToPoll = stream.resolvedUrl || stream.originalUrl;
 
-        appLog(
-            'PrimaryMonitor',
-            'info',
-            `Polling stream ${streamId} at ${urlToPoll}.`
-        );
-
-        // ARCHITECTURAL FIX: Do NOT pass intervention rules here.
-        // Chaos tools should only affect the Player Simulation, not the analyzer's monitoring.
         const workerTask = 'shaka-fetch-manifest';
         const payload = {
             streamId: stream.id,
             url: urlToPoll,
             auth: stream.auth,
             isLive: true,
+            // ARCHITECTURAL FIX: Explicitly identify as analysis polling
+            purpose: 'analysis', 
             oldRawManifest: oldRawManifestForDiff,
             protocol: stream.protocol,
             baseUrl: stream.baseUrl,
@@ -76,53 +84,99 @@ async function monitorStream(streamId) {
             type: 'fail',
             duration: 5000,
         });
+    } finally {
+        const currentPoller = pollers.get(streamId);
+        if (currentPoller === activePoller) {
+             scheduleNextPoll(streamId);
+        }
     }
+}
+
+// ... [getBasePollInterval and calculatePollInterval remain unchanged] ...
+function getBasePollInterval(manifest, override = null) {
+    if (override !== null && override !== undefined) {
+        return Math.max(override * 1000, 200); 
+    }
+    if (!manifest) return 2000;
+    let updatePeriodSeconds = manifest.minimumUpdatePeriod;
+    if (!updatePeriodSeconds && manifest.type === 'dynamic') {
+        const lastSegDur = manifest.summary?.hls?.mediaPlaylistDetails?.lastSegmentDuration;
+        if (typeof lastSegDur === 'number' && lastSegDur > 0) {
+            updatePeriodSeconds = lastSegDur;
+        } else {
+             updatePeriodSeconds = manifest.summary?.hls?.targetDuration;
+        }
+    }
+    if (!updatePeriodSeconds) {
+        updatePeriodSeconds =
+            manifest.summary?.hls?.targetDuration ||
+            manifest.minBufferTime ||
+            2;
+    }
+    return Math.max(updatePeriodSeconds * 1000, 500); 
 }
 
 function calculatePollInterval(stream) {
     const { globalPollingIntervalOverride, pollingMode } =
         useUiStore.getState();
 
-    let baseInterval = 2000;
-
-    if (
-        stream.pollingIntervalOverride !== undefined &&
-        stream.pollingIntervalOverride !== null
-    ) {
-        baseInterval = Math.max(stream.pollingIntervalOverride * 1000, 1000);
-    } else if (globalPollingIntervalOverride !== null) {
-        baseInterval = Math.max(globalPollingIntervalOverride * 1000, 1000);
-    } else {
-        const updatePeriodSeconds =
-            stream.manifest.minimumUpdatePeriod ||
-            stream.manifest.targetDuration ||
-            stream.manifest.minBufferTime ||
-            2;
-        baseInterval = Math.max(updatePeriodSeconds * 1000, 2000);
-    }
+    const baseInterval = getBasePollInterval(
+        stream.manifest,
+        stream.pollingIntervalOverride !== undefined
+            ? stream.pollingIntervalOverride
+            : globalPollingIntervalOverride
+    );
 
     if (pollingMode === 'smart') {
         const state = getBackoffState(stream.id);
-        if (state.unchangedCount > 0) {
-            const multiplier = 1 + Math.min(state.unchangedCount * 0.1, 1.5);
-            const adaptiveInterval = baseInterval * multiplier;
-
-            if (state.unchangedCount % 5 === 0) {
-                appLog(
-                    'PrimaryMonitor',
-                    'info',
-                    `Smart Polling: Backing off stream ${stream.id} to ${adaptiveInterval.toFixed(0)}ms (Misses: ${state.unchangedCount})`
-                );
-            }
-
-            return adaptiveInterval;
+        if (state.missedSegmentStreak > 0) {
+            const speedFactor = 0.1 * state.missedSegmentStreak;
+            const cappedFactor = Math.min(speedFactor, 0.8);
+            const reducedInterval = Math.floor(
+                baseInterval * (1 - cappedFactor)
+            );
+            return Math.max(200, reducedInterval);
+        }
+        if (state.unchangedStreak > 0) {
+            const slowFactor = 0.05 * state.unchangedStreak;
+            const cappedFactor = Math.min(slowFactor, 1.5);
+            const increasedInterval = Math.floor(
+                baseInterval * (1 + cappedFactor)
+            );
+            return increasedInterval;
         }
     }
-
     return baseInterval;
 }
 
-function startMonitoring(stream) {
+function scheduleNextPoll(streamId) {
+    const poller = pollers.get(streamId);
+    if (!poller) return;
+
+    const stream = useAnalysisStore
+        .getState()
+        .streams.find((s) => s.id === streamId);
+        
+    if (!stream || !stream.isPolling) {
+        stopMonitoring(streamId);
+        return;
+    }
+    
+    const nextInterval = calculatePollInterval(stream);
+    poller.pollInterval = nextInterval;
+
+    const now = performance.now();
+    const timeSinceLastPoll = now - poller.lastPollTime;
+    const delay = Math.max(0, nextInterval - timeSinceLastPoll);
+
+    if (poller.timerId) clearTimeout(poller.timerId);
+
+    poller.timerId = setTimeout(() => {
+        monitorStream(streamId);
+    }, delay);
+}
+
+function startMonitoring(stream, lastPollTime = 0) {
     if (pollers.has(stream.id)) {
         return;
     }
@@ -131,45 +185,23 @@ function startMonitoring(stream) {
         (stream.originalUrl || stream.resolvedUrl)
     ) {
         const pollInterval = calculatePollInterval(stream);
-        appLog(
-            'PrimaryMonitor',
-            'info',
-            `Starting poller for stream ${stream.id} with interval ${pollInterval}ms.`
-        );
 
         const poller = {
             pollInterval,
-            lastPollTime: 0,
-            tickSubscription: null,
+            lastPollTime: lastPollTime || performance.now(),
+            timerId: null,
         };
 
-        poller.tickSubscription = eventBus.subscribe(
-            EVENTS.TICKER.ONE_SECOND,
-            () => {
-                if (
-                    performance.now() - poller.lastPollTime >
-                    poller.pollInterval
-                ) {
-                    poller.lastPollTime = performance.now();
-                    monitorStream(stream.id);
-                }
-            }
-        );
-
         pollers.set(stream.id, poller);
+        scheduleNextPoll(stream.id);
     }
 }
 
 function stopMonitoring(streamId) {
     if (pollers.has(streamId)) {
-        appLog(
-            'PrimaryMonitor',
-            'info',
-            `Stopping poller for stream ${streamId}.`
-        );
         const poller = pollers.get(streamId);
-        if (poller.tickSubscription) {
-            poller.tickSubscription();
+        if (poller.timerId) {
+            clearTimeout(poller.timerId);
         }
         pollers.delete(streamId);
     }
@@ -178,7 +210,10 @@ function stopMonitoring(streamId) {
         oneTimePollers.delete(streamId);
     }
     if (backoffState.has(streamId)) {
-        backoffState.set(streamId, { unchangedCount: 0 });
+        backoffState.set(streamId, {
+            unchangedStreak: 0,
+            missedSegmentStreak: 0,
+        });
     }
 }
 
@@ -187,51 +222,29 @@ export function managePollers() {
         .getState()
         .streams.filter((s) => s.manifest?.type === 'dynamic');
 
-    const singlePlayerActiveStreamIds = playerService.getActiveStreamIds();
-    const multiPlayerActiveSourceStreamIds = new Set(
-        Array.from(useMultiPlayerStore.getState().players.values())
-            .filter((p) => p.state === 'playing' || p.state === 'buffering')
-            .map((p) => p.sourceStreamId)
-    );
-
     dynamicStreams.forEach((stream) => {
-        const isHandledByPlayer =
-            singlePlayerActiveStreamIds.has(stream.id) ||
-            multiPlayerActiveSourceStreamIds.has(stream.id);
-
-        if (isHandledByPlayer) {
-            if (pollers.has(stream.id)) {
-                appLog(
-                    'PrimaryMonitor',
-                    'info',
-                    `Ceding polling control of stream ${stream.id} to a player service.`
-                );
-                stopMonitoring(stream.id);
-            }
-            return;
-        }
+        // --- ARCHITECTURAL FIX: Decoupling ---
+        // We do NOT check getStreamPollingMode() here. The `stream.isPolling` flag
+        // is the sole source of truth for the Analyzer.
 
         const poller = pollers.get(stream.id);
         const isCurrentlyPolling = !!poller;
-        const newPollInterval = calculatePollInterval(stream);
+        const targetInterval = calculatePollInterval(stream);
 
         if (stream.isPolling) {
             if (!isCurrentlyPolling) {
                 startMonitoring(stream);
-            } else if (Math.abs(poller.pollInterval - newPollInterval) > 100) {
-                appLog(
-                    'PrimaryMonitor',
-                    'info',
-                    `Adjusting poller for stream ${stream.id} to ${newPollInterval.toFixed(0)}ms (Smart Mode)`
-                );
+            } else if (Math.abs(poller.pollInterval - targetInterval) > 200) {
+                const previousLastPollTime = poller.lastPollTime;
                 stopMonitoring(stream.id);
-                startMonitoring(stream);
+                startMonitoring(stream, previousLastPollTime);
             }
         } else if (!stream.isPolling && isCurrentlyPolling) {
             stopMonitoring(stream.id);
         }
     });
 
+    // Cleanup zombies
     for (const streamId of pollers.keys()) {
         if (!dynamicStreams.some((s) => s.id === streamId)) {
             stopMonitoring(streamId);
@@ -239,6 +252,7 @@ export function managePollers() {
     }
 }
 
+// ... [scheduleOneTimePoll, handleVisibilityChange, onManifestUpdated, init/stop functions remain unchanged] ...
 function scheduleOneTimePoll({ streamId, pollTime, reason }) {
     const now = Date.now();
     const delay = pollTime - now;
@@ -250,7 +264,7 @@ function scheduleOneTimePoll({ streamId, pollTime, reason }) {
     appLog(
         'PrimaryMonitor',
         'info',
-        `Scheduling high-priority poll for stream ${streamId} in ${delay}ms. Reason: ${reason}`
+        `Scheduling priority poll for ${streamId} in ${delay}ms (${reason})`
     );
 
     const timerId = setTimeout(() => {
@@ -299,19 +313,101 @@ function handleVisibilityChange() {
 }
 
 function onManifestUpdated(payload) {
-    const { streamId, changes } = payload;
+    const {
+        streamId,
+        changes,
+        dashRepresentationState,
+        hlsVariantState,
+        newMediaPlaylists,
+        newManifestObject,
+    } = payload;
     const state = getBackoffState(streamId);
+    const stream = useAnalysisStore
+        .getState()
+        .streams.find((s) => s.id === streamId);
+    const isHls = stream?.protocol === 'hls';
 
-    const isUnchanged =
-        changes.additions === 0 &&
-        changes.removals === 0 &&
-        changes.modifications === 0;
+    if (stream && newManifestObject) {
+        const oldBase = getBasePollInterval(stream.manifest);
+        const newBase = getBasePollInterval(newManifestObject);
 
-    if (isUnchanged) {
-        state.unchangedCount++;
+        if (Math.abs(oldBase - newBase) > 100) {
+            state.unchangedStreak = 0;
+            state.missedSegmentStreak = 0;
+            stream.manifest = newManifestObject;
+        }
+    }
+
+    let maxNewSegments = 0;
+    let isEffectiveChange = false;
+
+    const rootHasChanges =
+        changes.additions > 0 ||
+        changes.removals > 0 ||
+        changes.modifications > 0;
+
+    if (rootHasChanges) {
+        isEffectiveChange = true;
+    }
+
+    if (isHls && newMediaPlaylists && newMediaPlaylists.length > 0) {
+        for (const [, playlistData] of newMediaPlaylists) {
+            const updates = playlistData.updates || [];
+            if (updates.length > 0) {
+                const latest = updates[0];
+                if (
+                    latest.changes.additions > 0 ||
+                    latest.changes.removals > 0 ||
+                    latest.changes.modifications > 0
+                ) {
+                    isEffectiveChange = true;
+                }
+            }
+        }
+
+        if (hlsVariantState) {
+            for (const [, variantData] of hlsVariantState) {
+                const newCount = variantData.newlyAddedSegmentUrls
+                    ? variantData.newlyAddedSegmentUrls.size
+                    : 0;
+                if (newCount > maxNewSegments) maxNewSegments = newCount;
+            }
+        }
+    } else if (dashRepresentationState) {
+        for (const [, repData] of dashRepresentationState) {
+            const newCount = repData.newlyAddedSegmentUrls
+                ? repData.newlyAddedSegmentUrls.size
+                : 0;
+            if (newCount > maxNewSegments) maxNewSegments = newCount;
+        }
+        if (maxNewSegments > 0) {
+            isEffectiveChange = true;
+        }
+    }
+
+    if (maxNewSegments > 1) {
+        state.missedSegmentStreak++;
+        state.unchangedStreak = 0;
+    } else if (maxNewSegments === 1 || isEffectiveChange) {
+        state.missedSegmentStreak = Math.max(0, state.missedSegmentStreak - 1);
+        state.unchangedStreak = 0;
     } else {
-        state.unchangedCount = 0;
-        managePollers();
+        state.unchangedStreak++;
+        state.missedSegmentStreak = 0;
+    }
+
+    if (stream) {
+        const currentManifest = newManifestObject || stream.manifest;
+        const nextInterval = calculatePollInterval({
+            ...stream,
+            manifest: currentManifest,
+        });
+
+        if (stream.smartPollingInterval !== nextInterval) {
+            analysisActions.updateStream(streamId, {
+                smartPollingInterval: nextInterval,
+            });
+        }
     }
 }
 
@@ -356,7 +452,7 @@ export function stopAllMonitoring() {
         manifestUpdateSubscription = null;
     }
     for (const poller of pollers.values()) {
-        if (poller.tickSubscription) poller.tickSubscription();
+        if (poller.timerId) clearTimeout(poller.timerId);
     }
     pollers.clear();
     for (const timerId of oneTimePollers.values()) {

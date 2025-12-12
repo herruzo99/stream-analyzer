@@ -91,14 +91,13 @@ const BOX_COLORS = {
     smhd: 'text-purple-300',
     hmhd: 'text-orange-300',
     nmhd: 'text-slate-300',
-    'url ': 'text-cyan-400', // FIX: Matches dref/dinf (Cyan)
+    'url ': 'text-cyan-400',
     'urn ': 'text-slate-400',
     dref: 'text-cyan-300',
     emsg: 'text-pink-500',
     prft: 'text-pink-400',
     kinds: 'text-pink-300',
 
-    // New Mappings from previous step
     ID32: 'text-emerald-400',
     stpp: 'text-emerald-400',
     wvtt: 'text-emerald-400',
@@ -108,7 +107,6 @@ const BOX_COLORS = {
     kind: 'text-pink-400',
 };
 
-// Heuristic color generator for unknown boxes to ensure everything has color
 const getColorForUnknown = (type) => {
     if (!type) return 'text-slate-500';
     const charCode = type.charCodeAt(0);
@@ -135,7 +133,6 @@ const getColorForUnknown = (type) => {
 };
 
 const getIconForNode = (node) => {
-    // Structure
     if (
         [
             'moov',
@@ -153,30 +150,24 @@ const getIconForNode = (node) => {
     )
         return icons.folder;
 
-    // Data
     if (node.type === 'mdat') return icons.database;
     if (node.type === 'free' || node.type === 'skip') return icons.ghost;
 
-    // Video / Codec
     if (['avc1', 'hvc1', 'hev1', 'vp09', 'av01', 'encv'].includes(node.type))
         return icons.clapperboard;
     if (['vmhd', 'pasp', 'colr'].includes(node.type)) return icons.monitor;
 
-    // Audio
     if (['mp4a', 'ac-3', 'ec-3', 'Opus', 'enca', 'samr'].includes(node.type))
         return icons.audioLines;
     if (node.type === 'smhd') return icons.volumeUp;
 
-    // Metadata / Events
     if (['emsg', 'evti', 'ID32'].includes(node.type)) return icons.advertising;
     if (['meta', 'udta', 'hdlr', 'keys', 'ilst'].includes(node.type))
         return icons.tag;
 
-    // Encryption
     if (['pssh', 'tenc', 'schm', 'schi'].includes(node.type))
         return icons.lockClosed;
 
-    // Tables / Lists
     if (
         [
             'stsd',
@@ -196,13 +187,11 @@ const getIconForNode = (node) => {
     )
         return icons.table;
 
-    // Headers / Info
     if (node.type.endsWith('hd')) return icons.info;
 
-    return icons.code; // Default
+    return icons.code;
 };
 
-// --- Flattening Logic ---
 const flattenTree = (nodes, expandedOffsets, depth = 0, result = []) => {
     if (!nodes) return result;
 
@@ -211,7 +200,7 @@ const flattenTree = (nodes, expandedOffsets, depth = 0, result = []) => {
         const isExpanded = expandedOffsets.has(node.offset);
 
         result.push({
-            ...node, // Keep original ref for details
+            ...node,
             depth,
             hasChildren,
             isExpanded,
@@ -229,7 +218,6 @@ class StructureTree extends HTMLElement {
         super();
         this._data = null;
         this._flattenedItems = [];
-        // Local state for expansion
         this._expandedOffsets = new Set();
 
         this._toggleExpand = this._toggleExpand.bind(this);
@@ -239,8 +227,6 @@ class StructureTree extends HTMLElement {
 
     set data(val) {
         this._data = val;
-
-        // Auto-expand ALL nodes by default
         if (val && val.boxes && this._expandedOffsets.size === 0) {
             const expandRecursive = (nodes) => {
                 for (const node of nodes) {
@@ -319,7 +305,6 @@ class StructureTree extends HTMLElement {
             interactiveSegmentHighlightedItem,
         } = useUiStore.getState();
 
-        // Determine if this row is selected or hovered
         const isSelected =
             interactiveSegmentSelectedItem?.item?.offset === item.offset;
         const isHovered =
@@ -331,11 +316,8 @@ class StructureTree extends HTMLElement {
                 ? `${(item.size / 1024).toFixed(1)} KB`
                 : `${item.size} B`;
 
-        // Get type-based color or fallback
         const typeColor =
             BOX_COLORS[item.type] || getColorForUnknown(item.type);
-
-        // Apply selection styles overriding type color if selected
         const iconColorClass = isSelected
             ? 'text-white'
             : isHovered
@@ -352,6 +334,14 @@ class StructureTree extends HTMLElement {
             containerClass +=
                 'text-slate-400 border-transparent hover:bg-slate-800/50 hover:text-slate-300';
         }
+
+        // --- Chunk Badge Logic ---
+        const chunkBadge = item.chunkInfo
+            ? html`<span
+                  class="ml-2 px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 text-[9px] font-bold uppercase tracking-wider"
+                  >Chunk #${item.chunkInfo.index}</span
+              >`
+            : '';
 
         return html`
             <div
@@ -388,6 +378,8 @@ class StructureTree extends HTMLElement {
                 >
                     ${item.type}
                 </span>
+
+                ${chunkBadge}
 
                 <span
                     class="ml-auto text-[10px] opacity-50 font-sans tracking-wide bg-black/20 px-1.5 rounded"

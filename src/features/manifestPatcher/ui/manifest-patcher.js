@@ -129,7 +129,10 @@ class ManifestPatcher extends HTMLElement {
         this.localRules = this.localRules.map((r) =>
             r.id === id ? { ...r, [field]: value } : r
         );
-        this.generatePreview();
+        // Render UI immediately to reflect toggle state
+        this.render();
+        // Debounce the heavy diff calculation
+        this.generatePreview(false);
     }
 
     removeRule(id) {
@@ -329,15 +332,12 @@ class ManifestPatcher extends HTMLElement {
             const highlightedHTML = highlightFn(contentToRender);
 
             // Added whitespace-pre-wrap to handle long lines in raw view
+            // prettier-ignore
             contentArea = html`<div
                 class="absolute inset-0 bg-slate-950 overflow-auto custom-scrollbar"
-            >
-                <pre
+            ><pre
                     class="p-6 text-xs font-mono text-slate-400 whitespace-pre-wrap break-all leading-tight w-full"
-                >
-${unsafeHTML(highlightedHTML)}</pre
-                >
-            </div>`;
+                >${unsafeHTML(highlightedHTML)}</pre></div>`;
         }
 
         const rightPane = html`

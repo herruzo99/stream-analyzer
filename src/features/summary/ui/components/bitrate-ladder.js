@@ -46,7 +46,6 @@ class BitrateLadderComponent extends HTMLElement {
                 right: 20,
                 bottom: 20,
                 left: 60,
-                containLabel: true,
             },
             xAxis: {
                 type: 'value',

@@ -55,7 +55,6 @@ class DriftChart extends HTMLElement {
                 left: 50,
                 right: 20,
                 bottom: 30,
-                containLabel: true,
             },
             xAxis: {
                 type: 'category',

@@ -19,6 +19,11 @@ const NOTIFICATION_DESCRIPTIONS = {
         description: 'Alert when polling stops due to inactivity.',
         icon: icons.moon,
     },
+    qcAnalysisComplete: {
+        label: 'QC Analysis Done',
+        description: 'Notify when a signal quality scan finishes.',
+        icon: icons.activity,
+    },
 };
 
 const settingToggleTemplate = (type, settings) => {

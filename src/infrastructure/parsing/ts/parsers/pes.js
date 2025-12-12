@@ -1,4 +1,3 @@
-import { appLog } from '@/shared/utils/debug.js';
 import { parseSPS } from '../../video/sps.js';
 import { parsePackHeader } from './pack-header.js';
 
@@ -469,14 +468,6 @@ export function parsePesHeader(view, baseOffset) {
             if (isStartCode) {
                 const nalUnitHeaderByte = view.getUint8(i + startCodeOffset);
                 const nalType = nalUnitHeaderByte & 0x1f;
-
-                appLog(
-                    'pes.js',
-                    'info',
-                    `Found NAL unit start code at offset ${
-                        baseOffset + i
-                    }. NAL Unit Type: ${nalType}`
-                );
 
                 if (nalType === 7) {
                     // SPS NAL unit

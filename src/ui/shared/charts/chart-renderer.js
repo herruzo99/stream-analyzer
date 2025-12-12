@@ -1,5 +1,5 @@
 import { formatBitrate } from '@/ui/shared/format';
-import { BarChart, CustomChart, LineChart, RadarChart } from 'echarts/charts';
+import { BarChart, CustomChart, GaugeChart, LineChart, RadarChart } from 'echarts/charts';
 import {
     DataZoomComponent,
     GridComponent,
@@ -19,6 +19,7 @@ useEchartsModules([
     BarChart,
     CustomChart,
     RadarChart,
+    GaugeChart,
     GridComponent,
     TooltipComponent,
     LegendComponent,
@@ -109,10 +110,11 @@ const defaultTooltipFormatter = (params) => {
 export function renderChart(container, options, eventHandlers = {}) {
     if (!container) return;
 
-    // ARCHITECTURAL FIX: Prevent zombie loops.
-    // If the container is detached from the DOM, stop trying to render.
+    // Prevent zombie loops if detached
     if (!container.isConnected) return;
 
+    // If container has no size, retry next frame.
+    // This is often the cause of "invisible until hover" issues in Flex/Grid layouts.
     if (container.clientWidth === 0 || container.clientHeight === 0) {
         requestAnimationFrame(() =>
             renderChart(container, options, eventHandlers)
@@ -126,17 +128,24 @@ export function renderChart(container, options, eventHandlers = {}) {
         chart = initChart(container);
         chartInstances.set(container, chart);
 
+        // ARCHITECTURAL FIX: Wrap resize in requestAnimationFrame.
+        // ECharts can sometimes fail to resize if called synchronously during a layout thrash.
         const resizeObserver = new ResizeObserver(() => {
-            // ARCHITECTURAL FIX: Only resize if connected
             if (container.isConnected) {
-                chart.resize();
+                requestAnimationFrame(() => {
+                    chart.resize();
+                });
             }
         });
         resizeObserver.observe(container);
         resizeObservers.set(container, resizeObserver);
     }
 
-    // Clear old handlers to prevent duplicates or stale closures
+    // ARCHITECTURAL FIX: Always force resize before update.
+    // Even if new, the initial size might be stale if layout shifted in the same frame.
+    chart.resize();
+
+    // Clear old handlers to prevent duplicates
     chart.off('click');
     chart.off('mouseover');
     chart.off('mouseout');
@@ -157,7 +166,7 @@ export function renderChart(container, options, eventHandlers = {}) {
             ...options.tooltip,
             trigger: options.tooltip?.trigger || 'axis',
             formatter: options.tooltip?.formatter || defaultTooltipFormatter,
-            confine: true, // Keep tooltip within chart bounds
+            confine: true,
             backgroundColor: 'rgba(30, 41, 59, 0.9)', // slate-800
             borderColor: '#4b5563', // slate-600
             textStyle: { color: '#e5e7eb' }, // slate-200

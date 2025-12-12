@@ -263,6 +263,11 @@ export function toggleDropdown(triggerElement, templateFn, event) {
             0
         );
     }
+
+    return {
+        close,
+        update: rerender,
+    };
 }
 
 export function closeDropdown() {

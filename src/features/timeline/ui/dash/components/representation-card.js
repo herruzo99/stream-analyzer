@@ -1,8 +1,10 @@
+import { eventBus } from '@/application/event-bus';
 import {
     findChildren,
     getAttr,
     getInheritedElement,
 } from '@/infrastructure/parsing/utils/recursive-parser.js';
+import { EVENTS } from '@/types/events';
 import * as icons from '@/ui/icons';
 import { formatBitrate } from '@/ui/shared/format';
 import { html } from 'lit-html';
@@ -64,10 +66,18 @@ export const representationCardTemplate = (rep, as, stream, period) => {
           }
         : null;
 
-    // --- ARCHITECTURAL FIX: Extract previously hidden attributes ---
     const scanType = rep.scanType;
     const codingDependency = rep.codingDependency;
     const maxPlayoutRate = rep.maxPlayoutRate;
+
+    const handleLaunchCalculator = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        eventBus.dispatch(EVENTS.UI.SHOW_DASH_TIMING_CALCULATOR, {
+            streamId: stream.id,
+            representationId: rep.id,
+        });
+    };
 
     return html`
         <details
@@ -111,28 +121,41 @@ export const representationCardTemplate = (rep, as, stream, period) => {
                 </div>
 
                 <!-- Codec & Flag Pills -->
-                <div class="hidden xs:flex items-center gap-1 shrink-0">
-                    ${scanType === 'interlaced'
-                        ? html`<span
-                              class="text-[9px] bg-orange-900/30 text-orange-300 px-1.5 py-0.5 rounded border border-orange-500/30"
-                              >INTERLACED</span
-                          >`
+                <div class="flex items-center gap-1 shrink-0">
+                    ${templateEl
+                        ? html`
+                              <button
+                                  @click=${handleLaunchCalculator}
+                                  class="p-1 hover:bg-blue-500/20 text-slate-500 hover:text-blue-300 rounded transition-colors mr-1"
+                                  title="Open Timing Calculator"
+                              >
+                                  ${icons.calculator}
+                              </button>
+                          `
                         : ''}
-                    ${codingDependency
-                        ? html`<span
-                              class="text-[9px] bg-purple-900/30 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30"
-                              >DEPENDENT</span
-                          >`
-                        : ''}
-                    ${rep.codecs.map(
-                        (c) => html`
-                            <span
-                                class="text-[9px] font-mono bg-slate-800 border border-slate-700 text-slate-400 px-1.5 py-0.5 rounded"
-                                title="${c.value}"
-                                >${c.value.split('.')[0]}</span
-                            >
-                        `
-                    )}
+                    <div class="hidden xs:flex items-center gap-1">
+                        ${scanType === 'interlaced'
+                            ? html`<span
+                                  class="text-[9px] bg-orange-900/30 text-orange-300 px-1.5 py-0.5 rounded border border-orange-500/30"
+                                  >INTERLACED</span
+                              >`
+                            : ''}
+                        ${codingDependency
+                            ? html`<span
+                                  class="text-[9px] bg-purple-900/30 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30"
+                                  >DEPENDENT</span
+                              >`
+                            : ''}
+                        ${rep.codecs.map(
+                            (c) => html`
+                                <span
+                                    class="text-[9px] font-mono bg-slate-800 border border-slate-700 text-slate-400 px-1.5 py-0.5 rounded"
+                                    title="${c.value}"
+                                    >${c.value.split('.')[0]}</span
+                                >
+                            `
+                        )}
+                    </div>
                 </div>
             </summary>
 

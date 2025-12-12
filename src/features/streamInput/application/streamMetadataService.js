@@ -14,12 +14,6 @@ function processStreamInputs() {
             !inFlightRequests.has(input.id)
         ) {
             inFlightRequests.add(input.id);
-            appLog(
-                'streamMetadataService',
-                'info',
-                `Dispatching Tier 0 analysis for input ID: ${input.id}`,
-                { url: input.url }
-            );
 
             workerService
                 .postTask('tier0-analysis', {
@@ -27,12 +21,7 @@ function processStreamInputs() {
                     auth: input.auth,
                 })
                 .promise.then((tier0Result) => {
-                    appLog(
-                        'streamMetadataService',
-                        'info',
-                        `Tier 0 analysis complete for input ID: ${input.id}`,
-                        tier0Result
-                    );
+
                     analysisActions.updateStreamInput(
                         input.id,
                         'tier0',

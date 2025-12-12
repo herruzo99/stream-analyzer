@@ -1,6 +1,42 @@
 import { appLog } from '@/shared/utils/debug.js';
 
 /**
+ * Removes H.264 Emulation Prevention Bytes (0x00 0x00 0x03) from the NAL unit
+ * to produce the Raw Byte Sequence Payload (RBSP).
+ * @param {Uint8Array} data The raw NAL unit data.
+ * @returns {Uint8Array} The unescaped RBSP data.
+ */
+function unescapeRBSP(data) {
+    const length = data.length;
+    let emulationCount = 0;
+
+    // Count emulation prevention bytes
+    for (let i = 0; i < length - 2; i++) {
+        if (data[i] === 0x00 && data[i + 1] === 0x00 && data[i + 2] === 0x03) {
+            emulationCount++;
+            i += 2; // Skip the sequence
+        }
+    }
+
+    if (emulationCount === 0) return data;
+
+    const output = new Uint8Array(length - emulationCount);
+    let outIdx = 0;
+
+    for (let i = 0; i < length; i++) {
+        if (i < length - 2 && data[i] === 0x00 && data[i + 1] === 0x00 && data[i + 2] === 0x03) {
+            output[outIdx++] = 0x00;
+            output[outIdx++] = 0x00;
+            i += 2; // Skip the 0x03
+        } else {
+            output[outIdx++] = data[i];
+        }
+    }
+
+    return output;
+}
+
+/**
  * A bit-level reader for parsing H.264 structures like SPS.
  */
 class BitReader {
@@ -10,16 +46,17 @@ class BitReader {
         this.bitPosition = 0;
     }
 
+    /**
+     * Reads n bits from the buffer.
+     * @param {number} n Number of bits to read (max 32).
+     * @returns {number} The read value.
+     */
     readBits(n) {
         let result = 0;
         for (let i = 0; i < n; i++) {
             if (this.bytePosition >= this.buffer.length) {
-                appLog(
-                    'sps.js',
-                    'warn',
-                    'Attempted to read beyond buffer length.'
-                );
-                return 0;
+                // Return 0 if reading past end to prevent crash, but verify logic upstream
+                return 0; 
             }
             const byte = this.buffer[this.bytePosition];
             const bit = (byte >> (7 - this.bitPosition)) & 1;
@@ -34,31 +71,33 @@ class BitReader {
         return result;
     }
 
-    // Parses an unsigned exponential-Golomb coded integer.
+    /**
+     * Parses an unsigned exponential-Golomb coded integer.
+     * @returns {number | null} The decoded value.
+     */
     readUE() {
         let leadingZeroBits = 0;
         // Find the number of leading zero bits.
-        while (
-            this.bytePosition < this.buffer.length &&
-            this.readBits(1) === 0
-        ) {
+        while (this.bytePosition < this.buffer.length && this.readBits(1) === 0) {
             leadingZeroBits++;
+            // Safety break for malformed streams
             if (leadingZeroBits > 32) {
-                // Protection against malformed data / infinite loops
-                appLog(
-                    'sps.js',
-                    'error',
-                    'Exceeded max leading zero bits in UE parsing.'
-                );
-                return null;
+                appLog('sps.js', 'warn', 'Exceeded max leading zero bits in UE parsing.');
+                return 0;
             }
         }
+        
+        // Handle end of stream gracefully
+        if (this.bytePosition >= this.buffer.length && leadingZeroBits > 0) {
+             return 0;
+        }
+
         if (leadingZeroBits === 0) {
             return 0; // The value is 0.
         }
+
         // Read the informational bits that follow.
         const codeNum = this.readBits(leadingZeroBits);
-        if (codeNum === null) return null;
         return (1 << leadingZeroBits) - 1 + codeNum;
     }
 }
@@ -98,13 +137,15 @@ function parseHRDParameters(reader) {
  * @returns {object | null} An object with parsed SPS info, or null on error.
  */
 export function parseSPS(spsNalUnit) {
-    appLog('sps.js', 'info', 'Attempting to parse SPS NAL unit.', {
-        nalUnit: Array.from(spsNalUnit),
-    });
     if (spsNalUnit.length < 4) {
         return null; // Not a valid SPS
     }
-    const reader = new BitReader(spsNalUnit);
+
+    // 1. Unescape Emulation Prevention Bytes (EBSP -> RBSP)
+    // This is critical for H.264 parsing. Without it, 0x03 bytes will offset all subsequent bit reads.
+    const rbsp = unescapeRBSP(spsNalUnit);
+
+    const reader = new BitReader(rbsp);
     reader.readBits(8); // NAL header (forbidden_zero_bit, nal_ref_idc, nal_unit_type)
 
     const profile_idc = reader.readBits(8);
@@ -140,11 +181,15 @@ export function parseSPS(spsNalUnit) {
             for (let i = 0; i < limit; i++) {
                 const seq_scaling_list_present_flag = reader.readBits(1);
                 if (seq_scaling_list_present_flag) {
-                    // This is complex, just skip for now by returning a partial result
+                    // Scaling lists are complex to parse. We abort full parsing here
+                    // but return what we have (profile/level) rather than failing completely.
+                    // Returning partial data allows basic identification.
                     return {
                         profile_idc,
                         level_idc,
-                        error: 'SPS with scaling matrix not fully parsed.',
+                        resolution: "Unknown (Scaling Matrix)",
+                        frame_rate: null,
+                        error: 'SPS scaling matrix present, stopping parse.'
                     };
                 }
             }
@@ -239,13 +284,9 @@ export function parseSPS(spsNalUnit) {
 
             if (num_units_in_tick > 0 && time_scale > 0) {
                 frame_rate = time_scale / (2 * num_units_in_tick);
-                // Sanity check for unrealistic frame rates
+                // Sanity check for unrealistic frame rates caused by bitstream misalignment
                 if (frame_rate > 240) {
-                    appLog(
-                        'sps.js',
-                        'warn',
-                        `Calculated frame rate ${frame_rate} exceeds 240fps. Ignoring.`
-                    );
+                    // Fallback: If we detect garbage data, don't crash, just invalidate the FPS
                     frame_rate = null;
                 }
             }
@@ -260,27 +301,11 @@ export function parseSPS(spsNalUnit) {
             const vclHrdParams = parseHRDParameters(reader);
             if (!hrdParams) hrdParams = vclHrdParams; // Prefer NAL, fallback VCL
         }
-        if (
-            nal_hrd_parameters_present_flag ||
-            vcl_hrd_parameters_present_flag
-        ) {
-            reader.readBits(1); // low_delay_hrd_flag
-        }
-        reader.readBits(1); // pic_struct_present_flag
-        const bitstream_restriction_flag = reader.readBits(1);
-        if (bitstream_restriction_flag) {
-            reader.readBits(1); // motion_vectors_over_pic_boundaries_flag
-            reader.readUE(); // max_bytes_per_pic_denom
-            reader.readUE(); // max_bits_per_mb_denom
-            reader.readUE(); // log2_max_mv_length_horizontal
-            reader.readUE(); // log2_max_mv_length_vertical
-            reader.readUE(); // max_num_reorder_frames
-            reader.readUE(); // max_dec_frame_buffering
-        }
+        // Remaining VUI fields skipped as we have what we need
     }
 
     const result = {
-        seq_parameter_set_id, // Added
+        seq_parameter_set_id,
         profile_idc,
         level_idc,
         resolution: `${width}x${height}`,
@@ -289,6 +314,5 @@ export function parseSPS(spsNalUnit) {
         hrdParams,
     };
 
-    appLog('sps.js', 'info', 'Successfully parsed SPS.', result);
     return result;
 }

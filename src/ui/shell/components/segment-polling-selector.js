@@ -49,26 +49,29 @@ const streamSection = (stream) => {
     const toggleExpand = () =>
         uiActions.toggleSegmentPollingSelectorGroup(stream.id);
 
-    // Group Reps
+    // Group Reps using Unified IR (Works for both DASH and HLS)
     const videoReps = [];
     const audioReps = [];
 
-    if (stream.protocol === 'dash') {
+    if (stream.manifest && stream.manifest.periods) {
         stream.manifest.periods.forEach((p) => {
             p.adaptationSets.forEach((as) => {
                 const type = as.contentType || 'unknown';
-                const list = type === 'video' ? videoReps : audioReps; // Simplified grouping
-                as.representations.forEach((r) =>
-                    list.push({ ...r, lang: as.lang })
-                );
+                // Simple categorization
+                if (type === 'video') {
+                    as.representations.forEach((r) =>
+                        videoReps.push({ ...r, lang: as.lang })
+                    );
+                } else if (type === 'audio') {
+                    as.representations.forEach((r) =>
+                        audioReps.push({ ...r, lang: as.lang })
+                    );
+                }
             });
         });
-    } else {
-        // HLS logic (simplified)
-        // ... Assuming IR structure
     }
 
-    // Only render if we have reps. If generic or empty, show fallback
+    // Only render if we have reps.
     if (videoReps.length === 0 && audioReps.length === 0) return '';
 
     const activeCount = Array.from(stream.segmentPollingReps).length;
@@ -115,13 +118,18 @@ const streamSection = (stream) => {
                                             Video
                                         </h5>
                                         <div class="grid grid-cols-2 gap-1">
-                                            ${videoReps.map((r) =>
-                                                representationToggle(
+                                            ${videoReps.map((r) => {
+                                                // FIX: Handle structured height object or primitive fallback
+                                                const heightVal =
+                                                    r.height?.value ??
+                                                    r.height ??
+                                                    '?';
+                                                return representationToggle(
                                                     stream,
                                                     r,
-                                                    `${r.height}p • ${formatBitrate(r.bandwidth)}`
-                                                )
-                                            )}
+                                                    `${heightVal}p • ${formatBitrate(r.bandwidth)}`
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 `

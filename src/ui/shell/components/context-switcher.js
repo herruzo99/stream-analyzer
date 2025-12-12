@@ -11,6 +11,14 @@ import { streamContextSwitcherTemplate } from './stream-context-switcher.js';
 export function renderContextSwitcher() {
     const { streams, activeStreamId } = useAnalysisStore.getState();
     const { activeTab } = useUiStore.getState();
+
+    // --- QC DASHBOARD EXEMPTION ---
+    // The QC Dashboard is a multi-stream view. A global "active stream" context
+    // is misleading and unnecessary here.
+    if (activeTab === 'qc-dashboard') {
+        return html``;
+    }
+
     const activeStream = streams.find((s) => s.id === activeStreamId);
 
     const streamSwitcher =
@@ -19,8 +27,6 @@ export function renderContextSwitcher() {
             : html``;
 
     const hlsSwitcher =
-        activeTab !== 'summary' && // Global summary uses Master Playlist
-        activeTab !== 'explorer' && // Segment Explorer manages its own reps
         activeStream &&
         activeStream.protocol === 'hls' &&
         activeStream.manifest?.isMaster

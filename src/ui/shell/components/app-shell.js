@@ -7,33 +7,46 @@ import { html, render } from 'lit-html';
 import { renderContextSwitcher } from './context-switcher.js';
 import { globalControlsTemplate } from './global-controls.js';
 import { mainContentControlsTemplate } from './main-content-controls.js';
-import { sidebarNavTemplate } from './sidebar-nav.js';
+import './sidebar-nav.js'; // Registers <sidebar-nav>
 
 class AppShellComponent extends HTMLElement {
+    constructor() {
+        super();
+        this.unsubs = [];
+    }
+
     connectedCallback() {
+        // Initial render of the shell structure
         this.render();
-        this.uiUnsubscribe = useUiStore.subscribe(() => this.updateDOM());
-        this.analysisUnsubscribe = useAnalysisStore.subscribe(() =>
-            this.updateDOM()
-        );
-        this.playerUnsubscribe = usePlayerStore.subscribe(() =>
-            this.updateDOM()
-        );
+        
+        // Subscribe to stores that affect the shell layout (sidebar toggles) AND sub-components
+        this.unsubs.push(useUiStore.subscribe(() => {
+            this.updateLayoutState();
+            this.updateSubComponents();
+        }));
+        
+        this.unsubs.push(useAnalysisStore.subscribe(() => this.updateSubComponents()));
+        this.unsubs.push(usePlayerStore.subscribe(() => this.updateSubComponents()));
+        
+        // Trigger initial updates
+        this.updateLayoutState();
+        this.updateSubComponents();
     }
 
     disconnectedCallback() {
-        if (this.uiUnsubscribe) this.uiUnsubscribe();
-        if (this.analysisUnsubscribe) this.analysisUnsubscribe();
-        if (this.playerUnsubscribe) this.playerUnsubscribe();
+        this.unsubs.forEach(u => u());
+        this.unsubs = [];
     }
 
-    updateDOM() {
+    // Handles CSS class toggling for sidebar visibility
+    updateLayoutState() {
         const { activeSidebar } = useUiStore.getState();
         const isPrimaryOpen = activeSidebar === 'primary';
         const isContextualOpen = activeSidebar === 'contextual';
 
         const sidebarContainer = this.querySelector('#sidebar-container');
         const sidebarOverlay = this.querySelector('#sidebar-overlay');
+        const contextSidebar = this.querySelector('#contextual-sidebar');
 
         if (sidebarContainer) {
             if (isPrimaryOpen) {
@@ -55,7 +68,6 @@ class AppShellComponent extends HTMLElement {
             }
         }
 
-        const contextSidebar = this.querySelector('#contextual-sidebar');
         if (contextSidebar) {
             if (isContextualOpen) {
                 contextSidebar.classList.remove('translate-x-full');
@@ -67,46 +79,30 @@ class AppShellComponent extends HTMLElement {
                 document.body.classList.remove('contextual-sidebar-open');
             }
         }
+    }
 
-        if (sidebarContainer) {
-            const headerContainer = sidebarContainer.querySelector(
-                '#stream-identity-header'
-            );
-            if (headerContainer) {
-                render(
-                    renderContextSwitcher(),
-                    /** @type {HTMLElement} */ (headerContainer)
-                );
-            }
+    // Handles rendering of dynamic sub-components (Header, Footer)
+    updateSubComponents() {
+        // ARCHITECTURAL CHANGE: Context Switcher is now at the bottom (stream-context-container)
+        const contextContainer = this.querySelector('#stream-context-container');
+        if (contextContainer) {
+            render(renderContextSwitcher(), /** @type {HTMLElement} */ (contextContainer));
+        }
 
-            const navContainer = sidebarContainer.querySelector('#sidebar-nav');
-            if (navContainer) {
-                render(
-                    sidebarNavTemplate(),
-                    /** @type {HTMLElement} */ (navContainer)
-                );
-            }
-
-            const footerContainer =
-                sidebarContainer.querySelector('#sidebar-footer');
-            if (footerContainer) {
-                render(
-                    globalControlsTemplate(),
-                    /** @type {HTMLElement} */ (footerContainer)
-                );
-            }
+        const footerContainer = this.querySelector('#sidebar-footer');
+        if (footerContainer) {
+            render(globalControlsTemplate(), /** @type {HTMLElement} */ (footerContainer));
         }
 
         const contextHeader = this.querySelector('#context-header');
         if (contextHeader) {
-            render(
-                mainContentControlsTemplate(),
-                /** @type {HTMLElement} */ (contextHeader)
-            );
+            render(mainContentControlsTemplate(), /** @type {HTMLElement} */ (contextHeader));
         }
     }
 
     render() {
+        // The <sidebar-nav> is now permanently in the DOM structure.
+        // It manages its own state updates internally via store subscriptions.
         const template = html`
             <div
                 id="app-root-inner"
@@ -120,27 +116,31 @@ class AppShellComponent extends HTMLElement {
                 ></div>
 
                 <!-- Sidebar -->
-                <!-- Added overflow-hidden to enforce flex boundaries and prevent footer push-out -->
                 <aside
                     id="sidebar-container"
                     class="glass-panel flex flex-col fixed xl:relative top-0 left-0 bottom-0 z-[70] w-[var(--sidebar-width)] -translate-x-full xl:translate-x-0 transition-transform duration-300 ease-out shadow-2xl xl:shadow-none h-full max-h-full overflow-hidden"
                 >
-                    <div
-                        id="stream-identity-header"
-                        class="shrink-0 z-10 relative"
-                    ></div>
+                    <!-- Static Branding Header -->
+                    <div class="shrink-0 p-5 flex items-center gap-3 border-b border-white/5 bg-slate-950/50 backdrop-blur-sm z-20">
+                        <div class="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center shrink-0">
+                            <img src="/icon.png" class="w-5 h-5 object-contain opacity-90" alt="Logo" />
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="font-bold text-slate-200 text-sm leading-tight tracking-tight">Stream Analyzer</span>
+                            <span class="text-[10px] text-slate-500 font-medium">Professional Workbench</span>
+                        </div>
+                    </div>
 
-                    <!-- Nav area: grow to fill space, min-h-0 to allow shrinking/scrolling -->
-                    <nav
-                        id="sidebar-nav"
-                        class="flex flex-col grow min-h-0 overflow-y-auto scrollbar-hide pt-2 relative z-0"
-                    ></nav>
+                    <!-- Navigation (Scrollable, Stable Top) -->
+                    <div id="sidebar-nav-container" class="flex flex-col grow min-h-0 overflow-y-auto scrollbar-hide pt-4 relative z-0">
+                        <sidebar-nav></sidebar-nav>
+                    </div>
 
-                    <!-- Footer: shrink-0 to prevent compression, z-10 to sit above if needed -->
-                    <footer
-                        id="sidebar-footer"
-                        class="shrink-0 z-10 relative"
-                    ></footer>
+                    <!-- Context Switcher (Moved to Bottom to prevent Nav Jumps) -->
+                    <div id="stream-context-container" class="shrink-0 z-10 relative bg-slate-900/50 border-t border-white/5"></div>
+
+                    <!-- Global Controls (Fixed Footer) -->
+                    <footer id="sidebar-footer" class="shrink-0 z-10 relative"></footer>
                 </aside>
 
                 <!-- Main Content Area -->
@@ -158,9 +158,10 @@ class AppShellComponent extends HTMLElement {
                         >
                             ${icons.menu}
                         </button>
-                        <span class="font-bold text-slate-200"
-                            >Stream Analyzer</span
-                        >
+                        <div class="flex items-center gap-2">
+                             <img src="/icon.png" class="w-5 h-5 object-contain" alt="Logo" />
+                             <span class="font-bold text-slate-200">Stream Analyzer</span>
+                        </div>
                         <div class="w-8"></div>
                     </header>
 
@@ -177,12 +178,12 @@ class AppShellComponent extends HTMLElement {
                     <!-- View Container -->
                     <main
                         id="tab-view-container"
-                        class="grow flex flex-col min-h-0 relative w-full max-w-full overflow-hidden h-full"
+                        class="grow flex flex-col min-h-0 relative w-full max-w-full overflow-auto h-full"
                     ></main>
 
                     <div
                         id="persistent-player-container"
-                        class="hidden p-4"
+                        class="hidden p-4 h-full"
                     ></div>
                 </div>
 

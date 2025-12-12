@@ -103,6 +103,14 @@ export const dashTooltipData = {
         text: 'A string identifier grouping BaseURLs that resolve to the same physical service (e.g., "CDN-A", "CDN-B"). This enables the client to implement Client-Side Load Balancing and failover logic by switching service locations upon failure.',
         isoRef: 'Clause 5.6.2, Table 30',
     },
+    'BaseURL@priority': {
+        text: '(DVB Extension) Specifies the priority of the BaseURL. Lower values indicate higher priority. Clients should attempt highest priority locations first.',
+        isoRef: 'ETSI TS 103 285 / DVB-DASH 10.8.2.1',
+    },
+    'BaseURL@weight': {
+        text: '(DVB Extension) Specifies the relative weight of the BaseURL for load balancing among URLs of the same priority.',
+        isoRef: 'ETSI TS 103 285 / DVB-DASH 10.8.2.1',
+    },
     'BaseURL@timeShiftBufferDepth': {
         text: 'Allows overriding the MPD-level timeShiftBufferDepth for specific base URLs. This is useful if different CDNs or storage tiers have different retention policies for the DVR window.',
         isoRef: 'Clause 5.6.2, Table 30',
@@ -258,6 +266,18 @@ export const dashTooltipData = {
     'AdaptationSet@par': {
         text: 'Picture Aspect Ratio (e.g., "16:9"). Indicates the aspect ratio of the *display* area, which may differ from the resolution ratio if non-square pixels are used.',
         isoRef: 'Clause 5.3.3.2, Table 5',
+    },
+    'AdaptationSet@sar': {
+        text: 'Sample Aspect Ratio. Defines the aspect ratio of the individual pixels (e.g. 1:1 for square, 12:11 for NTSC).',
+        isoRef: 'Clause 5.3.7.2, Table 14',
+    },
+    'AdaptationSet@scanType': {
+        text: 'Indicates the scan type of the video (e.g. "progressive", "interlaced").',
+        isoRef: 'Clause 5.3.7.2, Table 14',
+    },
+    'AdaptationSet@audioSamplingRate': {
+        text: 'The default audio sampling rate (e.g. 48000) for all Representations in this AdaptationSet.',
+        isoRef: 'Clause 5.3.7.2, Table 14',
     },
     'AdaptationSet@selectionPriority': {
         text: "A hint for the client's initial track selection. If multiple AdaptationSets match the user's criteria (e.g., Language=English), the one with the higher priority should be chosen.",
@@ -562,6 +582,34 @@ export const dashTooltipData = {
     LeapSecondInformation: {
         text: "Allows the client to account for Leap Seconds when converting between UTC (Wall Clock) and TAI (International Atomic Time), ensuring long-running live streams don't drift by seconds over time.",
         isoRef: 'Clause 5.13',
+    },
+    Metrics: {
+        text: 'Defines Quality of Experience (QoE) metrics reporting. It specifies what to measure, when to measure it, and where to report it.',
+        isoRef: 'Clause 5.9',
+    },
+    'Metrics@metrics': {
+        text: 'A list of metric keys (comma-separated) to be collected (e.g., "TcpList,BufferLevel").',
+        isoRef: 'Clause 5.9.2',
+    },
+    Reporting: {
+        text: 'Specifies the mechanism and destination for reporting collected metrics.',
+        isoRef: 'Clause 5.9.4',
+    },
+    'Reporting@schemeIdUri': {
+        text: 'Identifies the reporting scheme (e.g. "urn:mpeg:dash:reporting:2014").',
+        isoRef: 'Clause 5.9.4',
+    },
+    'Reporting@value': {
+        text: 'Scheme-specific configuration value.',
+        isoRef: 'Clause 5.9.4',
+    },
+    'Reporting@reportingUrl': {
+        text: '(DVB Extension) The destination URL where metrics reports should be sent.',
+        isoRef: 'ETSI TS 103 285',
+    },
+    'Reporting@probability': {
+        text: '(DVB Extension) Probability (1/N) that a client should report metrics. Used to sample a subset of the audience.',
+        isoRef: 'ETSI TS 103 285',
     },
 
     // ==========================================================================================

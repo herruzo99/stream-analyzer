@@ -61,15 +61,20 @@ export const structureRules = [
     },
     {
         id: 'MPD-5',
-        text: 'At most one BaseURL at the MPD level',
-        isoRef: 'Clause 5.6',
-        severity: 'fail',
+        text: 'Multiple BaseURLs require @serviceLocation',
+        isoRef: 'Clause 5.6.4',
+        severity: 'warn',
         scope: 'MPD',
         profiles: ['common'],
         category: 'Manifest Structure',
-        check: (mpd) => findChildren(mpd, 'BaseURL').length <= 1,
+        check: (mpd) => {
+            const baseUrls = findChildren(mpd, 'BaseURL');
+            if (baseUrls.length <= 1) return true;
+            return baseUrls.every((b) => getAttr(b, 'serviceLocation'));
+        },
         passDetails: 'OK',
-        failDetails: 'The MPD element may contain at most one BaseURL element.',
+        failDetails:
+            'When multiple BaseURL elements are present, they should use @serviceLocation for deduplication and failover logic.',
     },
     {
         id: 'STATIC-1',

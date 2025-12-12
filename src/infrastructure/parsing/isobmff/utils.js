@@ -187,6 +187,22 @@ export class BoxParser {
         return value;
     }
 
+
+    readBytes(length, fieldName) {
+        if (!this.checkBounds(length)) return null;
+        const bytes = new Uint8Array(
+            this.view.buffer,
+            this.view.byteOffset + this.offset,
+            length
+        );
+        this.box.details[fieldName] = {
+            value: bytes,
+            offset: this.box.offset + this.offset,
+            length,
+        };
+        this.offset += length;
+        return bytes;
+    }
     /**
      * Reads a null-terminated string (C-style string).
      * @param {string} fieldName The name of the field.

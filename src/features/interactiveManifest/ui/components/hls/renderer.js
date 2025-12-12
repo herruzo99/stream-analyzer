@@ -38,7 +38,10 @@ const renderLine = (
     hoveredItem,
     selectedItem,
     missingTooltips,
-    isModified
+    isModified,
+    activeMatchIndex,
+    matchIndices,
+    uriBadgeMap // New: Map of URIs to Labels
 ) => {
     const { type, name, value, attributes, content } = parseHlsLine(
         item.content
@@ -47,19 +50,28 @@ const renderLine = (
 
     const isSelected = selectedItem && selectedItem.path === path;
 
+    // --- Search Highlighting ---
+    let rowBgClass = 'hover:bg-slate-800/30';
+    if (index === activeMatchIndex) {
+        rowBgClass = 'bg-yellow-500/20 ring-1 ring-yellow-500/40';
+    } else if (matchIndices && matchIndices.has(index)) {
+        rowBgClass = 'bg-yellow-900/10';
+    } else if (isModified) {
+        rowBgClass = 'bg-orange-500/10';
+    }
+
     let lineContent;
 
     // Use whitespace-pre-wrap to allow wrapping but break-all to force it inside narrow containers
-    const baseClass = `block pl-4 whitespace-pre-wrap break-all leading-tight w-full max-w-full ${isModified ? 'bg-orange-500/10' : ''}`;
+    const baseClass = `block pl-4 whitespace-pre-wrap break-all leading-tight w-full max-w-full`;
 
     const selectClass = isSelected
         ? 'bg-blue-900/50 ring-1 ring-blue-500 rounded px-1 inline decoration-clone'
         : 'hover:bg-slate-800 rounded px-1 transition-colors cursor-pointer inline decoration-clone';
 
+    // prettier-ignore
     if (type === 'tag' || type === 'tag-value') {
-        // Minified HTML string to prevent whitespace injection
-        lineContent = html`<div class="${baseClass}">
-            <span
+        lineContent = html`<div class="${baseClass}"><span
                 class="${selectClass}"
                 data-type="tag"
                 data-name=${name}
@@ -69,8 +81,7 @@ const renderLine = (
                     ? html`<span class="text-slate-400 select-none">:</span
                           ><span class="text-yellow-200/90">${value}</span>`
                     : ''}</span
-            >
-        </div>`;
+            ></div>`;
     } else if (type === 'tag-attrs') {
         const attributesMap = attributes.reduce((acc, curr) => {
             acc[curr.key] = curr.value;
@@ -87,6 +98,17 @@ const renderLine = (
                 attributesMap
             );
 
+            // --- Smart Variant Badge for Attributes (e.g. URI="...") ---
+            /** @type {import('lit-html').TemplateResult | null} */
+            let variantBadge = null;
+            if (attr.key === 'URI' && uriBadgeMap) {
+                 const cleanUri = attr.value.replace(/^"|"$/g, ''); // Strip quotes
+                 const badgeData = uriBadgeMap.get(cleanUri);
+                 if (badgeData) {
+                      variantBadge = html`<span class="ml-1 px-1.5 py-0.5 rounded bg-purple-900/40 text-purple-300 border border-purple-500/30 text-[9px] font-bold uppercase tracking-wider select-none align-middle decoration-0 inline-block translate-y-[-1px]">${badgeData.label}</span>`;
+                 }
+            }
+
             return html`<span
                 class="group relative cursor-pointer hover:bg-slate-800 rounded pl-1 transition-colors inline decoration-clone"
                 data-type="attribute"
@@ -96,7 +118,7 @@ const renderLine = (
                     >${attr.key}</span
                 ><span class="text-slate-400 select-none">=</span
                 ><span class="text-amber-200/90">"${attr.value}"</span
-                >${smartToken}${i < attributes.length - 1
+                >${smartToken}${variantBadge}${i < attributes.length - 1
                     ? html`<span class="text-slate-600 select-none mr-1"
                           >,</span
                       >`
@@ -104,9 +126,7 @@ const renderLine = (
             >`;
         });
 
-        // Removed wrapper divs around attributes. Attributes flow naturally after the tag.
-        lineContent = html`<div class="${baseClass}">
-            <span
+        lineContent = html`<div class="${baseClass}"><span
                 class="${selectClass} mr-1 inline"
                 data-type="tag"
                 data-name=${name}
@@ -114,23 +134,24 @@ const renderLine = (
                 ><span class="text-slate-500 select-none">#</span
                 ><span class="text-purple-300 font-bold">${name}</span
                 ><span class="text-slate-400 select-none">:</span></span
-            >${attrsHtml}
-        </div>`;
+            >${attrsHtml}</div>`;
     } else if (type === 'comment') {
-        lineContent = html`<div class="${baseClass} text-slate-500 italic">
-            ${content}
-        </div>`;
+        lineContent = html`<div class="${baseClass} text-slate-500 italic">${content}</div>`;
     } else if (type === 'uri') {
-        lineContent = html`<div class="${baseClass} text-cyan-300/90">
-            ${content}
-        </div>`;
+        // --- Smart Variant Badge for Standalone URIs ---
+        const badgeData = uriBadgeMap?.get(content.trim());
+        const badge = badgeData 
+            ? html`<span class="ml-3 px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-300 border border-blue-500/30 text-[9px] font-bold uppercase tracking-wider select-none align-middle decoration-0 inline-block translate-y-[-1px]">${badgeData.label}</span>` 
+            : '';
+
+        lineContent = html`<div class="${baseClass} text-cyan-300/90">${content}${badge}</div>`;
     } else {
         lineContent = html`<div class="${baseClass}">&nbsp;</div>`;
     }
 
     return html`
         <div
-            class="flex w-full items-start hover:bg-slate-800/30 transition-colors font-mono text-sm py-0.5 group"
+            class="flex w-full items-start transition-colors font-mono text-sm py-0.5 group ${rowBgClass}"
         >
             <div
                 class="w-12 shrink-0 text-right pr-2 text-slate-600 select-none text-xs border-r border-slate-800/50 bg-slate-900 pt-0.5 sticky left-0 z-10 h-full"
@@ -148,12 +169,46 @@ export const hlsManifestTemplate = (
     hoveredItem,
     selectedItem,
     missingTooltips,
-    diffModel
+    diffModel,
+    activeMatchIndex = -1,
+    matchIndices = new Set()
 ) => {
     if (!manifestString)
         return html`<div class="p-8 text-center text-slate-500">
             No content.
         </div>`;
+
+    // --- Build URI Badge Map (Context Awareness) ---
+    const uriBadgeMap = new Map();
+    if (stream?.manifest?.isMaster) {
+        // 1. Variant Streams (EXT-X-STREAM-INF -> URI)
+        (stream.manifest.variants || []).forEach((v, i) => {
+            if (v.uri) {
+                // Determine label: StableID > ID > Generic Index
+                const label = v.stableId || v.id || `Variant ${i+1}`;
+                uriBadgeMap.set(v.uri.trim(), { label, type: 'variant' });
+            }
+        });
+
+        // 2. Media Renditions (EXT-X-MEDIA URI=...)
+        (stream.manifest.media || []).forEach(m => {
+            const uri = m.value.URI;
+            if (uri) {
+                 // Use NAME or Group ID for identification
+                 const label = m.value.NAME || m.value['GROUP-ID'] || 'Rendition';
+                 uriBadgeMap.set(uri.trim(), { label, type: 'rendition' });
+            }
+        });
+        
+        // 3. I-Frame Streams (EXT-X-I-FRAME-STREAM-INF URI=...)
+        (stream.manifest.iframeStreams || []).forEach(ifs => {
+             // Handle parser variance (sometimes nested in value object)
+             const uri = ifs.value?.URI || ifs.uri;
+             if (uri) {
+                 uriBadgeMap.set(uri.trim(), { label: 'I-Frame', type: 'iframe' });
+             }
+        });
+    }
 
     const allLines = manifestString.split(/\r?\n/).map((line, index) => ({
         id: `${index}-${line.substring(0, 20)}`,
@@ -169,7 +224,10 @@ export const hlsManifestTemplate = (
             hoveredItem,
             selectedItem,
             missingTooltips,
-            isModified
+            isModified,
+            activeMatchIndex,
+            matchIndices,
+            uriBadgeMap
         );
     };
 

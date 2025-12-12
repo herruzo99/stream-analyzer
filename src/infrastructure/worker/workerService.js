@@ -40,12 +40,6 @@ export class WorkerService {
 
         // Allow global events from worker to bubble up to main thread EventBus
         if (type && id === undefined) {
-            appLog(
-                'WorkerService',
-                'info',
-                `Received global event from worker: ${type}. Dispatching to event bus.`,
-                payload
-            );
             eventBus.dispatch(type, payload);
             return;
         }

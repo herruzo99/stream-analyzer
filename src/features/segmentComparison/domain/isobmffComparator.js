@@ -155,23 +155,6 @@ const createGenericComparator = (boxType) => {
  * A map of functions to compare specific ISOBMFF boxes for the tabular view.
  */
 const boxComparators = {
-    // This is a pseudo-box for the overall chunk
-    'CMAF Chunk': (segments) => ({
-        title: 'CMAF Chunk',
-        fullName: 'CMAF Chunk',
-        rows: [
-            createRow(
-                'Total Size',
-                segments.map((seg) => {
-                    const chunk = seg
-                        ? seg.data.boxes.find((b) => b.isChunk)
-                        : null;
-                    return chunk ? `${chunk.size} bytes` : '---';
-                })
-            ),
-        ],
-        isGeneric: false,
-    }),
     ftyp: (s) => ({
         title: 'ftyp',
         fullName: allIsoTooltipData.ftyp?.name,

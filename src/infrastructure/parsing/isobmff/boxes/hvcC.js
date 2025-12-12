@@ -2,6 +2,8 @@ import { BoxParser } from '../utils.js';
 
 /**
  * Parses the 'hvcC' (HEVC Configuration) box.
+ * This implementation correctly parses the configuration and constructs the
+ * RFC 6381 compliant codec string needed by WebCodecs.
  * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
@@ -11,123 +13,88 @@ export function parseHvcC(box, view) {
     p.readUint8('configurationVersion');
 
     const profileByte = p.readUint8('profile_byte_raw');
-    if (profileByte !== null) {
-        box.details['profile_byte_raw'].internal = true;
-        box.details.general_profile_space = {
-            value: (profileByte >> 6) & 0x03,
-            offset: box.details.profile_byte_raw.offset,
-            length: 0.25,
-        };
-        box.details.general_tier_flag = {
-            value: (profileByte >> 5) & 0x01,
-            offset: box.details.profile_byte_raw.offset,
-            length: 0.125,
-        };
-        box.details.general_profile_idc = {
-            value: profileByte & 0x1f,
-            offset: box.details.profile_byte_raw.offset,
-            length: 0.625,
-        };
+    if (profileByte === null) {
+        p.finalize();
+        return;
     }
+    box.details['profile_byte_raw'].internal = true;
+    const general_profile_space = (profileByte >> 6) & 0x03;
+    const general_tier_flag = (profileByte >> 5) & 0x01;
+    const general_profile_idc = profileByte & 0x1f;
 
-    p.readUint32('general_profile_compatibility_flags');
+    box.details.general_profile_space = {
+        value: general_profile_space,
+        offset: box.details.profile_byte_raw.offset,
+        length: 0.25,
+    };
+    box.details.general_tier_flag = {
+        value: general_tier_flag,
+        offset: box.details.profile_byte_raw.offset,
+        length: 0.125,
+    };
+    box.details.general_profile_idc = {
+        value: general_profile_idc,
+        offset: box.details.profile_byte_raw.offset,
+        length: 0.625,
+    };
 
-    if (p.checkBounds(6)) {
-        const bytes = [];
-        for (let i = 0; i < 6; i++) {
-            bytes.push(
-                p.view
-                    .getUint8(p.offset + i)
-                    .toString(16)
-                    .padStart(2, '0')
+    const general_profile_compatibility_flags = p.readUint32(
+        'general_profile_compatibility_flags'
+    );
+    p.readBytes(6, 'general_constraint_indicator_flags');
+    const general_level_idc = p.readUint8('general_level_idc');
+
+    p.readUint16('min_spatial_segmentation_idc');
+    p.readUint8('parallelismType');
+    p.readUint8('chroma_format_idc');
+    p.readUint8('bit_depth_luma_minus8');
+    p.readUint8('bit_depth_chroma_minus8');
+    p.readUint16('avgFrameRate');
+    p.readUint8('constantFrameRate');
+    p.readUint8('numTemporalLayers');
+    p.readUint8('temporalIdNested');
+    p.readUint8('lengthSizeMinusOne');
+
+    // --- Codec String Generation ---
+    if (general_profile_compatibility_flags !== null && general_level_idc !== null) {
+        const codecParts = ['hvc1'];
+        // Profile Space
+        if (general_profile_space > 0) {
+            codecParts.push(
+                String.fromCharCode('A'.charCodeAt(0) + general_profile_space - 1)
             );
         }
-        box.details.general_constraint_indicator_flags = {
-            value: `0x${bytes.join('')}`,
-            offset: box.offset + p.offset,
-            length: 6,
-        };
-        p.offset += 6;
-    }
+        // Profile IDC
+        codecParts.push(String(general_profile_idc));
+        // Profile Compatibility Flags (as hex, reversed byte order)
+        let compatHex = general_profile_compatibility_flags.toString(16).padStart(8, '0');
+        let reversedCompat = '';
+        for (let i = compatHex.length; i > 0; i -= 2) {
+            reversedCompat += compatHex.substring(i - 2, i);
+        }
+        codecParts.push(reversedCompat);
+        // Tier and Level
+        codecParts.push((general_tier_flag ? 'H' : 'L') + general_level_idc);
+        // Constraint Flags
+        const constraintBytes = box.details.general_constraint_indicator_flags?.value;
+        if (constraintBytes) {
+            let constraintHex = Array.from(constraintBytes, byte => byte.toString(16).padStart(2, '0')).join('');
+            while (constraintHex.endsWith('00')) {
+                constraintHex = constraintHex.substring(0, constraintHex.length - 2);
+            }
+            if (constraintHex) {
+                codecParts.push(constraintHex);
+            }
+        }
 
-    p.readUint8('general_level_idc');
-
-    const minSpatialByte = p.readUint16('min_spatial_byte_raw');
-    if (minSpatialByte !== null) {
-        box.details.min_spatial_byte_raw.internal = true;
-        box.details.min_spatial_segmentation_idc = {
-            value: minSpatialByte & 0x0fff,
-            offset: box.details.min_spatial_byte_raw.offset,
-            length: 1.5,
-        };
-    }
-
-    const parallelismByte = p.readUint8('parallelism_byte_raw');
-    if (parallelismByte !== null) {
-        box.details.parallelism_byte_raw.internal = true;
-        box.details.parallelismType = {
-            value: parallelismByte & 0x03,
-            offset: box.details.parallelism_byte_raw.offset,
-            length: 0.25,
-        };
-    }
-
-    const chromaFormatByte = p.readUint8('chroma_format_byte_raw');
-    if (chromaFormatByte !== null) {
-        box.details.chroma_format_byte_raw.internal = true;
-        box.details.chroma_format_idc = {
-            value: chromaFormatByte & 0x03,
-            offset: box.details.chroma_format_byte_raw.offset,
-            length: 0.25,
+        box.details.codecString = {
+            value: codecParts.join('.'),
+            offset: 0,
+            length: 0
         };
     }
+    // --- End Codec String Generation ---
 
-    const bitDepthLumaByte = p.readUint8('bit_depth_luma_byte_raw');
-    if (bitDepthLumaByte !== null) {
-        box.details.bit_depth_luma_byte_raw.internal = true;
-        box.details.bit_depth_luma_minus8 = {
-            value: bitDepthLumaByte & 0x07,
-            offset: box.details.bit_depth_luma_byte_raw.offset,
-            length: 0.375,
-        };
-    }
-
-    const bitDepthChromaByte = p.readUint8('bit_depth_chroma_byte_raw');
-    if (bitDepthChromaByte !== null) {
-        box.details.bit_depth_chroma_byte_raw.internal = true;
-        box.details.bit_depth_chroma_minus8 = {
-            value: bitDepthChromaByte & 0x07,
-            offset: box.details.bit_depth_chroma_byte_raw.offset,
-            length: 0.375,
-        };
-    }
-
-    p.readUint16('avgFrameRate');
-
-    const frameRateByte = p.readUint8('frame_rate_byte_raw');
-    if (frameRateByte !== null) {
-        box.details.frame_rate_byte_raw.internal = true;
-        box.details.constantFrameRate = {
-            value: (frameRateByte >> 6) & 0x03,
-            offset: box.details.frame_rate_byte_raw.offset,
-            length: 0.25,
-        };
-        box.details.numTemporalLayers = {
-            value: (frameRateByte >> 3) & 0x07,
-            offset: box.details.frame_rate_byte_raw.offset,
-            length: 0.375,
-        };
-        box.details.temporalIdNested = {
-            value: (frameRateByte >> 2) & 0x01,
-            offset: box.details.frame_rate_byte_raw.offset,
-            length: 0.125,
-        };
-        box.details.lengthSizeMinusOne = {
-            value: frameRateByte & 0x03,
-            offset: box.details.frame_rate_byte_raw.offset,
-            length: 0.25,
-        };
-    }
 
     const numOfArrays = p.readUint8('numOfArrays');
     box.nal_unit_arrays = [];
@@ -184,6 +151,11 @@ export const hvcCTooltip = {
         name: 'HEVC Decoder Configuration Record',
         text: 'HEVC Configuration Box (`hvcC`). Contains the essential Video Parameter Set (VPS), Sequence Parameter Set (SPS), and Picture Parameter Set (PPS) required by an H.265/HEVC decoder to initialize and decode the video stream.',
         ref: 'ISO/IEC 14496-15, 8.3.3.1.2',
+    },
+    'hvcC@codecString': {
+        name: 'Codec String (RFC 6381)',
+        text: 'A string representation of the codec profile, level, and constraints. Used by browsers to check for decoding support via the Media Source Extensions (MSE) API.',
+        ref: 'RFC 6381',
     },
     'hvcC@configurationVersion': {
         text: 'The version of the hvcC record. Must be 1.',

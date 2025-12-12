@@ -1,7 +1,26 @@
-const DEBUG_ENABLED =
-    typeof window !== 'undefined' && window.location
-        ? new URLSearchParams(window.location.search).has('debug')
-        : false;
+// Detect environment
+const scope = typeof window !== 'undefined' ? window : self;
+
+const getDebugStatus = () => {
+    if (scope.location && scope.location.search) {
+        const params = new URLSearchParams(scope.location.search);
+        if (params.has('debug')) return params.get('debug') === '1';
+    }
+
+    // Auto-enable in development environments (localhost)
+    if (scope.location && (scope.location.hostname === 'localhost' || scope.location.hostname === '127.0.0.1')) {
+        return true;
+    }
+
+    return false;
+};
+
+/**
+ * A flag indicating if the application is in debug mode.
+ * Activated by adding `?debug=1` to the URL or running on localhost.
+ * @type {boolean}
+ */
+export const DEBUG_ENABLED = getDebugStatus();
 
 /**
  * A utility function to create a concise summary of a TRUN box's samples.
@@ -171,7 +190,7 @@ function safeStringify(obj) {
 /**
  * Logs a message to the console only if debugging is enabled.
  * @param {string} component The name of the component/module logging the message.
- * @param {'log' | 'info' | 'warn' | 'error' | 'table' } level The console log level.
+ * @param {'log' | 'info' | 'warn' | 'error' | 'table' | 'debug'} level The console log level.
  * @param {...any} args The arguments to log.
  */
 export function appLog(component, level, ...args) {
@@ -189,8 +208,10 @@ export function appLog(component, level, ...args) {
     );
 
     if (level === 'table') {
-        console.log(label, ...processedArgs.slice(1));
-        logFn(processedArgs[0]);
+        console.group(label);
+        if (processedArgs[0]?.msg) console.log(processedArgs[0].msg);
+        console.table(processedArgs[0]?.metrics || processedArgs[0]);
+        console.groupEnd();
         return;
     }
 

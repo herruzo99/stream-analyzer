@@ -179,7 +179,6 @@ const conditionalPollingUI = (liveStreams) => {
         uiActions.clearConditionalPolling();
     };
 
-    // 1. Active State
     if (conditionalPolling.status === 'active') {
         return html`
             <div
@@ -209,7 +208,6 @@ const conditionalPollingUI = (liveStreams) => {
         `;
     }
 
-    // 2. Found State
     if (conditionalPolling.status === 'found') {
         return html`
             <div
@@ -231,7 +229,6 @@ const conditionalPollingUI = (liveStreams) => {
         `;
     }
 
-    // 3. Idle / Config State
     return html`
         <div class="space-y-2">
             ${liveStreams.length > 1
@@ -302,11 +299,13 @@ export const pollingDropdownPanelTemplate = () => {
         pollingMode,
     } = useUiStore.getState();
     const liveStreams = streams.filter((s) => s.manifest?.type === 'dynamic');
+    
+    // STRICT DECOUPLING:
+    // Only check if streams are flagged as polling.
+    // Do not check player state, QC state, or any other inference.
     const isAnyPolling = liveStreams.some((s) => s.isPolling);
-
     const isSmart = pollingMode === 'smart';
 
-    // Dynamic Labels based on Polling Strategy
     const autoLabelShort = isSmart ? 'Auto (Smart)' : 'Auto';
     const autoLabelLong = isSmart
         ? 'Auto (Smart / Adaptive)'
@@ -350,8 +349,8 @@ export const pollingDropdownPanelTemplate = () => {
                 </div>
                 <p class="text-[10px] text-slate-400">
                     ${isAnyPolling
-                        ? 'Polling active streams.'
-                        : 'Polling paused.'}
+                        ? 'Analyzer is updating manifest state.'
+                        : 'Analyzer is paused.'}
                 </p>
             </div>
 
@@ -468,7 +467,6 @@ export const pollingDropdownPanelTemplate = () => {
 
                 <!-- Quick Settings -->
                 <div class="p-2 space-y-1 border-b border-white/5">
-                    <!-- Polling Mode Toggle -->
                     <button
                         @click=${(e) => {
                             e.stopPropagation();

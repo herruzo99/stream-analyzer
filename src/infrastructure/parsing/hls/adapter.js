@@ -1,12 +1,12 @@
 /**
- * @typedef {import('@/types.ts').Manifest} Manifest
- * @typedef {import('@/types.ts').Period} Period
- * @typedef {import('@/types.ts').AdaptationSet} AdaptationSet
- * @typedef {import('@/types.ts').Representation} Representation
- * @typedef {import('@/types.ts').SubRepresentation} SubRepresentation
- * @typedef {import('@/types.ts').Descriptor} Descriptor
- * @typedef {import('@/types.ts').ContentComponent} ContentComponent
- * @typedef {import('@/types.ts').Resync} Resync
+ * @typedef {import('@/types').Manifest} Manifest
+ * @typedef {import('@/types').Period} Period
+ * @typedef {import('@/types').AdaptationSet} AdaptationSet
+ * @typedef {import('@/types').Representation} Representation
+ * @typedef {import('@/types').SubRepresentation} SubRepresentation
+ * @typedef {import('@/types').Descriptor} Descriptor
+ * @typedef {import('@/types').ContentComponent} ContentComponent
+ * @typedef {import('@/types').Resync} Resync
  * @typedef {import('@/types.ts').Preselection} Preselection
  * @typedef {import('@/types.ts').FailoverContent} FailoverContent
  * @typedef {import('@/types.ts').OutputProtection} OutputProtection
@@ -23,6 +23,54 @@ import {
 } from '../utils/media-types.js';
 
 import { isCodecSupported } from '../utils/codec-support.js';
+
+
+/**
+ * Infers a user-friendly format name for HLS text/subtitle tracks.
+ * @param {object} mediaTagValue - The attributes from an EXT-X-MEDIA tag.
+ * @returns {string} The format name.
+ */
+function inferHlsTextFormat(mediaTagValue) {
+    if (mediaTagValue.TYPE !== 'SUBTITLES' && mediaTagValue.TYPE !== 'CLOSED-CAPTIONS') {
+        return 'Unknown';
+    }
+
+    if (mediaTagValue.TYPE === 'CLOSED-CAPTIONS' && mediaTagValue['INSTREAM-ID']) {
+        if (mediaTagValue['INSTREAM-ID'].startsWith('CC')) return 'CEA-608';
+        if (mediaTagValue['INSTREAM-ID'].startsWith('SERVICE')) return 'CEA-708';
+    }
+
+    // For SUBTITLES, the default and most common format is WebVTT.
+    // The URI can provide a hint.
+    if (mediaTagValue.URI && mediaTagValue.URI.toLowerCase().endsWith('.vtt')) {
+        return 'WebVTT';
+    }
+
+    // TTML in fMP4 is signaled by codecs, which would be on the variant, not here.
+    // But if we see TTML in the URI, it's a strong hint.
+    if (mediaTagValue.URI && (mediaTagValue.URI.toLowerCase().endsWith('.ttml') || mediaTagValue.URI.toLowerCase().endsWith('.xml'))) {
+        return 'TTML';
+    }
+
+    // Default for SUBTITLES is WebVTT
+    return 'WebVTT';
+}
+
+/**
+ * Infers a user-friendly format name for HLS audio tracks.
+ * @param {string[]} codecs - Array of codec strings from the associated variant.
+ * @returns {string} The format name.
+ */
+function inferHlsAudioFormat(codecs) {
+    if (!codecs || codecs.length === 0) return 'Unknown';
+    const primaryCodec = codecs[0].toLowerCase();
+
+    if (primaryCodec.startsWith('mp4a')) return 'AAC';
+    if (primaryCodec.startsWith('ac-3')) return 'AC-3';
+    if (primaryCodec.startsWith('ec-3')) return 'E-AC-3';
+
+    return primaryCodec.toUpperCase();
+}
 
 const isVideoCodec = (codecString) => {
     if (!codecString) return false;
@@ -98,23 +146,21 @@ function sortAdaptationSets(a, b) {
  * This version correctly models discontinuities as distinct Periods.
  * @param {object} hlsParsed - The parsed HLS manifest data from the parser.
  * @param {object} [context] - Context for enrichment.
- * @returns {Promise<Manifest>} The manifest IR object.
+ * @returns {Promise<import('@/types').Manifest>} The manifest IR object.
  */
 export async function adaptHlsToIr(hlsParsed, context) {
     const segmentFormat = determineSegmentFormat(hlsParsed);
 
     // FIX: HLS manifest durations (EXTINF) are always in seconds.
-    // While internal TS packets might use 90kHz, the manifest layer operates on seconds.
-    // We force timescale to 1 to avoid confusion and massive integer inflation in the UI.
     const timescale = 1;
 
-    // Total duration is simple sum of EXTINF (which are already seconds)
+    // Total duration is simple sum of EXTINF
     const totalDuration = (hlsParsed.segments || []).reduce(
         (sum, seg) => sum + seg.duration,
         0
     );
 
-    const manifestIR = /** @type {Manifest} */ ({
+    const manifestIR = /** @type {import('@/types').Manifest} */ ({
         id: null,
         type: hlsParsed.isLive ? 'dynamic' : 'static',
         profiles: `HLS v${hlsParsed.version}`,
@@ -128,6 +174,7 @@ export async function adaptHlsToIr(hlsParsed, context) {
         // Other top-level fields
         publishTime: null,
         availabilityStartTime: null,
+        availabilityEndTime: null,
         timeShiftBufferDepth: null,
         minimumUpdatePeriod: hlsParsed.isLive ? hlsParsed.targetDuration : null,
         maxSegmentDuration: null,
@@ -148,25 +195,86 @@ export async function adaptHlsToIr(hlsParsed, context) {
         renditionReports: hlsParsed.renditionReports || [],
         partInf: hlsParsed.partInf || null,
         mediaSequence: hlsParsed.mediaSequence,
+        media: hlsParsed.media || [],
     });
 
-    // --- NEW: Parse CUE tags into events ---
+    // --- CUE TAG PROCESSING for AD AVAILS (Unified Logic) ---
+    const foundAvails = new Map();
     let cumulativeTimeForCues = 0;
-    for (const seg of hlsParsed.segments || []) {
+    const baseSequence = hlsParsed.mediaSequence || 0;
+    let lastActiveAvail = null;
+
+    hlsParsed.segments?.forEach((seg, index) => {
+        // Create an Event entry for visibility in the Event Log
         if (seg.cue) {
             const event = {
                 startTime: cumulativeTimeForCues,
                 duration: seg.cue.duration || 0,
                 message: `Cue ${seg.cue.type}`,
-                messageData: seg.cue,
+                messageData: JSON.stringify(seg.cue),
                 type: 'hls-cue',
                 cue: seg.cue,
             };
             manifestIR.events.push(event);
+
+            // EXT-X-CUE-OUT (Start of Break)
+            if (seg.cue.type === 'out') {
+                const duration = seg.cue.duration || 0;
+                const start = cumulativeTimeForCues;
+                // Use a stable sequence-based ID for the break
+                const availId = `break-${baseSequence + index}`;
+
+                const avail = {
+                    id: availId,
+                    startTime: start,
+                    duration: duration,
+                    scte35Signal: { error: 'Signaled via EXT-X-CUE-OUT' },
+                    adManifestUrl: null,
+                    creatives: [],
+                    detectionMethod: 'SCTE35_INBAND'
+                };
+                foundAvails.set(availId, avail);
+                lastActiveAvail = avail;
+            }
+            // EXT-X-CUE-OUT-CONT (Continuation)
+            else if (seg.cue.type === 'cont') {
+                // If we are already tracking an active break, assume this segment belongs to it.
+                // Do NOT create a new avail block, preventing fragmentation.
+                if (!lastActiveAvail) {
+                    // Orphan Case: We joined the stream mid-break.
+                    // Calculate implied start time to visualize the break correctly.
+                    const duration = seg.cue.duration || 0;
+                    const elapsedTime = seg.cue.elapsedTime || 0;
+                    const start = cumulativeTimeForCues - elapsedTime;
+
+                    // Unique ID for orphan break to avoid collision
+                    const availId = `break-orphan-${baseSequence + index}`;
+
+                    // Only add if it's relevant (ends in future or recent past)
+                    if (start + duration > -10) {
+                        const avail = {
+                            id: availId,
+                            startTime: start,
+                            duration: duration,
+                            scte35Signal: { error: 'Signaled via EXT-X-CUE-OUT-CONT' },
+                            adManifestUrl: null,
+                            creatives: [],
+                            detectionMethod: 'SCTE35_INBAND'
+                        };
+                        foundAvails.set(availId, avail);
+                        lastActiveAvail = avail;
+                    }
+                }
+            }
+            // EXT-X-CUE-IN (End of Break)
+            else if (seg.cue.type === 'in') {
+                lastActiveAvail = null;
+            }
         }
         cumulativeTimeForCues += seg.duration;
-    }
-    // --- END NEW ---
+    });
+
+    manifestIR.adAvails.push(...Array.from(foundAvails.values()).sort((a, b) => a.startTime - b.startTime));
 
     // Parse Date Ranges into standard Event objects
     const dateRanges = hlsParsed.tags.filter(
@@ -227,9 +335,8 @@ export async function adaptHlsToIr(hlsParsed, context) {
     }
 
     let periodStart = 0;
-    let previousPeriodHadEncryption = false;
 
-    // --- CORE REFACTOR: Process Segment Groups into Periods ---
+    // --- Process Segment Groups into Periods ---
     for (let i = 0; i < (hlsParsed.segmentGroups || []).length; i++) {
         const segmentGroup = hlsParsed.segmentGroups[i];
         if (segmentGroup.length === 0) continue;
@@ -240,21 +347,13 @@ export async function adaptHlsToIr(hlsParsed, context) {
         );
         const periodDuration = periodDurationInTsUnits / timescale;
 
-        // --- Ad Period Detection Heuristic ---
-        const firstSegment = segmentGroup[0];
-        const hasEncryption = !!firstSegment.encryptionInfo;
-        const isAdPeriod =
-            (i > 0 && hasEncryption !== previousPeriodHadEncryption) ||
-            firstSegment.discontinuity;
-        previousPeriodHadEncryption = hasEncryption;
-
-        // --- FIX: Create a compliant synthetic AdaptationSet for media playlists ---
+        // --- Create a compliant synthetic AdaptationSet for media playlists ---
         const adaptationSets = [];
         if (!hlsParsed.isMaster) {
             const { contentType, codec } = inferMediaInfoFromExtension(
                 segmentGroup[0].uri
             );
-            const rep = /** @type {Representation} */ ({
+            const rep = /** @type {import('@/types').Representation} */ ({
                 id: `media-rep-0`,
                 codecs: [
                     {
@@ -269,7 +368,7 @@ export async function adaptHlsToIr(hlsParsed, context) {
                 roles: [],
                 serializedManifest: {},
             });
-            const as = /** @type {AdaptationSet} */ ({
+            const as = /** @type {import('@/types').AdaptationSet} */ ({
                 id: `media-as-0`,
                 contentType: contentType,
                 roles: [],
@@ -313,9 +412,8 @@ export async function adaptHlsToIr(hlsParsed, context) {
             });
             adaptationSets.push(as);
         }
-        // --- END FIX ---
 
-        const periodIR = /** @type {Period} */ ({
+        const periodIR = /** @type {import('@/types').Period} */ ({
             id: `hls-period-${i}`,
             start: periodStart,
             duration: periodDuration,
@@ -331,24 +429,6 @@ export async function adaptHlsToIr(hlsParsed, context) {
             eventStreams: [],
             supplementalProperties: [],
         });
-
-        if (isAdPeriod) {
-            const adAvail = {
-                id: `ad-break-${i}`,
-                startTime: periodStart,
-                duration: periodDuration,
-                scte35Signal: {
-                    error: 'Structurally detected ad break (Discontinuity)',
-                },
-                adManifestUrl: null,
-                creatives: [],
-                detectionMethod: /** @type {const} */ (
-                    'STRUCTURAL_DISCONTINUITY'
-                ),
-            };
-            periodIR.adAvails.push(adAvail);
-            manifestIR.adAvails.push(adAvail);
-        }
 
         manifestIR.periods.push(periodIR);
         periodStart += periodDuration;
@@ -426,8 +506,12 @@ export async function adaptHlsToIr(hlsParsed, context) {
             const videoCodecs = allCodecs.filter(isVideoCodec);
             const audioCodecs = allCodecs.filter(isAudioCodec);
 
+            const label = variant.attributes.RESOLUTION ? `${variant.attributes.RESOLUTION.split('x')[1]}p` : `Variant ${i + 1}`;
+            const format = videoCodecs.length > 0 ? videoCodecs[0].split('.')[0].toUpperCase() : 'Video';
             const representation = {
                 id: variant.stableId,
+                label: label,
+                format: format,
                 bandwidth: variant.attributes.BANDWIDTH,
                 codecs: videoCodecs.map((c) => ({
                     value: c,
@@ -459,7 +543,7 @@ export async function adaptHlsToIr(hlsParsed, context) {
             asGroups.get(groupId).representations.push(representation);
         });
 
-        // Process I-Frame streams as trick-play video AdaptationSets
+        // Process I-Frame streams
         (hlsParsed.iframeStreams || []).forEach((iframe, i) => {
             const groupId = `iframe-group-${i}`;
             let width = null,
@@ -499,7 +583,6 @@ export async function adaptHlsToIr(hlsParsed, context) {
             });
         });
 
-        // --- ARCHITECTURAL REFACTOR: Correctly group EXT-X-MEDIA tags ---
         const mediaGroups = (hlsParsed.media || []).reduce((acc, mediaTag) => {
             const groupId = mediaTag.value['GROUP-ID'];
             const type = mediaTag.value.TYPE?.toLowerCase();
@@ -538,8 +621,8 @@ export async function adaptHlsToIr(hlsParsed, context) {
                         type === 'audio'
                             ? allCodecs.filter(isAudioCodec)
                             : allCodecs.filter(
-                                  (c) => !isVideoCodec(c) && !isAudioCodec(c)
-                              );
+                                (c) => !isVideoCodec(c) && !isAudioCodec(c)
+                            );
 
                     if (relevantCodecs.length > 0) {
                         codecs = relevantCodecs.map((c) => ({
@@ -547,14 +630,30 @@ export async function adaptHlsToIr(hlsParsed, context) {
                             source: 'manifest',
                             supported: isCodecSupported(c),
                         }));
+                    } else if (type === 'subtitles' && tag.value.URI) {
+                        const uri = tag.value.URI.toLowerCase();
+                        if (uri.endsWith('.vtt')) {
+                            codecs = [{ value: 'wvtt', source: 'manifest', supported: true }];
+                        }
                     }
                 }
 
+                const name = tag.value.NAME;
+                const id = name ? `${type}-${groupId}-${name}` : `${type}-${groupId}-rendition-${index}`;
+                let format = 'Unknown';
+                if (type === 'audio') {
+                    format = inferHlsAudioFormat(codecs.map(c => c.value));
+                } else if (type === 'subtitles' || type === 'closed-captions') {
+                    format = inferHlsTextFormat(tag.value);
+                }
+
                 return {
-                    id: tag.value.NAME || `${groupId}-rendition-${index}`,
+                    id: id,
+                    label: name || tag.value.LANGUAGE || id,
                     lang: tag.value.LANGUAGE,
+                    format,
                     codecs: codecs,
-                    bandwidth: 0,
+                    bandwidth: tag.value.BANDWIDTH ? parseInt(tag.value.BANDWIDTH, 10) : 0,
                     serializedManifest: tag,
                     __variantUri: tag.resolvedUri,
                     roles: [],
@@ -576,7 +675,6 @@ export async function adaptHlsToIr(hlsParsed, context) {
             };
             asGroups.set(adaptationSet.id, adaptationSet);
         });
-        // --- END REFACTOR ---
 
         for (const as of asGroups.values()) {
             if (as.contentType === 'video') {
@@ -602,7 +700,7 @@ export async function adaptHlsToIr(hlsParsed, context) {
                     schemeIdUri: schemeIdUri,
                     system: getDrmSystemName(schemeIdUri) || tag.value.METHOD,
                     defaultKid: tag.value.KEYID || null,
-                    robustness: null, // HLS does not define robustness in this context
+                    robustness: null,
                 };
             });
         manifestIR.contentProtections = contentProtectionIRs;

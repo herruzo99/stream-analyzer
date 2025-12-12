@@ -8,13 +8,16 @@ import {
  * @param {import('@/types').Stream} stream
  */
 export function createSummaryViewModel(stream) {
+    // --- FAULT TOLERANCE: Check for missing manifest/summary ---
+    if (!stream || !stream.manifest || !stream.manifest.summary) {
+        return null;
+    }
+
     const summary = stream.manifest.summary;
     const isLive = stream.manifest.type === 'dynamic';
     const manifestIR = stream.manifest;
     const serializedManifest = stream.manifest.serializedManifest;
 
-    // ... (Keep unused DASH data extraction: timingSource, metrics, etc. unchanged) ...
-    // (This section is large but unchanged, abbreviated for clarity)
     let timingSource = null;
     let metrics = [];
     let serviceDescriptions = [];
@@ -36,7 +39,7 @@ export function createSummaryViewModel(stream) {
                 value: getAttr(utcTiming, 'value'),
             };
         }
-        // ... (rest of DASH extractions) ...
+
         const metricsEls = findChildrenRecursive(serializedManifest, 'Metrics');
         metrics = metricsEls.map((m) => ({
             metrics: getAttr(m, 'metrics'),
@@ -50,7 +53,6 @@ export function createSummaryViewModel(stream) {
             })),
         }));
 
-        // ContentPopularityRate (New)
         popularityRates = (manifestIR.contentPopularityRates || []).map(
             (pr) => ({
                 source: pr.source,
@@ -59,7 +61,6 @@ export function createSummaryViewModel(stream) {
             })
         );
 
-        // Gather Ratings, Viewpoints, ExtendedBandwidth from AdaptationSets
         manifestIR.periods.forEach((p) => {
             subsets.push(...p.subsets);
             p.adaptationSets.forEach((as) => {
@@ -74,7 +75,6 @@ export function createSummaryViewModel(stream) {
             });
         });
 
-        // Service Description
         const sdEls = findChildrenRecursive(
             serializedManifest,
             'ServiceDescription'
@@ -85,7 +85,6 @@ export function createSummaryViewModel(stream) {
                 min: getAttr(l, 'min'),
                 max: getAttr(l, 'max'),
             }));
-            // ... (Other SD fields)
             const playbackRates = findChildrenRecursive(sd, 'PlaybackRate').map(
                 (p) => ({
                     min: getAttr(p, 'min'),
@@ -151,7 +150,6 @@ export function createSummaryViewModel(stream) {
         }
     }
 
-    // --- 1. Hero Data ---
     const hero = {
         title: stream.name,
         url: stream.originalUrl,
@@ -170,7 +168,6 @@ export function createSummaryViewModel(stream) {
         steering,
     };
 
-    // --- 2. Quick Stats ---
     const stats = [
         {
             label: 'Total Duration',
@@ -204,7 +201,6 @@ export function createSummaryViewModel(stream) {
         },
     ];
 
-    // --- 3. Feature Detection (Pills) ---
     const features = [];
     const videoCodecs = new Set(
         summary.videoTracks.flatMap((t) => t.codecs.map((c) => c.value))
@@ -248,7 +244,6 @@ export function createSummaryViewModel(stream) {
     if (summary.general.segmenting)
         features.push({ label: summary.general.segmenting, type: 'tech' });
 
-    // --- 4. Ladder Data for Chart ---
     const ladderPoints = summary.videoTracks
         .map((t) => ({
             bandwidth: t.bandwidth,
@@ -262,16 +257,9 @@ export function createSummaryViewModel(stream) {
         new Set(features.map((f) => JSON.stringify(f)))
     ).map((s) => JSON.parse(s));
 
-    // --- ARCHITECTURAL UPDATE: Map previously hidden properties ---
-    // For Video Tracks: Map 'scanType' (DASH) and 'HDCP-LEVEL' (HLS via serialized manifest)
-    // Note: HDCP-LEVEL is on the variant in HLS. Our summary.videoTracks comes from representation state.
-    // We need to reach back to the IR source for HDCP if available.
-
     const enrichedVideoTracks = summary.videoTracks.map((track) => {
-        // HLS Variant lookup for HDCP
         let hdcpLevel = null;
         if (stream.protocol === 'hls' && manifestIR.variants) {
-            // Try to match variant by ID or bandwidth
             const variant = manifestIR.variants.find(
                 (v) =>
                     v.stableId === track.id ||
@@ -285,7 +273,6 @@ export function createSummaryViewModel(stream) {
         return {
             ...track,
             hdcpLevel: hdcpLevel,
-            // scanType is already on the track object from DASH parser, just ensure it passes through
         };
     });
 

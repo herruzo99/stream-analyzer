@@ -36,42 +36,49 @@ class SegmentGeneralSummary extends HTMLElement {
         };
     }
 
-    getCompositionData() {
-        if (!this._vm || !this._vm.structure || !this._vm.structure.boxes)
-            return null;
-        const findBox = (boxes, type) => {
-            for (const box of boxes) {
-                if (box.type === type) return box;
-                if (box.children) {
-                    const found = findBox(box.children, type);
-                    if (found) return found;
-                }
-            }
-            return null;
-        };
-        const cslg = findBox(this._vm.structure.boxes, 'cslg');
-        const elst = findBox(this._vm.structure.boxes, 'elst');
-        if (!cslg && !elst) return null;
-        return {
-            cslg: cslg
-                ? {
-                      shift: cslg.details.compositionToDTSShift?.value,
-                      minDelta: cslg.details.leastDecodeToDisplayDelta?.value,
-                      maxDelta:
-                          cslg.details.greatestDecodeToDisplayDelta?.value,
-                  }
-                : null,
-            elst: elst
-                ? {
-                      count: elst.details.entry_count?.value,
-                  }
-                : null,
-        };
+    renderTsDescriptors() {
+        // Retrieve descriptors from the view model root (now correctly populated)
+        const descriptors = this._vm?.mediaInfo?.descriptors || [];
+        if (descriptors.length === 0) return '';
+        
+        return html`
+            <div class="col-span-1 lg:col-span-2 xl:col-span-4 bg-slate-800 rounded-xl p-5 border border-slate-700 relative overflow-hidden group hover:border-slate-600 transition-colors">
+                 <div class="absolute -right-6 -top-6 text-slate-800/50 group-hover:text-slate-800 transition-colors pointer-events-none select-none">
+                     <div class="scale-[3] transform rotate-12 opacity-80">${icons.list}</div>
+                 </div>
+                 <div class="relative z-10">
+                     <h3 class="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Transport Stream Descriptors</h3>
+                     <div class="space-y-3 max-h-64 overflow-y-auto custom-scrollbar">
+                         ${descriptors.map(d => html`
+                             <div class="bg-slate-900/50 rounded p-2 border border-slate-700/50">
+                                 <div class="flex justify-between items-start mb-1">
+                                     <span class="text-xs font-bold text-slate-200">${d.name}</span>
+                                     <span class="text-[9px] font-mono text-slate-500">PID: ${d.pid}</span>
+                                 </div>
+                                 <div class="space-y-0.5">
+                                     ${Object.entries(d.content).map(([k, v]) => {
+                                         if (k === 'data') return ''; // Skip raw data if parsed
+                                         const val = v?.value || v;
+                                         if (typeof val === 'object') return ''; // Skip complex nested
+                                         return html`
+                                             <div class="flex justify-between text-[10px] border-b border-slate-800/50 last:border-0 pb-0.5">
+                                                 <span class="text-slate-500">${k.replace(/_/g, ' ')}</span>
+                                                 <span class="font-mono text-slate-300 truncate max-w-[200px]" title="${val}">${val}</span>
+                                             </div>
+                                         `;
+                                     })}
+                                 </div>
+                             </div>
+                         `)}
+                     </div>
+                 </div>
+            </div>
+        `;
     }
 
     render() {
         if (!this._vm) return;
-        const { stats, codecInfo, bitstream } = this._vm;
+        const { stats, codecInfo, bitstream, origin } = this._vm;
         const fileSizeText =
             stats.fileSize > 1024 * 1024
                 ? `${(stats.fileSize / 1024 / 1024).toFixed(2)} MB`
@@ -87,20 +94,18 @@ class SegmentGeneralSummary extends HTMLElement {
                   colorData.matrix
               )
             : null;
-        const compositionData = this.getCompositionData();
 
         const gopInfo = bitstream
             ? `${bitstream.gopStructure} GOP (${bitstream.minGopLength}-${bitstream.maxGopLength})`
             : null;
 
-        // Adjusted watermark style: moved further out and reduced opacity for a subtle effect
         const watermarkStyle =
             'absolute -right-6 -top-6 text-slate-800/50 group-hover:text-slate-800 transition-colors pointer-events-none select-none';
         const watermarkInner = 'scale-[3] transform rotate-12 opacity-80';
 
         const template = html`
             <div
-                class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8 animate-fadeIn"
+                class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4 mb-8 animate-fadeIn"
             >
                 <!-- Card 1: File Identity -->
                 <div
@@ -195,32 +200,56 @@ class SegmentGeneralSummary extends HTMLElement {
                                   >`
                                 : ''}
                         </div>
-                        ${compositionData
-                            ? html`
-                                  <div
-                                      class="mt-4 pt-2 border-t border-slate-700/50 flex gap-4 text-[10px] text-slate-400 font-mono"
-                                  >
-                                      ${compositionData.cslg
-                                          ? html`<span
-                                                >CSLG Shift:
-                                                ${compositionData.cslg
-                                                    .shift}</span
-                                            >`
-                                          : ''}
-                                      ${compositionData.elst
-                                          ? html`<span
-                                                >ELST:
-                                                ${compositionData.elst.count}
-                                                Edits</span
-                                            >`
-                                          : ''}
-                                  </div>
-                              `
-                            : ''}
                     </div>
                 </div>
 
-                <!-- Card 3: Frame Distribution (Mini) -->
+                <!-- Card 3: Origin & Context -->
+                ${origin ? html`
+                <div
+                    class="bg-slate-800 rounded-xl p-5 border border-slate-700 relative overflow-hidden group hover:border-slate-600 transition-colors"
+                >
+                    <div class="${watermarkStyle}">
+                        <div class="${watermarkInner}">${icons.target}</div>
+                    </div>
+                    <div class="relative z-10">
+                        <h3
+                            class="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2"
+                        >
+                            Manifest Addressing
+                        </h3>
+                        
+                        <div class="grid grid-cols-2 gap-4 mb-3">
+                            <div>
+                                <span class="text-[9px] text-slate-500 uppercase block mb-0.5">$Number$</span>
+                                <span class="text-xl font-mono font-bold text-white">#${origin.index}</span>
+                            </div>
+                            <div>
+                                <span class="text-[9px] text-slate-500 uppercase block mb-0.5">$Time$</span>
+                                <span class="text-xl font-mono font-bold text-white">${origin.presentationTime}</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2 text-xs font-mono">
+                            <div class="flex justify-between border-b border-slate-700/50 pb-1">
+                                <span class="text-slate-500">Range</span>
+                                <span class="text-slate-300">${origin.range || 'N/A'}</span>
+                            </div>
+                            <div class="flex justify-between border-b border-slate-700/50 pb-1">
+                                <span class="text-slate-500">Rep ID</span>
+                                <span class="text-blue-300">${origin.repId}</span>
+                            </div>
+                            <div class="pt-1">
+                                <span class="text-slate-500 block mb-1 text-[9px] uppercase">Template</span>
+                                <code class="text-[10px] text-slate-400 break-all bg-black/20 p-1 rounded block leading-tight">
+                                    ${origin.template || 'N/A'}
+                                </code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
+
+                <!-- Card 4: Frame Distribution -->
                 ${bitstream
                     ? html`
                           <div
@@ -330,6 +359,8 @@ class SegmentGeneralSummary extends HTMLElement {
                                   : ''}
                           </div>
                       `}
+
+                ${this.renderTsDescriptors()}
             </div>
         `;
         render(template, this);

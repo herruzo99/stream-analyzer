@@ -36,32 +36,49 @@ class BitReader {
 
 /**
  * Decodes basic CC data pairs to readable text where possible (ASCII subsets).
- * @param {number} b1
- * @param {number} b2
+ * @param {number} flags The flag byte (Marker + Valid + Type).
+ * @param {number} d1 The first data byte.
+ * @param {number} d2 The second data byte.
  */
-function decodeCcPair(b1, b2) {
-    const ccValid = (b1 & 0x04) !== 0;
-    const ccType = b1 & 0x03; // 0=608(f1), 1=608(f2), 2=DTVCC, 3=DTVCC
+function decodeCcPair(flags, d1, d2) {
+    const ccValid = (flags & 0x04) !== 0;
+    const ccType = flags & 0x03; // 0=608(f1), 1=608(f2), 2=DTVCC, 3=DTVCC
 
-    if (!ccValid) return { type: 'N/A', data: 'Invalid', raw: [b1, b2] };
+    // Format raw bytes for display
+    const raw = [flags, d1, d2];
 
-    const d1 = b1 & 0x7f;
-    const d2 = b2 & 0x7f;
+    if (!ccValid) return { type: 'N/A', data: 'Invalid', raw };
+
+    // Strip parity bit (bit 7) from data bytes for 608
+    const data1 = d1 & 0x7f;
+    const data2 = d2 & 0x7f;
 
     let desc = '';
 
     if (ccType === 0 || ccType === 1) {
-        // CEA-608
-        if (d1 >= 0x20 && d1 <= 0x7f) {
-            desc = String.fromCharCode(d1);
-            if (d2 >= 0x20 && d2 <= 0x7f) desc += String.fromCharCode(d2);
+        // CEA-608 (NTSC Field 1 or 2)
+        const typeLabel = `CEA-608 (F${ccType + 1})`;
+
+        // Check for Control Codes (Mid-Row, Misc Control, PAC)
+        // Basic logic: if data1 is control code range
+        const isControl =
+            (data1 >= 0x10 && data1 <= 0x1f) || (data1 >= 0x10 && data1 <= 0x17);
+
+        if (!isControl) {
+            // Text characters
+            if (data1 >= 0x20 && data1 <= 0x7f)
+                desc += String.fromCharCode(data1);
+            if (data2 >= 0x20 && data2 <= 0x7f)
+                desc += String.fromCharCode(data2);
         } else {
-            desc = `[CMD: ${d1.toString(16)} ${d2.toString(16)}]`;
+            // Command visualization
+            desc = `[CMD: ${data1.toString(16).padStart(2, '0')} ${data2.toString(16).padStart(2, '0')}]`;
         }
-        return { type: `CEA-608 (F${ccType + 1})`, data: desc, raw: [b1, b2] };
+
+        return { type: typeLabel, data: desc, raw };
     } else {
         // CEA-708 (DTVCC)
-        return { type: 'CEA-708', data: `Service Block`, raw: [b1, b2] };
+        return { type: 'CEA-708', data: `Service Block`, raw };
     }
 }
 
@@ -88,24 +105,41 @@ export function parseAtscUserBytes(buffer) {
         return { type: 'Unknown ATSC', code: user_data_type_code }; // 0x03 = MPEG_cc_data
     }
 
-    // Parse cc_data()
+    // Parse cc_data() header
     const process_em_data_flag = reader.read(1);
     const process_cc_data_flag = reader.read(1);
     const additional_data_flag = reader.read(1);
     const cc_count = reader.read(5);
     const em_data = reader.read(8); // reserved/em_data
 
+    // If em_data flag was 0, we effectively "unread" the last 8 bits?
+    // ATSC A/53: "if (process_em_data_flag) { em_data } else { reserved }"
+    // Actually, the spec structure has `em_data` byte present regardless, but its meaning depends on flag.
+    // wait, A/53 Part 4 Table 6.2 says:
+    //   if (process_em_data_flag) { em_data 8 }
+    //   else { reserved 8 }
+    // So the byte IS present physically in both cases.
+    // The issue was the loop body consuming 2 bytes instead of 3.
+
     const captions = [];
 
-    for (let i = 0; i < cc_count; i++) {
-        const b1 = reader.read(8); // marker + valid + type + data1
-        const b2 = reader.read(8); // data2
+    if (process_cc_data_flag) {
+        for (let i = 0; i < cc_count; i++) {
+            // A/53: Each entry is 24 bits (3 bytes)
+            // marker_bits (5) + cc_valid (1) + cc_type (2) = 1 byte (FLAGS)
+            // cc_data_1 (8)
+            // cc_data_2 (8)
 
-        const ccInfo = decodeCcPair(b1, b2);
-        if (ccInfo) captions.push(ccInfo);
+            const flags = reader.read(8);
+            const d1 = reader.read(8);
+            const d2 = reader.read(8);
+
+            const ccInfo = decodeCcPair(flags, d1, d2);
+            if (ccInfo) captions.push(ccInfo);
+        }
     }
 
-    // Skip marker bits usually 0xFF
+    // Skip trailing marker bits usually 0xFF
     if (reader.hasMore()) {
         reader.read(8);
     }
@@ -133,7 +167,6 @@ export function parseCaptionPayload(payload) {
     if (atsc) return atsc;
 
     // 2. Raw byte heuristics if generic ITU T.35
-    // Sometimes just raw CC pairs exist if country code was US but provider unspecific
     return {
         type: 'Generic ITU-T T.35',
         size: payload.length,

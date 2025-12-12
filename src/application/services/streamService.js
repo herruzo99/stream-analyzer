@@ -17,6 +17,7 @@ function activateHlsMediaPlaylist({ streamId, variantId }) {
         .streams.find((s) => s.id === streamId);
     if (!stream) return;
 
+    // First, try a fast lookup in the variant state map
     const variantState = stream.hlsVariantState.get(variantId);
     if (variantState) {
         const url = variantState.uri;
@@ -27,20 +28,32 @@ function activateHlsMediaPlaylist({ streamId, variantId }) {
             activeMediaPlaylistBaseUrl: baseUrl,
             activeMediaPlaylistId: variantId,
         });
-    } else {
-        // Fallback: Try to find URL from manifest variants if state is missing
-        // This handles cases where we click a variant that hasn't been fetched yet.
-        const variant = stream.manifest.variants?.find(
-            (v) => v.stableId === variantId
-        );
-        if (variant) {
-            const url = variant.resolvedUri;
-            analysisActions.updateStream(streamId, {
-                activeMediaPlaylistUrl: url,
-                activeMediaPlaylistBaseUrl: url.split('?')[0],
-                activeMediaPlaylistId: variantId,
-            });
+        return;
+    }
+
+    // Fallback: Deep search through the manifest IR for any representation matching the ID.
+    // This covers all types: video, audio, text, etc.
+    let foundRep = null;
+    for (const period of stream.manifest.periods || []) {
+        for (const as of period.adaptationSets || []) {
+            const rep = as.representations.find(r => r.id === variantId);
+            if (rep) {
+                foundRep = rep;
+                break;
+            }
         }
+        if (foundRep) break;
+    }
+
+    if (foundRep && foundRep.__variantUri) {
+        const url = foundRep.__variantUri;
+        analysisActions.updateStream(streamId, {
+            activeMediaPlaylistUrl: url,
+            activeMediaPlaylistBaseUrl: url.split('?')[0],
+            activeMediaPlaylistId: variantId,
+        });
+    } else {
+        console.warn(`[streamService] Could not find representation with ID "${variantId}" to activate.`);
     }
 }
 

@@ -67,8 +67,6 @@ class NetworkInterventionPanel extends HTMLElement {
         super();
         this.unsubscribe = null;
         this.editingRuleId = null;
-
-        // Default Form State
         this.formState = this.getDefaultFormState();
     }
 
@@ -92,13 +90,7 @@ class NetworkInterventionPanel extends HTMLElement {
             'flex',
             'flex-col',
             'bg-slate-950',
-            'border-l',
-            'border-slate-800',
-            'w-96',
-            'shrink-0',
-            'animate-slideInRight',
-            'shadow-2xl',
-            'z-30'
+            'w-full'
         );
         this.render();
         this.unsubscribe = useNetworkStore.subscribe(() => this.render());
@@ -146,7 +138,6 @@ class NetworkInterventionPanel extends HTMLElement {
 
     handleSubmit(e) {
         e.preventDefault();
-
         const ruleData = {
             label: this.formState.label || 'Untitled Rule',
             urlPattern: this.formState.urlPattern,
@@ -176,7 +167,7 @@ class NetworkInterventionPanel extends HTMLElement {
                 enabled: true,
             });
             showToast({ message: 'Rule added', type: 'pass' });
-            this.formState = this.getDefaultFormState(); // Reset form but keep add mode
+            this.formState = this.getDefaultFormState();
             this.render();
         }
     }
@@ -200,6 +191,7 @@ class NetworkInterventionPanel extends HTMLElement {
             <div class="${containerClass}">
                 <div class="flex items-center gap-3 overflow-hidden">
                     <button
+                        type="button"
                         @click=${() =>
                             networkActions.toggleInterventionRule(rule.id)}
                         class="p-2 rounded-lg ${rule.enabled
@@ -248,6 +240,7 @@ class NetworkInterventionPanel extends HTMLElement {
                     class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                     <button
+                        type="button"
                         @click=${() => this.handleEdit(rule)}
                         class="p-2 text-slate-400 hover:text-blue-400 transition-colors"
                         title="Edit"
@@ -255,6 +248,7 @@ class NetworkInterventionPanel extends HTMLElement {
                         ${icons.wrench}
                     </button>
                     <button
+                        type="button"
                         @click=${() =>
                             networkActions.removeInterventionRule(rule.id)}
                         class="p-2 text-slate-600 hover:text-red-400 transition-colors"
@@ -272,21 +266,8 @@ class NetworkInterventionPanel extends HTMLElement {
         const { label, urlPattern, resourceType, action, params } =
             this.formState;
 
-        const header = html`
-            <div
-                class="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 shrink-0"
-            >
-                <h3 class="font-bold text-slate-200 flex items-center gap-2">
-                    ${icons.zapOff} Network Chaos
-                </h3>
-                <button
-                    @click=${() => networkActions.toggleInterventionPanel()}
-                    class="text-slate-500 hover:text-white p-1"
-                >
-                    ${icons.xCircle}
-                </button>
-            </div>
-        `;
+        // NOTE: We removed the header here because the Modal wrapper provides the title and close button.
+        // This component now focuses solely on the content.
 
         const presets = html`
             <div class="mb-6">
@@ -299,6 +280,7 @@ class NetworkInterventionPanel extends HTMLElement {
                     ${PRESETS.map(
                         (p) => html`
                             <button
+                                type="button"
                                 @click=${() => {
                                     networkActions.addInterventionRule({
                                         ...p.rule,
@@ -331,6 +313,7 @@ class NetworkInterventionPanel extends HTMLElement {
                 ${this.editingRuleId
                     ? html`
                           <button
+                              type="button"
                               @click=${() => this.handleCancelEdit()}
                               class="text-blue-400 hover:text-white flex items-center gap-1 lowercase font-normal"
                           >
@@ -527,8 +510,7 @@ class NetworkInterventionPanel extends HTMLElement {
 
         render(
             html`
-                ${header}
-                <div class="grow overflow-y-auto p-4 custom-scrollbar">
+                <div class="grow overflow-y-auto p-6 custom-scrollbar">
                     <div
                         class="text-xs text-slate-400 mb-4 leading-relaxed bg-blue-900/10 border border-blue-500/20 p-3 rounded-lg"
                     >
@@ -546,9 +528,3 @@ class NetworkInterventionPanel extends HTMLElement {
 }
 
 customElements.define('network-intervention-panel', NetworkInterventionPanel);
-
-export const networkInterventionPanelTemplate = () => {
-    const { isInterventionPanelOpen } = useNetworkStore.getState();
-    if (!isInterventionPanelOpen) return html``;
-    return html`<network-intervention-panel></network-intervention-panel>`;
-};

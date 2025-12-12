@@ -41,7 +41,42 @@ function classifyRequest(urlString, streams) {
     const { urlAuthMap } = useAnalysisStore.getState();
     if (urlAuthMap.has(urlString)) {
         const ctx = urlAuthMap.get(urlString);
-        return { streamId: ctx.streamId, resourceType: 'video' };
+        
+        // ARCHITECTURAL FIX: Do not default to 'video'.
+        // Re-evaluate the URL string to determine the specific resource type
+        // even if it matches a known auth context.
+        let type = 'video';
+        const lowerUrl = urlString.toLowerCase();
+        
+        if (
+            lowerUrl.includes('.mpd') ||
+            lowerUrl.includes('.m3u8') ||
+            lowerUrl.includes('manifest')
+        ) {
+            type = 'manifest';
+        } else if (
+            lowerUrl.includes('license') ||
+            lowerUrl.includes('widevine') ||
+            lowerUrl.includes('playready') ||
+            lowerUrl.includes('key')
+        ) {
+            type = 'license';
+        } else if (
+            lowerUrl.includes('.m4a') || 
+            lowerUrl.includes('audio')
+        ) {
+            type = 'audio';
+        } else if (
+            lowerUrl.includes('.vtt') || 
+            lowerUrl.includes('subs') || 
+            lowerUrl.includes('caption')
+        ) {
+            type = 'text';
+        } else if (lowerUrl.includes('init')) {
+            type = 'init';
+        }
+
+        return { streamId: ctx.streamId, resourceType: type };
     }
 
     for (const stream of streams) {
@@ -232,6 +267,7 @@ export async function initializeGlobalRequestInterceptor() {
     ];
 
     const worker = setupWorker(...handlers);
+    
     worker.events.on('response:bypass', async ({ response, request }) => {
         const urlString = request.url;
         try {
@@ -242,7 +278,17 @@ export async function initializeGlobalRequestInterceptor() {
 
         const { streams } = useAnalysisStore.getState();
         const { streamId, resourceType } = classifyRequest(urlString, streams);
-        if (streamId === null && resourceType === 'other') return;
+
+        // ARCHITECTURAL FIX: Prevent Duplicate Logging.
+        // If 'streamId' is not null, it means this request belongs to an active stream
+        // that is being managed by the Worker infrastructure. The worker handlers
+        // (shakaManifestHandler, shakaResourceHandler) explicitly log these events
+        // via 'worker:network-event'. We must skip logging them here to avoid duplicates.
+        // This listener should only log unmanaged requests (e.g. Tier 0 checks, or external assets).
+        if (streamId !== null) return;
+
+        // Ignore completely unknown types if they aren't part of a stream
+        if (resourceType === 'other') return;
 
         const responseHeaders = {};
         response.headers.forEach((val, key) => {
@@ -253,7 +299,7 @@ export async function initializeGlobalRequestInterceptor() {
             id: crypto.randomUUID(),
             url: urlString,
             resourceType,
-            streamId,
+            streamId, // Will be null here
             request: { method: request.method, headers: {}, body: null },
             response: {
                 status: response.status,

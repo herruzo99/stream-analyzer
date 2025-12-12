@@ -1,7 +1,7 @@
 import { BoxParser } from '../utils.js';
 
 /**
- * Parses the 'avc1' (AVC Sample Entry) box, which is a type of VisualSampleEntry.
+ * Parses the 'avc1' or 'avc3' (AVC Sample Entry) box.
  * @param {import('@/types.js').Box} box
  * @param {DataView} view
  */
@@ -68,6 +68,11 @@ export const avc1Tooltip = {
     avc1: {
         name: 'AVC Sample Entry',
         text: "AVC Sample Entry (`avc1`). A type of `VisualSampleEntry` specific to H.264/AVC video. It contains the video's dimensions, resolution, and is the parent to the `avcC` box which holds critical decoder configuration data.",
+        ref: 'ISO/IEC 14496-15, 5.2.4.1.1',
+    },
+    avc3: {
+        name: 'AVC Sample Entry (In-band)',
+        text: 'AVC Sample Entry (`avc3`). Similar to `avc1`, but indicates that Sequence Parameter Sets (SPS) and Picture Parameter Sets (PPS) may be present in the media stream (in-band) rather than strictly in the `avcC` box.',
         ref: 'ISO/IEC 14496-15, 5.2.4.1.1',
     },
     'avc1@data_reference_index': {

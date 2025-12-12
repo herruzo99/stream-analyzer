@@ -99,11 +99,18 @@ export async function startAnalysisUseCase({ inputs }, services) {
         if (opportunisticallyCachedSegments) {
             const { set } = useSegmentCacheStore.getState();
             for (const segment of opportunisticallyCachedSegments) {
-                set(segment.uniqueId, {
-                    status: segment.status,
-                    data: segment.data,
-                    parsedData: segment.parsedData,
-                });
+                if (segment.uniqueId) {
+                    set(segment.uniqueId, {
+                        status: segment.status,
+                        data: segment.data,
+                        parsedData: segment.parsedData,
+                    });
+                } else {
+                    console.warn(
+                        '[startAnalysisUseCase] Received segment without uniqueId from worker.',
+                        segment
+                    );
+                }
             }
             appLog(
                 'startAnalysisUseCase',

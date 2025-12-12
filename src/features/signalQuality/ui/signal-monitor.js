@@ -4,7 +4,6 @@ import { html, render } from 'lit-html';
 import { AudioAnalyzer } from '../domain/audio-analyzer.js';
 import { VideoScopeRenderer } from '../domain/video-scope-renderer.js';
 
-// --- COMPONENT 1: Audio Monitor (Slim Vertical) ---
 class SignalMonitorAudio extends HTMLElement {
     constructor() {
         super();
@@ -38,7 +37,6 @@ class SignalMonitorAudio extends HTMLElement {
         const player = playerService.getPlayer();
         const videoEl = player?.getMediaElement();
 
-        // Retry if player or video element isn't ready yet
         if (!player || !videoEl) {
             this.attachRaf = requestAnimationFrame(() => this.attemptAttach());
             return;
@@ -93,9 +91,7 @@ class SignalMonitorAudio extends HTMLElement {
 
         this.ctx.clearRect(0, 0, width, height);
 
-        // Draw simplified spectrum bars (vertical, since canvas is tall/thin)
-        // We rotate logic: frequency goes bottom-to-top.
-        const barHeight = height / 32; // Reduced resolution for aesthetic
+        const barHeight = height / 32; 
         const step = Math.floor(bufferLength / 32);
 
         for (let i = 0; i < 32; i++) {
@@ -105,7 +101,7 @@ class SignalMonitorAudio extends HTMLElement {
 
             const y = height - i * barHeight;
 
-            this.ctx.fillStyle = `rgba(52, 211, 153, ${0.2 + percent * 0.8})`; // Emerald
+            this.ctx.fillStyle = `rgba(52, 211, 153, ${0.2 + percent * 0.8})`;
             this.ctx.fillRect(
                 (width - barWidth) / 2,
                 y,
@@ -137,17 +133,12 @@ class SignalMonitorAudio extends HTMLElement {
                 >
                     ${icons.volumeUp}
                 </div>
-
-                <!-- Split: Meters and Spectrum -->
                 <div
                     class="grow flex flex-col items-center w-full min-h-0 gap-2"
                 >
-                    <!-- Level Meters -->
                     <div class="h-1/2 flex justify-center gap-1 w-full px-1">
                         ${meterBar('bar-l')} ${meterBar('bar-r')}
                     </div>
-
-                    <!-- Spectrum Analyzer (Canvas) -->
                     <div class="h-1/2 w-full px-1 relative opacity-60">
                         <canvas
                             id="audio-spectrum-canvas"
@@ -157,7 +148,6 @@ class SignalMonitorAudio extends HTMLElement {
                         ></canvas>
                     </div>
                 </div>
-
                 <div
                     class="w-8 h-8 relative border-t border-slate-800 mt-2 shrink-0"
                 >
@@ -181,17 +171,18 @@ class SignalMonitorAudio extends HTMLElement {
 }
 customElements.define('signal-monitor-audio', SignalMonitorAudio);
 
-// --- COMPONENT 2: Video Monitor (Horizontal Bottom Panel) ---
 class SignalMonitorVideo extends HTMLElement {
     constructor() {
         super();
         this.renderer = new VideoScopeRenderer();
         this._state = {
             isRestricted: false,
+            isDrmLocked: false,
             showWaveform: true,
             showVectorscope: true,
-            showParade: true,
-            showHistogram: true,
+            showParade: false,
+            showHistogram: false,
+            showBroadcastCompliance: false,
         };
         this.attachRaf = null;
         this.toggleScope = this.toggleScope.bind(this);
@@ -214,20 +205,19 @@ class SignalMonitorVideo extends HTMLElement {
         const player = playerService.getPlayer();
         const videoEl = player?.getMediaElement();
 
-        // Retry if player or video element isn't ready yet
         if (!player || !videoEl) {
             this.attachRaf = requestAnimationFrame(() => this.attemptAttach());
             return;
         }
-
         this.init(videoEl);
     }
 
     init(videoEl) {
-        console.log('[SignalMonitorVideo] init', {
-            videoEl,
-            crossOrigin: videoEl.crossOrigin,
-        });
+        if (videoEl.mediaKeys) {
+            this._state.isDrmLocked = true;
+            this.render();
+            return;
+        }
         if (videoEl.crossOrigin !== 'anonymous') {
             console.warn(
                 '[SignalMonitorVideo] Video missing crossOrigin="anonymous"'
@@ -266,41 +256,61 @@ class SignalMonitorVideo extends HTMLElement {
     }
 
     render() {
-        const { isRestricted } = this._state;
-        const btn = (active, icon, label, onClick) => html`
+        const { isRestricted, isDrmLocked } = this._state;
+
+        // Styled as a horizontal pill button
+        const btn = (active, icon, label, onClick, activeColor='bg-blue-600') => html`
             <button
                 @click=${onClick}
-                class="flex flex-col items-center justify-center w-full p-2 rounded gap-1 transition-all ${active
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-slate-900 text-slate-500 hover:bg-slate-800'}"
+                ?disabled=${isDrmLocked || isRestricted}
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all ${active
+                    ? `${activeColor} text-white border-transparent shadow-md`
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800 hover:text-slate-200 hover:border-slate-700'} 
+                       disabled:opacity-50 disabled:cursor-not-allowed text-[10px] font-bold uppercase tracking-wider whitespace-nowrap"
             >
-                <span class="scale-75">${icon}</span>
-                <span class="text-[9px] font-bold uppercase tracking-wider"
-                    >${label}</span
-                >
+                <span class="scale-90">${icon}</span>
+                <span>${label}</span>
             </button>
         `;
 
+        let overlay = null;
+        if (isDrmLocked) {
+            overlay = html`
+                <div
+                    class="absolute inset-0 z-20 bg-black/90 flex flex-col items-center justify-center text-slate-400 p-4 text-center"
+                >
+                    <div class="text-amber-500 mb-2 scale-150">
+                        ${icons.shield}
+                    </div>
+                    <h4 class="text-sm font-bold text-white mb-1">
+                        Signal Analysis Unavailable
+                    </h4>
+                    <p class="text-xs max-w-xs">
+                        This stream is protected by DRM (EME). Browsers block
+                        pixel access to protected video for security reasons.
+                    </p>
+                </div>
+            `;
+        } else if (isRestricted) {
+            overlay = html`
+                <div
+                    class="absolute inset-0 z-20 bg-black/90 flex flex-col items-center justify-center text-slate-500 p-4"
+                >
+                    <div class="text-red-500 mb-2">${icons.lockClosed}</div>
+                    <p class="text-xs font-bold">Signal Locked (CORS)</p>
+                </div>
+            `;
+        }
+
         const template = html`
             <div
-                class="flex h-full bg-slate-950 border-t border-slate-800 relative overflow-hidden"
+                class="flex flex-col h-full bg-slate-950 border-t border-slate-800 relative overflow-hidden"
             >
-                ${isRestricted
-                    ? html`
-                          <div
-                              class="absolute inset-0 z-20 bg-black/90 flex flex-col items-center justify-center text-slate-500 p-4"
-                          >
-                              <div class="text-red-500 mb-2">
-                                  ${icons.lockClosed}
-                              </div>
-                              <p class="text-xs">Signal Locked (CORS)</p>
-                          </div>
-                      `
-                    : ''}
+                ${overlay}
 
-                <!-- Left Controls Toolbar -->
+                <!-- Top Controls Toolbar -->
                 <div
-                    class="w-16 shrink-0 bg-slate-950 border-r border-slate-800 flex flex-col p-2 gap-2 z-10 overflow-y-auto custom-scrollbar"
+                    class="w-full shrink-0 bg-slate-950 border-b border-slate-800 flex items-center p-2 gap-2 z-10 overflow-x-auto custom-scrollbar"
                 >
                     ${btn(
                         this._state.showWaveform,
@@ -323,10 +333,20 @@ class SignalMonitorVideo extends HTMLElement {
                         'Hist',
                         () => this.toggleScope('showHistogram')
                     )}
+                    
+                    <div class="h-6 w-px bg-slate-800 mx-1 shrink-0"></div>
+
+                    ${btn(
+                        this._state.showBroadcastCompliance,
+                        icons.shieldCheck,
+                        'QC',
+                        () => this.toggleScope('showBroadcastCompliance'),
+                        'bg-red-600'
+                    )}
                 </div>
 
                 <!-- Scope Canvas Area -->
-                <div class="grow relative bg-black">
+                <div class="grow relative bg-black min-h-0">
                     <canvas
                         id="scope-canvas"
                         class="absolute inset-0 w-full h-full block"

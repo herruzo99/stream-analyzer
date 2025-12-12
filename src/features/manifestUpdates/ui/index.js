@@ -108,7 +108,7 @@ function renderView() {
                     ${showHlsViz
                         ? html`
                               <div
-                                  class="h-64 shrink-0 border-t border-slate-800"
+                                  class="h-32 shrink-0 border-t border-slate-800"
                               >
                                   ${hlsDeltaVisualizerTemplate(vm.activeUpdate)}
                               </div>

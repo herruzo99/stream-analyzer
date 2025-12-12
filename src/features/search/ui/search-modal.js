@@ -121,11 +121,13 @@ class SearchModal extends HTMLElement {
         // 1. Close modal
         this.close();
 
-        // 2. Switch to the Interactive Manifest tab to ensure the selection is visible
+        // 2. Sync the query to the Interactive Manifest Find Bar
+        uiActions.setManifestSearchTerm(this.query);
+
+        // 3. Switch to the Interactive Manifest tab
         uiActions.setActiveTab('interactive-manifest');
 
-        // 3. Set selection with scroll flag
-        // Using a small timeout ensures the view switch has processed before the selection logic triggers scrolling
+        // 4. Set selection with scroll flag
         setTimeout(() => {
             uiActions.setInteractiveManifestSelectedItem({
                 path: result.path,

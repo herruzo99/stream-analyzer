@@ -13,8 +13,48 @@ import { hideLoader, showLoader } from '@/ui/components/loader';
 import { showToast } from '@/ui/components/toast';
 import { openModalWithContent } from '@/ui/services/modalService';
 
+/**
+ * Extracts timing configuration from a Representation context.
+ */
+function extractTimingConfig(rep, as, period) {
+    const hierarchy = [rep, as, period];
+    const template = getInheritedElement('SegmentTemplate', hierarchy);
+
+    if (!template) return null;
+
+    let duration = parseFloat(getAttr(template, 'duration'));
+    let timeline = null;
+
+    const timelineEl = findChildrenRecursive(template, 'SegmentTimeline')[0];
+    if (timelineEl) {
+        timeline = findChildrenRecursive(timelineEl, 'S').map((s) => ({
+            t: getAttr(s, 't') ? parseInt(getAttr(s, 't'), 10) : undefined,
+            d: parseInt(getAttr(s, 'd'), 10),
+            r: getAttr(s, 'r') ? parseInt(getAttr(s, 'r'), 10) : 0,
+        }));
+    }
+
+    // Heuristic for missing duration when timeline exists
+    if (isNaN(duration) && timeline) {
+        // Calculate max duration from timeline for estimation
+        duration = timeline.reduce((max, entry) => Math.max(max, entry.d), 0);
+    }
+
+    return {
+        id: getAttr(rep, 'id'),
+        bandwidth: parseInt(getAttr(rep, 'bandwidth') || '0', 10),
+        contentType: getAttr(as, 'contentType') || 'unknown',
+        timescale: parseFloat(getAttr(template, 'timescale') || '1'),
+        duration: duration,
+        startNumber: parseInt(getAttr(template, 'startNumber') || '1'),
+        pto: parseFloat(getAttr(template, 'presentationTimeOffset') || '0'),
+        mediaTemplate: getAttr(template, 'media'),
+        timeline: timeline,
+    };
+}
+
 export function initializeUiOrchestration() {
-    // --- Memory Management Modal (NEW) ---
+    // --- Memory Management Modal ---
     eventBus.subscribe('ui:memory-modal:open', () => {
         openModalWithContent({
             title: '',
@@ -27,8 +67,26 @@ export function initializeUiOrchestration() {
     // --- Segment Analysis Modal ---
     eventBus.subscribe(
         EVENTS.UI.SHOW_SEGMENT_ANALYSIS_MODAL,
-        ({ uniqueId, format, isIFrame }) => {
+        ({ uniqueId, format, isIFrame, parsedData }) => {
             const { activeStreamId } = useAnalysisStore.getState();
+            
+            // NEW: If parsedData provided (e.g. synthetic SIDX inspector), skip cache check
+            if (parsedData) {
+                 openModalWithContent({
+                    title: 'Structure Inspector',
+                    url: uniqueId,
+                    content: {
+                        type: 'segmentAnalysis',
+                        data: {
+                            parsedData: parsedData,
+                            isIFrame: isIFrame || false,
+                            uniqueId: uniqueId,
+                        },
+                    },
+                });
+                return;
+            }
+
             const cachedEntry = useSegmentCacheStore.getState().get(uniqueId);
 
             if (cachedEntry?.parsedData) {
@@ -157,63 +215,70 @@ export function initializeUiOrchestration() {
     // --- DASH Timing Calculator ---
     eventBus.subscribe(
         EVENTS.UI.SHOW_DASH_TIMING_CALCULATOR,
-        ({ streamId }) => {
+        ({ streamId, representationId }) => {
             const stream = useAnalysisStore
                 .getState()
                 .streams.find((s) => s.id === streamId);
             if (!stream || stream.protocol !== 'dash') return;
 
             const manifest = stream.manifest.serializedManifest;
-            const period = findChildrenRecursive(manifest, 'Period')[0];
-            const adaptationSet = findChildrenRecursive(
-                period,
-                'AdaptationSet'
-            )[0];
-            const representation = findChildrenRecursive(
-                adaptationSet,
-                'Representation'
-            )[0];
+            let targetPeriod;
 
-            const hierarchy = [representation, adaptationSet, period];
-            const template = getInheritedElement('SegmentTemplate', hierarchy);
+            // 1. Determine Target Period
+            if (representationId) {
+                // Scan to find which period owns this rep
+                const periods = findChildrenRecursive(manifest, 'Period');
+                for (const period of periods) {
+                    const reps = findChildrenRecursive(period, 'Representation');
+                    if (reps.some(r => getAttr(r, 'id') === representationId)) {
+                        targetPeriod = period;
+                        break;
+                    }
+                }
+            }
+            
+            if (!targetPeriod) {
+                targetPeriod = findChildrenRecursive(manifest, 'Period')[0];
+            }
 
-            if (!template) {
-                showToast({
-                    message: 'No SegmentTemplate found in this manifest.',
-                    type: 'warn',
-                });
+            if (!targetPeriod) {
+                showToast({ message: 'No Periods found.', type: 'fail' });
                 return;
             }
 
-            let duration = parseFloat(getAttr(template, 'duration'));
-            if (isNaN(duration)) {
-                const timeline = findChildrenRecursive(
-                    template,
-                    'SegmentTimeline'
-                )[0];
-                if (timeline) {
-                    const sElements = findChildrenRecursive(timeline, 'S');
-                    let maxDuration = 0;
-                    for (const s of sElements) {
-                        const d = parseFloat(getAttr(s, 'd') || '0');
-                        if (d > maxDuration) maxDuration = d;
+            // 2. Extract All Valid Tracks in Period
+            const tracks = [];
+            const adaptationSets = findChildrenRecursive(targetPeriod, 'AdaptationSet');
+            
+            for (const as of adaptationSets) {
+                const representations = findChildrenRecursive(as, 'Representation');
+                for (const rep of representations) {
+                    const config = extractTimingConfig(rep, as, targetPeriod);
+                    if (config) {
+                        tracks.push(config);
                     }
-                    if (maxDuration > 0) duration = maxDuration;
                 }
             }
 
+            if (tracks.length === 0) {
+                showToast({ message: 'No valid SegmentTemplates found in Period.', type: 'warn' });
+                return;
+            }
+
+            // 3. Determine Initial Selection
+            let initialRepId = representationId;
+            if (!initialRepId || !tracks.some(t => t.id === initialRepId)) {
+                initialRepId = tracks[0].id;
+            }
+
             const data = {
+                isDynamic: getAttr(manifest, 'type') === 'dynamic',
                 ast: new Date(
                     getAttr(manifest, 'availabilityStartTime') || 0
                 ).getTime(),
-                periodStart: parseDuration(getAttr(period, 'start')) || 0,
-                timescale: parseFloat(getAttr(template, 'timescale')),
-                duration: duration,
-                startNumber: parseInt(getAttr(template, 'startNumber') || 1),
-                pto: parseFloat(
-                    getAttr(template, 'presentationTimeOffset') || 0
-                ),
-                mediaTemplate: getAttr(template, 'media'),
+                periodStart: parseDuration(getAttr(targetPeriod, 'start')) || 0,
+                tracks: tracks,
+                initialRepId: initialRepId
             };
 
             openModalWithContent({

@@ -65,12 +65,9 @@ export class HlsDeltaVisualizer extends HTMLElement {
             value: seg.duration,
             name: `Seg #${currentStartSeq + idx}`,
             itemStyle: {
-                color: '#3b82f6', // Blue-500
+                color: '#2563eb', // Blue-600
             },
         }));
-
-        // 3. Future/Parts (if LL-HLS)
-        // Not visualized in simple block model, keeping it clean.
 
         const option = {
             backgroundColor: 'transparent',
@@ -88,7 +85,7 @@ export class HlsDeltaVisualizer extends HTMLElement {
                     return `<b>${item.name}</b><br/>Duration: ${item.value}s`;
                 },
             },
-            grid: { top: 30, bottom: 30, left: 20, right: 20 },
+            grid: { top: 15, bottom: 20, left: 10, right: 10 },
             xAxis: {
                 type: 'category',
                 data: [
@@ -96,13 +93,16 @@ export class HlsDeltaVisualizer extends HTMLElement {
                     ...activeData.map((_, i) => `#${currentStartSeq + i}`),
                 ],
                 axisLine: { lineStyle: { color: '#4b5563' } },
-                axisLabel: { color: '#94a3b8', fontSize: 10 },
+                axisLabel: { show: false }, // Hide labels to save vertical space
+                axisTick: { show: false }
             },
             yAxis: {
                 type: 'value',
                 name: 'Duration (s)',
+                nameLocation: 'end',
+                nameTextStyle: { padding: [0, 0, 0, 10], color: '#64748b' },
                 splitLine: { lineStyle: { color: '#1e293b' } },
-                axisLabel: { color: '#64748b' },
+                axisLabel: { show: false }, // Hide Y labels for cleanliness in small view
             },
             series: [
                 {
@@ -113,7 +113,7 @@ export class HlsDeltaVisualizer extends HTMLElement {
                         skippedCount > 0
                             ? [skippedCount, ...activeData.map(() => 0)]
                             : [],
-                    barWidth: '60%',
+                    barWidth: '80%',
                 },
                 {
                     name: 'Active',
@@ -123,7 +123,7 @@ export class HlsDeltaVisualizer extends HTMLElement {
                         skippedCount > 0
                             ? [0, ...activeData.map((d) => d.value)]
                             : activeData.map((d) => d.value),
-                    barWidth: '60%',
+                    barWidth: '80%',
                 },
             ],
         };
@@ -144,24 +144,24 @@ export const hlsDeltaVisualizerTemplate = (update) => {
             class="h-full flex flex-col bg-slate-900 border-l border-slate-800/50"
         >
             <div
-                class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/30"
+                class="p-2 border-b border-slate-800 flex items-center justify-between bg-slate-950/30"
             >
                 <div class="flex items-center gap-2">
-                    <span class="text-amber-400">${icons.history}</span>
+                    <span class="text-amber-400 scale-75">${icons.history}</span>
                     <h4
-                        class="text-xs font-bold text-slate-300 uppercase tracking-wider"
+                        class="text-[10px] font-bold text-slate-300 uppercase tracking-wider"
                     >
                         Sliding Window
                     </h4>
                 </div>
                 ${hasSkip
                     ? html`<span
-                          class="px-2 py-0.5 rounded bg-amber-900/20 text-amber-400 border border-amber-500/30 text-[10px] font-bold"
+                          class="px-1.5 py-0.5 rounded bg-amber-900/20 text-amber-400 border border-amber-500/30 text-[9px] font-bold"
                           >Delta Update</span
                       >`
                     : ''}
             </div>
-            <div class="grow relative p-4">
+            <div class="grow relative p-2">
                 <hls-delta-visualizer
                     .data=${{ update }}
                 ></hls-delta-visualizer>

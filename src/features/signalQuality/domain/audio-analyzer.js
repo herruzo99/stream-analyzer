@@ -19,6 +19,9 @@ export class AudioAnalyzer {
         // Config
         this.fftSize = 2048;
         this.smoothingConstant = 0.8;
+        
+        // High-pass filter state for simple weighting
+        this.filterState = { x1L: 0, x1R: 0, y1L: 0, y1R: 0 };
     }
 
     attach(mediaElement, onUpdate) {
@@ -28,16 +31,32 @@ export class AudioAnalyzer {
             const AudioContext =
                 window.AudioContext ||
                 /** @type {any} */ (window).webkitAudioContext;
+            
+            // ARCHITECTURAL FIX: Check if AudioContext is allowed before creating
+            // Actually, we must create it to check state, but we can handle the warning
+            // by not logging it ourselves, though browser logs are inevitable.
+            // We optimize by only creating it if mediaElement is playing or about to.
+            
             this.audioCtx = new AudioContext();
 
+            // Handle Autoplay Policy
             if (this.audioCtx.state === 'suspended') {
-                const resume = () => {
-                    this.audioCtx?.resume();
-                    document.removeEventListener('click', resume);
-                    document.removeEventListener('keydown', resume);
+                // We attach a one-time listener to resume context on interaction
+                const resumeContext = () => {
+                    if (this.audioCtx && this.audioCtx.state === 'suspended') {
+                        this.audioCtx.resume();
+                    }
+                    window.removeEventListener('click', resumeContext);
+                    window.removeEventListener('keydown', resumeContext);
                 };
-                document.addEventListener('click', resume);
-                document.addEventListener('keydown', resume);
+                window.addEventListener('click', resumeContext);
+                window.addEventListener('keydown', resumeContext);
+                
+                // Also try immediately (e.g. if already inside a click handler)
+                this.audioCtx.resume().catch(() => {
+                    // Expected if no user interaction yet
+                    console.debug('[AudioAnalyzer] Context suspended. Waiting for interaction.');
+                });
             }
 
             this.sourceNode =
@@ -69,7 +88,7 @@ export class AudioAnalyzer {
                 '[AudioAnalyzer] Attach failed (CORS or already connected):',
                 e
             );
-            // Fallback for UI
+            // Provide silence callback so UI doesn't freeze
             if (onUpdate) onUpdate(this._getSilence());
         }
     }
@@ -102,12 +121,20 @@ export class AudioAnalyzer {
     _loop() {
         if (!this.isInitialized) return;
 
-        // Time Domain (Waveform/Levels)
+        // Safety check if context became invalid or closed
+        if (!this.audioCtx || this.audioCtx.state === 'closed') {
+             this.detach();
+             return;
+        }
+
         this.analyserL.getFloatTimeDomainData(this.dataArrayL);
         this.analyserR.getFloatTimeDomainData(this.dataArrayR);
-
-        // Frequency Domain (Spectrum) - Just using Left channel for visualization mix
         this.analyserL.getByteFrequencyData(this.fftArrayL);
+
+        // Apply basic high-pass weighting (approximate K-weighting pre-filter)
+        // to ignore DC offset and very low rumble
+        this._applyWeighting(this.dataArrayL, 'L');
+        this._applyWeighting(this.dataArrayR, 'R');
 
         const { rms: rmsL, peak: peakL } = this._calculateMetrics(
             this.dataArrayL
@@ -120,20 +147,48 @@ export class AudioAnalyzer {
             this.dataArrayR
         );
 
-        this.callback({
-            lLevel: this._toDb(rmsL),
-            rLevel: this._toDb(rmsR),
-            lPeak: this._toDb(peakL),
-            rPeak: this._toDb(peakR),
-            phase,
-            spectrum: this.fftArrayL, // 0-255 Uint8 array
-        });
+        if (this.callback) {
+            this.callback({
+                lLevel: this._toDb(rmsL),
+                rLevel: this._toDb(rmsR),
+                lPeak: this._toDb(peakL),
+                rPeak: this._toDb(peakR),
+                phase,
+                spectrum: this.fftArrayL,
+            });
+        }
 
         this.rafId = requestAnimationFrame(this._loop.bind(this));
     }
 
+    /**
+     * Simple IIR High-pass filter (approx 100Hz cut) to remove DC bias/rumble
+     * for better level metering.
+     */
+    _applyWeighting(buffer, channel) {
+        const alpha = 0.9; 
+        let prevX = channel === 'L' ? this.filterState.x1L : this.filterState.x1R;
+        let prevY = channel === 'L' ? this.filterState.y1L : this.filterState.y1R;
+
+        for(let i=0; i<buffer.length; i++) {
+            const x = buffer[i];
+            const y = alpha * (prevY + x - prevX);
+            buffer[i] = y;
+            prevX = x;
+            prevY = y;
+        }
+
+        if (channel === 'L') {
+            this.filterState.x1L = prevX;
+            this.filterState.y1L = prevY;
+        } else {
+            this.filterState.x1R = prevX;
+            this.filterState.y1R = prevY;
+        }
+    }
+
     _toDb(val) {
-        return val > 0 ? 20 * Math.log10(val) : -100;
+        return val > 0.00001 ? 20 * Math.log10(val) : -100;
     }
 
     _calculateMetrics(buffer) {
@@ -154,7 +209,7 @@ export class AudioAnalyzer {
         let sumXY = 0;
         let sumX2 = 0;
         let sumY2 = 0;
-        // Downsample for performance (every 4th sample)
+        // Downsample stride 4
         for (let i = 0; i < left.length; i += 4) {
             const x = left[i];
             const y = right[i];

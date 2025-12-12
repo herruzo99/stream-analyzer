@@ -1,12 +1,95 @@
+import { isDebugMode } from '@/shared/utils/env';
 import { uiActions, useUiStore } from '@/state/uiStore';
 import '@/ui/components/virtualized-list';
 import * as icons from '@/ui/icons';
-import {
-    disposeChart,
-    renderChart,
-} from '@/ui/shared/charts/chart-renderer.js';
+import { disposeChart, renderChart } from '@/ui/shared/charts/chart-renderer.js';
 import { tsInspectorDetailsTemplate } from '@/ui/shared/ts-renderer.js';
 import { html, render } from 'lit-html';
+
+// --- SYNTHETIC DATA GENERATOR FOR DEBUGGING ---
+function generateSyntheticDescriptorPacket() {
+    const mockBaseOffset = 18800;
+    
+    // Helper to create a mock descriptor object structure matching the parser output
+    const mkDesc = (tag, name, details) => ({
+        tag,
+        length: 0, // Mock
+        name,
+        details: Object.entries(details).reduce((acc, [k, v]) => {
+            acc[k] = { value: v, offset: mockBaseOffset, length: 1 };
+            return acc;
+        }, {})
+    });
+
+    const descriptors = [
+        mkDesc(0x23, 'MultiplexBuffer Descriptor', {
+            MB_buffer_size: '2048 bytes',
+            TB_leak_rate: '4000 units (400 bits/s)'
+        }),
+        mkDesc(0x0A, 'ISO 639 Language Descriptor', {
+            language: 'eng',
+            audio_type: 'Clean effects'
+        }),
+        mkDesc(0x28, 'AVC Video Descriptor', {
+            profile_idc: 100,
+            constraint_set0_flag: 0,
+            constraint_set1_flag: 1,
+            AVC_compatible_flags: 0
+        }),
+        mkDesc(0x05, 'Registration Descriptor', {
+            format_identifier: '0x43554549 (CUEI)',
+            additional_identification_info: 'none'
+        }),
+        mkDesc(0x38, 'HEVC Video Descriptor', {
+            profile_space: 0,
+            tier_flag: 0,
+            profile_idc: 1,
+            level_idc: 120
+        }),
+        mkDesc(0x2A, 'AVC Timing and HRD Descriptor', {
+            hrd_management_valid_flag: 1,
+            picture_and_timing_info_present: 1,
+            '90kHz_flag': 1,
+            fixed_frame_rate_flag: 0
+        })
+    ];
+
+    return {
+        offset: mockBaseOffset,
+        pid: 0x100,
+        payloadType: 'DEBUG (Synthetic PMT)',
+        header: {
+            sync_byte: { value: 0x47 },
+            transport_error_indicator: { value: 0 },
+            payload_unit_start_indicator: { value: 1 },
+            transport_priority: { value: 0 },
+            pid: { value: 0x100 },
+            transport_scrambling_control: { value: 0 },
+            adaptation_field_control: { value: 1 },
+            continuity_counter: { value: 0 }
+        },
+        psi: {
+            type: 'PMT',
+            pcr_pid: { value: 0x101 },
+            program_descriptors: descriptors,
+            streams: [
+                {
+                    stream_type: { value: '0x1b' },
+                    elementary_PID: { value: 0x101 },
+                    es_info_length: { value: 0 },
+                    es_descriptors: [
+                         mkDesc(0x02, 'Video Stream Descriptor', {
+                             multiple_frame_rate_flag: 0,
+                             frame_rate_code: 4,
+                             MPEG_1_only_flag: 0,
+                             profile_and_level_indication: 77
+                         })
+                    ]
+                }
+            ]
+        }
+    };
+}
 
 // --- Main Panel (Inspector) ---
 export const inspectorPanelTemplate = ({ data }) => {
@@ -37,7 +120,7 @@ const createBufferChartOptions = (historyData, pid) => {
         xAxis: {
             type: 'value',
             name: 'Offset',
-            axisLabel: { show: false }, // Hide detailed offsets for cleanliness
+            axisLabel: { show: false },
             splitLine: { show: false },
         },
         yAxis: {
@@ -45,7 +128,7 @@ const createBufferChartOptions = (historyData, pid) => {
             name: 'Bytes',
             splitLine: { lineStyle: { color: '#334155', type: 'dashed' } },
             axisLabel: { color: '#64748b' },
-            max: 512, // TBn limit
+            max: 512,
         },
         series: [
             {
@@ -63,8 +146,6 @@ const createBufferChartOptions = (historyData, pid) => {
         ],
     };
 };
-
-// --- Advanced Structure Viewer ---
 
 class TsStructureViewer extends HTMLElement {
     constructor() {
@@ -137,7 +218,6 @@ class TsStructureViewer extends HTMLElement {
                     pid: p.pid,
                     type: p.payloadType,
                     count: 0,
-                    // --- ARCHITECTURAL UPDATE: Pull specific PID errors from summary ---
                     errors: summary?.continuityCounters?.[p.pid]?.errors || 0,
                 });
             }
@@ -169,7 +249,6 @@ class TsStructureViewer extends HTMLElement {
         const bufferHistory = this._data.summary.bufferHistory;
         let targetPid = this.filterPid;
 
-        // If 'all', pick the first PID with history (usually video/audio)
         if (targetPid === 'all') {
             targetPid = Object.keys(bufferHistory)[0];
         }
@@ -194,37 +273,51 @@ class TsStructureViewer extends HTMLElement {
         this.render();
     }
 
+    _simulateDescriptors() {
+        const fakePacket = generateSyntheticDescriptorPacket();
+        uiActions.setInteractiveSegmentSelectedItem(fakePacket);
+    }
+
     _rowRenderer(p) {
         const { interactiveSegmentSelectedItem } = useUiStore.getState();
         const isSelected =
             interactiveSegmentSelectedItem?.item?.offset === p.offset;
+        
         const handleSelect = (e) => {
             e.stopPropagation();
             uiActions.setInteractiveSegmentSelectedItem(p);
         };
 
-        // ... (Colors logic same as previous) ...
+        const handleHover = (isEnter) => {
+             if (isEnter) {
+                 uiActions.setInteractiveSegmentHighlightedItem(p, 'Packet');
+             } else {
+                 uiActions.setInteractiveSegmentHighlightedItem(null, null);
+             }
+        };
+
+        const pType = p.payloadType || 'Unknown';
         let typeColor = 'text-slate-500';
         let typeBg = 'bg-slate-800/20';
         let typeBorder = 'border-slate-700/50';
 
-        if (p.payloadType.includes('PAT')) {
+        if (pType.includes('PAT')) {
             typeColor = 'text-red-300';
             typeBg = 'bg-red-900/20';
             typeBorder = 'border-red-500/20';
-        } else if (p.payloadType.includes('PMT')) {
+        } else if (pType.includes('PMT')) {
             typeColor = 'text-yellow-300';
             typeBg = 'bg-yellow-900/20';
             typeBorder = 'border-yellow-500/20';
-        } else if (p.payloadType.includes('Video')) {
+        } else if (pType.includes('Video')) {
             typeColor = 'text-blue-300';
             typeBg = 'bg-blue-900/20';
             typeBorder = 'border-blue-500/20';
-        } else if (p.payloadType.includes('Audio')) {
+        } else if (pType.includes('Audio')) {
             typeColor = 'text-purple-300';
             typeBg = 'bg-purple-900/20';
             typeBorder = 'border-purple-500/20';
-        } else if (p.payloadType.includes('PES')) {
+        } else if (pType.includes('PES')) {
             typeColor = 'text-indigo-300';
             typeBg = 'bg-indigo-900/20';
             typeBorder = 'border-indigo-500/20';
@@ -236,12 +329,33 @@ class TsStructureViewer extends HTMLElement {
         const isStart = p.header.payload_unit_start_indicator.value === 1;
         const hasPcr = !!p.adaptationField?.pcr;
         const cc = p.header.continuity_counter.value;
-        // --- NEW: Visualize Priority Flag ---
         const isPriority = p.header.transport_priority?.value === 1;
+
+        // --- NEW: Check for Descriptors ---
+        let hasDesc = false;
+        if (p.psi) {
+            // Check Program Descriptors
+            if (p.psi.program_descriptors && p.psi.program_descriptors.length > 0) hasDesc = true;
+            
+            // Check Elementary Stream Descriptors
+            if (!hasDesc && p.psi.streams) {
+                hasDesc = p.psi.streams.some(s => s.es_descriptors && s.es_descriptors.length > 0);
+            }
+            
+            // Check CAT/TSDT descriptors
+            if (!hasDesc && p.psi.descriptors && p.psi.descriptors.length > 0) hasDesc = true;
+        }
+        
+        // Check Adaptation Field Descriptors
+        if (!hasDesc && p.adaptationField?.extension?.af_descriptors?.length > 0) {
+            hasDesc = true;
+        }
 
         return html`
             <div
                 @click=${handleSelect}
+                @mouseenter=${() => handleHover(true)}
+                @mouseleave=${() => handleHover(false)}
                 class="grid grid-cols-[60px_50px_140px_40px_1fr] gap-2 items-center px-3 h-[28px] cursor-pointer text-xs font-mono border-l-2 transition-colors ${bgClass}"
             >
                 <span class="opacity-50 text-[10px]"
@@ -254,11 +368,18 @@ class TsStructureViewer extends HTMLElement {
                 <div class="flex items-center gap-2 min-w-0">
                     <span
                         class="truncate px-1.5 py-0.5 rounded text-[10px] ${typeBg} ${typeColor} border ${typeBorder} w-full text-center block"
-                        >${p.payloadType}</span
+                        >${pType}</span
                     >
                 </div>
                 <span class="text-center text-slate-400">${cc}</span>
                 <div class="flex gap-1 justify-end opacity-80">
+                    ${hasDesc
+                        ? html`<span
+                              class="text-[9px] bg-fuchsia-500/20 text-fuchsia-300 px-1 rounded font-bold border border-fuchsia-500/30"
+                              title="Descriptors Present"
+                              >DESC</span
+                          >`
+                        : ''}
                     ${isStart
                         ? html`<span
                               class="text-[9px] bg-emerald-500/20 text-emerald-400 px-1 rounded font-bold border border-emerald-500/30"
@@ -290,10 +411,21 @@ class TsStructureViewer extends HTMLElement {
         const headerClass =
             'grid grid-cols-[60px_50px_140px_40px_1fr] gap-2 px-3 py-2 bg-slate-900 border-b border-slate-800 text-[10px] font-bold text-slate-500 uppercase tracking-wider select-none z-10';
 
-        // --- NEW: PCR Stats in header ---
         const pcrStats = pcrList || {
             interval: { min: 'N/A', max: 'N/A', avg: 'N/A' },
         };
+        
+        const debugButton = isDebugMode
+            ? html`
+                <button
+                    @click=${() => this._simulateDescriptors()}
+                    class="px-2 py-1 bg-fuchsia-900/30 text-fuchsia-400 border border-fuchsia-500/30 rounded text-[10px] font-bold uppercase hover:bg-fuchsia-900/50 transition-colors ml-auto"
+                    title="Simulate PSI Packet"
+                >
+                    ${icons.debug} Sim Tags
+                </button>
+            `
+            : '';
 
         const template = html`
             <div
@@ -317,27 +449,30 @@ class TsStructureViewer extends HTMLElement {
                                 ${totalPackets.toLocaleString()} Packets
                             </span>
                         </div>
-                        <div
-                            class="flex gap-4 text-[10px] text-slate-400 bg-slate-800/50 px-3 py-1 rounded border border-slate-700/50"
-                        >
-                            <div>
-                                <span
-                                    class="font-bold text-slate-500 uppercase block mb-0.5"
-                                    >PCR Avg</span
-                                >
-                                <span class="font-mono text-cyan-300"
-                                    >${pcrStats.interval.avg}</span
-                                >
-                            </div>
-                            <div class="border-l border-slate-700 pl-4">
-                                <span
-                                    class="font-bold text-slate-500 uppercase block mb-0.5"
-                                    >PCR Range</span
-                                >
-                                <span class="font-mono text-slate-300"
-                                    >${pcrStats.interval.min} -
-                                    ${pcrStats.interval.max}</span
-                                >
+                        <div class="flex gap-2">
+                             ${debugButton}
+                             <div
+                                class="flex gap-4 text-[10px] text-slate-400 bg-slate-800/50 px-3 py-1 rounded border border-slate-700/50"
+                            >
+                                <div>
+                                    <span
+                                        class="font-bold text-slate-500 uppercase block mb-0.5"
+                                        >PCR Avg</span
+                                    >
+                                    <span class="font-mono text-cyan-300"
+                                        >${pcrStats.interval.avg}</span
+                                    >
+                                </div>
+                                <div class="border-l border-slate-700 pl-4">
+                                    <span
+                                        class="font-bold text-slate-500 uppercase block mb-0.5"
+                                        >PCR Range</span
+                                    >
+                                    <span class="font-mono text-slate-300"
+                                        >${pcrStats.interval.min} -
+                                        ${pcrStats.interval.max}</span
+                                    >
+                                </div>
                             </div>
                         </div>
                     </div>

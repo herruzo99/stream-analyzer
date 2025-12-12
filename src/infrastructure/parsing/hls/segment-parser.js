@@ -16,6 +16,17 @@ export function parseAllSegmentUrls(parsedMediaPlaylist, startTime = 0) {
 
     // Handle initialization segment if present
     if (parsedMediaPlaylist.map) {
+        let range = null;
+        if (parsedMediaPlaylist.map.BYTERANGE) {
+            const [lengthStr, offsetStr] =
+                String(parsedMediaPlaylist.map.BYTERANGE).split('@');
+            const length = parseInt(lengthStr, 10);
+            const offset = parseInt(offsetStr, 10);
+            if (!isNaN(length) && !isNaN(offset)) {
+                range = `${offset}-${offset + length - 1}`;
+            }
+        }
+
         segments.push({
             repId: 'hls-media',
             type: 'Init',
@@ -28,10 +39,18 @@ export function parseAllSegmentUrls(parsedMediaPlaylist, startTime = 0) {
             time: -1,
             duration: 0,
             timescale: hlsTimescale,
+            range: range, // Include range
         });
     }
 
     parsedMediaPlaylist.segments.forEach((seg, index) => {
+        let range = null;
+        if (seg.byteRange) {
+            const start = seg.byteRange.offset;
+            const end = start + seg.byteRange.length - 1;
+            range = `${start}-${end}`;
+        }
+
         segments.push({
             repId: 'hls-media',
             type: seg.type || 'Media',
@@ -43,6 +62,7 @@ export function parseAllSegmentUrls(parsedMediaPlaylist, startTime = 0) {
             timescale: hlsTimescale,
             dateTime: seg.dateTime,
             gap: seg.gap,
+            range: range, // Include range
         });
         currentTime += seg.duration;
     });

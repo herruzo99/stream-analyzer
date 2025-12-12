@@ -218,7 +218,6 @@ export class SemanticDiffChart extends HTMLElement {
                 bottom: 60,
                 left: 120,
                 right: 40,
-                containLabel: false,
             },
             xAxis: {
                 type: 'value',

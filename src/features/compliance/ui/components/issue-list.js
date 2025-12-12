@@ -1,3 +1,4 @@
+import { uiActions, useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
 import { highlightHls } from '@/ui/shared/syntax-highlighter';
 import { html, render } from 'lit-html';
@@ -10,6 +11,15 @@ export class ComplianceIssueList extends HTMLElement {
         this._stream = null;
         this._filter = 'all'; // all, fail, warn
         this._expandedId = null;
+        this._unsubscribe = null;
+    }
+
+    connectedCallback() {
+        this._unsubscribe = useUiStore.subscribe(() => this.render());
+    }
+
+    disconnectedCallback() {
+        if (this._unsubscribe) this._unsubscribe();
     }
 
     set data({ issues, stream }) {
@@ -31,6 +41,14 @@ export class ComplianceIssueList extends HTMLElement {
     setFilter(f) {
         this._filter = f;
         this.render();
+    }
+
+    handleMouseEnter(category) {
+        uiActions.setHighlightedComplianceCategory(category);
+    }
+
+    handleMouseLeave() {
+        uiActions.setHighlightedComplianceCategory(null);
     }
 
     getSnippet(issue) {
@@ -64,6 +82,8 @@ export class ComplianceIssueList extends HTMLElement {
     }
 
     render() {
+        const { highlightedComplianceCategory } = useUiStore.getState();
+
         const counts = {
             fail: this._issues.filter((i) => i.status === 'fail').length,
             warn: this._issues.filter((i) => i.status === 'warn').length,
@@ -90,6 +110,8 @@ export class ComplianceIssueList extends HTMLElement {
 
         const renderIssue = (issue) => {
             const isExpanded = this._expandedId === issue.id;
+            const isHighlighted = highlightedComplianceCategory === issue.category;
+
             const color =
                 issue.status === 'fail'
                     ? 'red'
@@ -103,11 +125,17 @@ export class ComplianceIssueList extends HTMLElement {
                       ? icons.alertTriangle
                       : icons.info;
 
+            const highlightClass = isHighlighted
+                ? 'ring-2 ring-blue-500/50 bg-blue-900/10'
+                : 'hover:border-slate-600';
+
             return html`
                 <div
-                    class="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden transition-all duration-200 ${isExpanded
+                    class="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden transition-all duration-200 mb-2 ${highlightClass} ${isExpanded
                         ? `ring-1 ring-${color}-500/50`
-                        : 'hover:border-slate-600'}"
+                        : ''}"
+                    @mouseenter=${() => this.handleMouseEnter(issue.category)}
+                    @mouseleave=${this.handleMouseLeave}
                 >
                     <div
                         @click=${() => this.toggleExpand(issue.id)}
@@ -128,8 +156,10 @@ export class ComplianceIssueList extends HTMLElement {
                                     >${issue.id}</span
                                 >
                             </div>
-                            <p class="text-xs text-slate-400 mt-1 truncate">
-                                ${issue.category} &bull; ${issue.isoRef}
+                            <p class="text-xs text-slate-400 mt-1 truncate flex items-center gap-2">
+                                <span class="${isHighlighted ? 'text-blue-300 font-bold' : ''}">${issue.category}</span>
+                                <span>&bull;</span>
+                                <span>${issue.isoRef}</span>
                             </p>
                         </div>
                         <div
@@ -178,7 +208,7 @@ export class ComplianceIssueList extends HTMLElement {
                     ${filterBtn('warn', 'Warnings', counts.warn, 'yellow')}
                 </div>
 
-                <div class="space-y-3 grow overflow-y-auto pr-2">
+                <div class="space-y-1 grow overflow-y-auto pr-2 pb-10">
                     ${this.filteredIssues.length === 0
                         ? html`<div
                               class="text-center p-8 text-slate-500 italic"

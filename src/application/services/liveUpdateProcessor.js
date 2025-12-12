@@ -1,5 +1,4 @@
 import { eventBus } from '@/application/event-bus';
-import { runChecks } from '@/features/compliance/domain/engine';
 import { generateFeatureAnalysis } from '@/features/featureAnalysis/domain/analyzer';
 import { applyPatches } from '@/features/manifestPatcher/domain/patchService';
 import { parseManifest as parseDash } from '@/infrastructure/parsing/dash/parser.js';
@@ -17,7 +16,7 @@ import { diffManifest } from '@/ui/shared/diff';
 const MAX_TOTAL_HISTORY = 100;
 
 // The "Window": Number of recent updates to keep fully hydrated with Raw Text & AST.
-// Allows deep inspection/diffing of recent events without OOMing on long sessions.
+// Allows deep inspection/diffing of recent updates without OOMing on long sessions.
 const FULL_FIDELITY_WINDOW = 10;
 
 /**
@@ -158,7 +157,7 @@ function mergeFeatureAnalysis(currentState, newResults) {
  * @param {object} updateData The event data from the worker.
  */
 async function processLiveUpdate(updateData) {
-    const { streamId, finalUrl } = updateData;
+    const { streamId, finalUrl, updatedPlaylistId } = updateData;
 
     const stream = useAnalysisStore
         .getState()
@@ -256,127 +255,110 @@ async function processLiveUpdate(updateData) {
     if (stream.protocol === 'hls') {
         const newMediaPlaylistsMap = new Map(stream.mediaPlaylists);
 
-        const oldMasterData = newMediaPlaylistsMap.get('master');
-        const newMasterRaw = updateData.newManifestString;
-        const isMasterUnchanged =
-            oldMasterData &&
-            oldMasterData.rawManifest.trim() === newMasterRaw.trim();
+        // --- MASTER PLAYLIST UPDATE LOGIC ---
+        // Only update master state if explicitly updating master OR 
+        // if this is the first load and we want to populate it.
+        if (updatedPlaylistId === 'master' || !updatedPlaylistId) {
+             const oldMasterData = newMediaPlaylistsMap.get('master');
+             const newMasterRaw = updateData.newManifestString;
+             const isMasterUnchanged =
+                 oldMasterData &&
+                 oldMasterData.rawManifest.trim() === newMasterRaw.trim();
 
-        let newMasterUpdates = oldMasterData ? oldMasterData.updates : [];
-        let newMasterActiveUpdateId = oldMasterData
-            ? oldMasterData.activeUpdateId
-            : null;
+             let newMasterUpdates = oldMasterData ? oldMasterData.updates : [];
+             let newMasterActiveUpdateId = oldMasterData ? oldMasterData.activeUpdateId : null;
 
-        if (isMasterUnchanged && newMasterUpdates[0]) {
-            const latestMasterUpdate = newMasterUpdates[0];
-            const newSeq =
-                (latestMasterUpdate.endSequenceNumber ||
-                    latestMasterUpdate.sequenceNumber) + 1;
-            const mergedUpdate = {
-                ...latestMasterUpdate,
-                endSequenceNumber: newSeq,
-                endTimestamp: new Date().toLocaleTimeString(),
-            };
-            newMasterUpdates = [mergedUpdate, ...newMasterUpdates.slice(1)];
-        } else {
-            const { diffModel, changes } = diffManifest(
-                oldMasterData?.rawManifest || '',
-                newMasterRaw
-            );
-            const newUpdate = {
-                id: `${streamId}-master-${Date.now()}`,
-                sequenceNumber:
-                    (newMasterUpdates[0]?.endSequenceNumber ||
-                        newMasterUpdates[0]?.sequenceNumber ||
-                        0) + 1,
-                timestamp: new Date().toLocaleTimeString(),
-                diffModel,
-                rawManifest: newMasterRaw,
-                complianceResults: updateData.complianceResults,
-                hasNewIssues: false,
-                serializedManifest: updateData.serializedManifest,
-                changes,
-            };
+             if (isMasterUnchanged && newMasterUpdates[0]) {
+                 const latestMasterUpdate = newMasterUpdates[0];
+                 const newSeq = (latestMasterUpdate.endSequenceNumber || latestMasterUpdate.sequenceNumber) + 1;
+                 const mergedUpdate = {
+                     ...latestMasterUpdate,
+                     endSequenceNumber: newSeq,
+                     endTimestamp: new Date().toLocaleTimeString(),
+                 };
+                 newMasterUpdates = [mergedUpdate, ...newMasterUpdates.slice(1)];
+             } else {
+                 let diffModel = updateData.diffModel;
+                 let changes = updateData.changes;
+                 if (!diffModel) {
+                     const diffRes = diffManifest(
+                         oldMasterData?.rawManifest || '',
+                         newMasterRaw
+                     );
+                     diffModel = diffRes.diffModel;
+                     changes = diffRes.changes;
+                 }
 
-            // Apply Optimization Strategy
-            newMasterUpdates = optimizeUpdateHistory([
-                newUpdate,
-                ...newMasterUpdates,
-            ]);
+                 const newUpdate = {
+                     id: `${streamId}-master-${Date.now()}`,
+                     sequenceNumber: (newMasterUpdates[0]?.endSequenceNumber || newMasterUpdates[0]?.sequenceNumber || 0) + 1,
+                     timestamp: new Date().toLocaleTimeString(),
+                     diffModel,
+                     rawManifest: newMasterRaw,
+                     complianceResults: updateData.complianceResults,
+                     hasNewIssues: false,
+                     serializedManifest: updateData.serializedManifest,
+                     changes,
+                 };
+                 newMasterUpdates = optimizeUpdateHistory([newUpdate, ...newMasterUpdates]);
+                 if (!newMasterActiveUpdateId) newMasterActiveUpdateId = newUpdate.id;
+             }
 
-            newMasterActiveUpdateId = newUpdate.id;
+             newMediaPlaylistsMap.set('master', {
+                 manifest: updateData.newManifestObject,
+                 rawManifest: newMasterRaw,
+                 lastFetched: new Date(),
+                 updates: newMasterUpdates,
+                 activeUpdateId: newMasterActiveUpdateId,
+             });
+
+             updatePayload.manifest = updateData.newManifestObject;
+             updatePayload.rawManifest = newMasterRaw;
         }
 
-        newMediaPlaylistsMap.set('master', {
-            manifest: updateData.newManifestObject,
-            rawManifest: newMasterRaw,
-            lastFetched: new Date(),
-            updates: newMasterUpdates,
-            activeUpdateId: newMasterActiveUpdateId,
-        });
-
-        updatePayload.manifest = updateData.newManifestObject;
-        updatePayload.rawManifest = newMasterRaw;
-
+        // --- MEDIA PLAYLIST (VARIANT) UPDATE LOGIC ---
         if (updateData.newMediaPlaylists) {
-            const incomingMediaPlaylists = new Map(
-                updateData.newMediaPlaylists
-            );
-            for (const [
-                variantId,
-                newPlaylistData,
-            ] of incomingMediaPlaylists.entries()) {
+            const incomingMediaPlaylists = new Map(updateData.newMediaPlaylists);
+            for (const [variantId, newPlaylistData] of incomingMediaPlaylists.entries()) {
                 const oldPlaylistData = stream.mediaPlaylists.get(variantId);
-                if (!oldPlaylistData) continue;
-
-                const oldRaw = oldPlaylistData.rawManifest || '';
+                const prevData = oldPlaylistData || { updates: [], activeUpdateId: null };
+                
+                const oldRaw = prevData.rawManifest || '';
                 const newRaw = newPlaylistData.rawManifest || '';
+                
                 const isMediaUnchanged = oldRaw.trim() === newRaw.trim();
-                const oldUpdates = oldPlaylistData.updates || [];
-                let latestMediaUpdate = oldUpdates[0];
+                const oldUpdates = prevData.updates || [];
                 let newMediaUpdates = oldUpdates;
-                let newActiveUpdateId = oldPlaylistData.activeUpdateId;
+                let newActiveUpdateId = prevData.activeUpdateId;
 
-                if (isMediaUnchanged && latestMediaUpdate) {
-                    const newSeq =
-                        (latestMediaUpdate.endSequenceNumber ||
-                            latestMediaUpdate.sequenceNumber) + 1;
-                    const mergedUpdate = {
-                        ...latestMediaUpdate,
-                        endSequenceNumber: newSeq,
-                        endTimestamp: new Date().toLocaleTimeString(),
-                    };
-                    newMediaUpdates = [mergedUpdate, ...oldUpdates.slice(1)];
-                } else if (!isMediaUnchanged) {
+                if (isMediaUnchanged && oldUpdates[0]) {
+                     const latest = oldUpdates[0];
+                     const newSeq = (latest.endSequenceNumber || latest.sequenceNumber) + 1;
+                     const mergedUpdate = {
+                         ...latest,
+                         endSequenceNumber: newSeq,
+                         endTimestamp: new Date().toLocaleTimeString(),
+                     };
+                     newMediaUpdates = [mergedUpdate, ...oldUpdates.slice(1)];
+                } else {
                     const { diffModel, changes } = diffManifest(oldRaw, newRaw);
-                    const complianceResults = runChecks(
-                        newPlaylistData.manifest,
-                        'hls'
-                    );
+                    
                     const newUpdate = {
                         id: `${streamId}-${variantId}-${Date.now()}`,
-                        sequenceNumber:
-                            (latestMediaUpdate?.endSequenceNumber ||
-                                latestMediaUpdate?.sequenceNumber ||
-                                0) + 1,
+                        sequenceNumber: (oldUpdates[0]?.endSequenceNumber || oldUpdates[0]?.sequenceNumber || 0) + 1,
                         timestamp: new Date().toLocaleTimeString(),
                         diffModel,
                         rawManifest: newRaw,
-                        complianceResults,
+                        complianceResults: [], 
                         hasNewIssues: false,
-                        serializedManifest:
-                            newPlaylistData.manifest.serializedManifest,
+                        serializedManifest: newPlaylistData.manifest.serializedManifest,
                         changes,
                     };
 
-                    // Apply Optimization Strategy
-                    newMediaUpdates = optimizeUpdateHistory([
-                        newUpdate,
-                        ...newMediaUpdates,
-                    ]);
-
-                    newActiveUpdateId = newUpdate.id;
+                    newMediaUpdates = optimizeUpdateHistory([newUpdate, ...newMediaUpdates]);
+                    if (!newActiveUpdateId) newActiveUpdateId = newUpdate.id;
                 }
+                
                 newMediaPlaylistsMap.set(variantId, {
                     ...newPlaylistData,
                     updates: newMediaUpdates,
@@ -385,7 +367,9 @@ async function processLiveUpdate(updateData) {
             }
         }
         updatePayload.mediaPlaylists = newMediaPlaylistsMap;
+
     } else {
+        // DASH Update Logic (remains valid)
         const latestUpdate = stream.manifestUpdates[0];
         const isUnchanged =
             latestUpdate &&
@@ -405,10 +389,19 @@ async function processLiveUpdate(updateData) {
                 ...stream.manifestUpdates.slice(1),
             ];
         } else {
-            const { diffModel, changes } = diffManifest(
-                stream.rawManifest,
-                updateData.newManifestString
-            );
+            // ARCHITECTURAL FIX: Use worker-provided diff model if available.
+            let diffModel = updateData.diffModel;
+            let changes = updateData.changes;
+
+            if (!diffModel) {
+                const diffRes = diffManifest(
+                    stream.rawManifest,
+                    updateData.newManifestString
+                );
+                diffModel = diffRes.diffModel;
+                changes = diffRes.changes;
+            }
+
             const newUpdate = {
                 id: `${streamId}-${Date.now()}`,
                 sequenceNumber:

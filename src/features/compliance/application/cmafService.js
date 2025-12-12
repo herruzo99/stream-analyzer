@@ -8,16 +8,11 @@ import { resolveBaseUrl } from '@/infrastructure/parsing/utils/recursive-parser'
 import { getParsedSegment } from '@/infrastructure/segments/segmentService';
 import { analysisActions } from '@/state/analysisStore';
 
-/**
- * Runs all CMAF validation checks for a given stream and stores the results.
- * @param {import('@/types.ts').Stream} stream
- */
 async function runCmafValidation(stream) {
     if (stream.protocol !== 'dash') {
         return;
     }
 
-    // Set pending state for local UI loader
     const semanticData = new Map(stream.semanticData);
     semanticData.set('cmafValidationStatus', 'pending');
     analysisActions.updateStream(stream.id, { semanticData });
@@ -26,7 +21,6 @@ async function runCmafValidation(stream) {
         const manifestElement = stream.manifest.serializedManifest;
         const allResults = [];
 
-        // --- Track Conformance Validation ---
         const firstPeriod = stream.manifest?.periods[0];
         const firstAS = firstPeriod?.adaptationSets.find(
             (as) => as.contentType === 'video'
@@ -53,31 +47,47 @@ async function runCmafValidation(stream) {
                 .get(compositeKey)
                 ?.segments.find((s) => /** @type {any} */ (s).type === 'Media');
 
-            const mediaUrl = mediaSegment
-                ? /** @type {any} */ (mediaSegment).resolvedUrl
+            const mediaUniqueId = mediaSegment
+                ? /** @type {any} */ (mediaSegment).uniqueId
                 : undefined;
 
-            if (initInfo && mediaUrl) {
+            if (initInfo && mediaUniqueId) {
                 const initUniqueId = initInfo.range
                     ? `${initInfo.url}@init@${initInfo.range}`
                     : initInfo.url;
 
-                const [initData, mediaData] = await Promise.all([
-                    getParsedSegment(initUniqueId),
-                    getParsedSegment(mediaUrl),
+                // Use background: true to suppress global loader
+                // Using .catch to swallow errors like 410 or network failures for the background check
+                const [initEntry, mediaEntry] = await Promise.all([
+                    getParsedSegment(initUniqueId, stream.id, 'isobmff', {}, { background: true }).then(data => ({ data, status: 200 })).catch(() => ({ status: 0, data: null })),
+                    getParsedSegment(mediaUniqueId, stream.id, 'isobmff', {}, { background: true }).then(data => ({ data, status: 200 })).catch(() => ({ status: 0, data: null })),
                 ]);
-                const trackResults = validateCmafTrack(
-                    /** @type {any} */ (initData).data,
-                    /** @type {any} */ (mediaData).data
-                );
-                allResults.push(...trackResults);
+                
+                // ARCHITECTURAL FIX: Check success before validating
+                if (initEntry.status === 200 && mediaEntry.status === 200 && initEntry.data && mediaEntry.data) {
+                     const trackResults = validateCmafTrack(
+                        /** @type {any} */ (initEntry.data),
+                        /** @type {any} */ (mediaEntry.data)
+                    );
+                    allResults.push(...trackResults);
+                } else {
+                     allResults.push({
+                         id: 'CMAF-SKIP',
+                         text: 'Skipped CMAF Validation',
+                         status: 'info',
+                         details: 'Could not fetch necessary segments (Init or Media) for validation.'
+                     });
+                }
             }
         }
 
-        // --- Switching Set Validation ---
-        const segmentFetcher = (url, range) => {
+        const segmentFetcher = async (url, range) => {
             const uniqueId = range ? `${url}@init@${range}` : url;
-            return getParsedSegment(uniqueId);
+            try {
+                return await getParsedSegment(uniqueId, stream.id, 'isobmff', {}, { background: true });
+            } catch (_e) {
+                return null; // Return null on error so validator skips gracefully
+            }
         };
 
         const switchingSetResults = await validateCmafSwitchingSets(
@@ -87,7 +97,6 @@ async function runCmafValidation(stream) {
         );
         allResults.push(...switchingSetResults);
 
-        // Store results on the stream object
         const finalSemanticData = new Map(stream.semanticData);
         finalSemanticData.set('cmafValidation', allResults);
         finalSemanticData.set('cmafValidationStatus', 'complete');
@@ -112,11 +121,9 @@ async function runCmafValidation(stream) {
     }
 }
 
-/**
- * Initializes the CMAF service to listen for user-initiated validation requests.
- */
 export function initializeCmafService() {
     eventBus.subscribe('ui:cmaf-validation-requested', ({ stream }) => {
-        runCmafValidation(stream);
+        // Debounce slightly to allow main thread to clear
+        setTimeout(() => runCmafValidation(stream), 100);
     });
 }

@@ -5,9 +5,9 @@ function determineUpdateType(update, prevUpdate) {
     if (!prevUpdate)
         return { type: 'init', label: 'Initial Load', icon: 'play' };
 
-    const tags = [];
-
     // Check for Errors/Warnings
+    // ARCHITECTURAL FIX: Only flag as 'error' type if NEW issues were introduced.
+    // Otherwise, persistent errors make every update look like a failure.
     const errors =
         update.complianceResults?.filter((r) => r.status === 'fail').length ||
         0;
@@ -15,15 +15,23 @@ function determineUpdateType(update, prevUpdate) {
         update.complianceResults?.filter((r) => r.status === 'warn').length ||
         0;
 
-    if (errors > 0)
-        return {
-            type: 'error',
-            label: `${errors} Errors`,
-            icon: 'alertTriangle',
-            color: 'text-red-500',
-        };
-    if (warns > 0 && !prevUpdate.hasNewIssues)
-        tags.push({ label: 'Warning', color: 'text-amber-500' });
+    // Use the pre-calculated flag from the worker to determine novelty
+    if (update.hasNewIssues) {
+        if (errors > 0)
+            return {
+                type: 'error',
+                label: `${errors} New Error${errors > 1 ? 's' : ''}`,
+                icon: 'alertTriangle',
+                color: 'text-red-500',
+            };
+        if (warns > 0)
+            return {
+                type: 'warn',
+                label: `${warns} New Warning${warns > 1 ? 's' : ''}`,
+                icon: 'alertTriangle',
+                color: 'text-amber-500',
+            };
+    }
 
     // Check Diff Semantics
     const { additions, removals, modifications } = update.changes;
@@ -38,8 +46,7 @@ function determineUpdateType(update, prevUpdate) {
         };
     }
 
-    // Ad Detection (Naive heuristic based on string content or period count)
-    // Real impl would check the IR, but raw text regex is faster for this view model
+    // Ad Detection (Naive heuristic based on string content)
     if (
         update.rawManifest.includes('SCTE35') &&
         !prevUpdate.rawManifest.includes('SCTE35')
@@ -91,13 +98,12 @@ export function createManifestUpdatesViewModel(stream) {
         activeUpdateId = updates[0].id;
     }
 
-    // Sort: Newest first for the feed logic, but we usually store them newest first in store anyway.
-    // Let's ensure consistency.
+    // Sort: Newest first for the feed logic
     const sortedUpdates = [...updates];
 
     // Enrich updates with semantic info
     const enrichedUpdates = sortedUpdates.map((u, i) => {
-        // prev is i+1 because list is desc
+        // prev is i+1 because list is desc (newest first)
         const prev = sortedUpdates[i + 1] || null;
         const meta = determineUpdateType(u, prev);
 

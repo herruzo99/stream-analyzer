@@ -35,12 +35,8 @@ function performanceObserverCallback(list) {
             const resourceEntry = /** @type {PerformanceResourceTiming} */ (
                 entry
             );
-            appLog(
-                'NetworkEnrichmentService',
-                'log',
-                'PerformanceObserver captured entry:',
-                resourceEntry.name
-            );
+            // Reduced Log Noise:
+            // appLog('NetworkEnrichmentService', 'log', 'PerformanceObserver captured entry:', resourceEntry.name);
 
             const { events } = networkActions.get();
             const matchingEvent = events.find(
@@ -66,12 +62,8 @@ function performanceObserverCallback(list) {
                     },
                 };
                 networkActions.updateEvent(enrichedEvent);
-                appLog(
-                    'NetworkEnrichmentService',
-                    'info',
-                    'Asynchronously enriched event:',
-                    enrichedEvent.id
-                );
+                // Reduced Log Noise
+                // appLog('NetworkEnrichmentService', 'info', 'Asynchronously enriched event:', enrichedEvent.id);
             }
         }
     }

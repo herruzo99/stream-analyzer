@@ -13,7 +13,9 @@ const esbuildOptions = {
     },
     bundle: true,
     outdir: 'dist/assets',
-    sourcemap: isDev ? 'inline' : false,
+    // ARCHITECTURAL FIX: Use external source maps to prevent 30MB+ bundle sizes.
+    // 'inline' appends the map to the file, choking the browser's JS parser.
+    sourcemap: true, 
     minify: !isDev,
     entryNames: isDev ? '[name]' : '[name]-[hash]',
     assetNames: isDev ? '[name]' : '[name]-[hash]',
@@ -29,10 +31,9 @@ const esbuildOptions = {
 };
 
 // Mock configuration for local development to prevent 404s and template leaks.
-// These values replace the placeholders when running 'npm run build' locally.
 const mockDevConfig = {
     __GA_ID__: 'G-DEV-MOCK',
-    __SENTRY_DSN__: 'mock-sentry-key', // Filename safe string
+    __SENTRY_DSN__: 'mock-sentry-key',
     __CLARITY_ID__: 'mock-clarity-id',
     __PROD_HOSTNAME__: 'localhost',
 };
@@ -45,9 +46,6 @@ async function safeCopyFile(src, dest) {
     }
 }
 
-/**
- * Robust recursive copy using Node's native fs.cp (Node 16.7+).
- */
 async function copyRecursive(src, dest) {
     try {
         await fs.cp(src, dest, { recursive: true });
@@ -56,14 +54,9 @@ async function copyRecursive(src, dest) {
     }
 }
 
-/**
- * Safe HTML minifier.
- * Only removes HTML comments. Collapsing whitespace is dangerous for inline JS/CSS
- * unless we use a parser. We rely on GZIP for whitespace compression.
- */
 function minifyHtml(html) {
     return html
-        .replace(/<!--[\s\S]*?-->/g, '') // Remove HTML comments
+        .replace(/<!--[\s\S]*?-->/g, '')
         .trim();
 }
 
@@ -94,9 +87,6 @@ async function postBuild(meta, cspNonce) {
             .replace('__WORKER_PATH__', `${workerJsPath}`)
             .replace(/__CSP_NONCE__/g, cspNonce);
 
-        // Environment-aware configuration injection
-        // If running in CI (GitHub Actions), we SKIP this to let 'sed' handle secrets.
-        // If running locally (npm run build), we inject mocks so the app works.
         if (process.env.CI) {
             console.log(
                 'CI environment detected. Preserving configuration placeholders.'
@@ -117,16 +107,18 @@ async function postBuild(meta, cspNonce) {
 
         await fs.writeFile(path.join('dist', 'index.html'), finalHtml);
 
-        // Copy Static Assets
         await safeCopyFile('static/icon.png', 'dist/icon.png');
-
-        // Copy Public Assets (Recursive)
         await copyRecursive('public', 'dist');
-
-        // Copy Shaka Player CSS
+        
+        // CSS Assets
         await safeCopyFile(
             'node_modules/shaka-player/dist/controls.css',
             'dist/assets/controls.css'
+        );
+        // Attempt to copy source map for controls.css if it exists
+        await safeCopyFile(
+            'node_modules/shaka-player/dist/controls.css.map',
+            'dist/assets/controls.css.map'
         );
 
         console.log('Post-build finished: index.html generated.');
@@ -146,19 +138,23 @@ async function prepareDevHtml(cspNonce) {
             .replace('__WORKER_PATH__', 'assets/worker.js')
             .replace(/__CSP_NONCE__/g, cspNonce);
 
-        // Always inject mocks for 'npm run dev'
         for (const [placeholder, value] of Object.entries(mockDevConfig)) {
             devHtml = devHtml.split(placeholder).join(value);
         }
 
         await fs.writeFile('dist/index.html', devHtml, 'utf-8');
-
         await safeCopyFile('static/icon.png', 'dist/icon.png');
         await copyRecursive('public', 'dist');
-
+        
+        // CSS Assets for Dev
         await safeCopyFile(
             'node_modules/shaka-player/dist/controls.css',
             'dist/assets/controls.css'
+        );
+        // Attempt to copy source map
+        await safeCopyFile(
+            'node_modules/shaka-player/dist/controls.css.map',
+            'dist/assets/controls.css.map'
         );
 
         console.log('Development index.html regenerated with mock config.');

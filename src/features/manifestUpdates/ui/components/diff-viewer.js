@@ -53,30 +53,31 @@ const renderDiffRow = (line, protocol, hideDeleted) => {
 
     let contentHtml;
 
+    // ARCHITECTURAL FIX: Use 'whitespace-pre' instead of 'whitespace-pre-wrap'
+    // to preserve indentation structure strictly. The parent container handles overflow.
     if (line.type === 'modified' && line.parts) {
         const partsToRender = hideDeleted
             ? line.parts.filter((p) => p.type !== 'removed')
             : line.parts;
 
         // Added min-w-0 to ensure flex/grid child constraints apply
+        // prettier-ignore
         contentHtml = html`<div
-            class="whitespace-pre-wrap break-all font-mono text-slate-300 min-w-0"
-        >
-            ${line.indentation}${partsToRender.map((p) =>
+            class="whitespace-pre font-mono text-slate-300 min-w-0"
+        >${line.indentation}${partsToRender.map((p) =>
                 renderDiffWord(p, highlightFn)
-            )}
-        </div>`;
+            )}</div>`;
     } else if (line.type === 'removed') {
         if (hideDeleted) return html``;
+        // prettier-ignore
         contentHtml = html`<span
-            class="text-red-200/40 line-through decoration-red-500/30 select-none whitespace-pre-wrap break-all block min-w-0"
+            class="text-red-200/40 line-through decoration-red-500/30 select-none whitespace-pre block min-w-0"
             >${unsafeHTML(highlightFn(line.indentation + line.content))}</span
         >`;
     } else {
         // Common or Added
-        contentHtml = html`<div class="whitespace-pre-wrap break-all min-w-0">
-            ${unsafeHTML(highlightFn(line.indentation + line.content))}
-        </div>`;
+        // prettier-ignore
+        contentHtml = html`<div class="whitespace-pre min-w-0">${unsafeHTML(highlightFn(line.indentation + line.content))}</div>`;
     }
 
     // Table layout fixed requires width on cells to wrap correctly.

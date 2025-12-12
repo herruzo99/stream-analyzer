@@ -78,9 +78,10 @@ class PlayerControlsComponent extends HTMLElement {
             isSignalMonitorOpen,
             playerTelemetrySidebarOpen,
         } = useUiStore.getState();
-        const { activeStreamId } = useAnalysisStore.getState();
+        const { activeStreamId, streams } = useAnalysisStore.getState();
 
         const {
+            isLoaded,
             isAbrEnabled,
             activeVideoTrack,
             activeAudioTrack,
@@ -93,6 +94,18 @@ class PlayerControlsComponent extends HTMLElement {
         } = store;
         const isPlaying =
             playbackState === 'PLAYING' || playbackState === 'BUFFERING';
+
+        // --- Handle Play/Start Logic ---
+        const handlePlayClick = () => {
+            if (isLoaded) {
+                playerService.togglePlay();
+            } else {
+                const activeStream = streams.find((s) => s.id === activeStreamId);
+                if (activeStream) {
+                    playerService.load(activeStream, true);
+                }
+            }
+        };
 
         // --- Labels ---
         const videoValue = isAbrEnabled
@@ -119,8 +132,8 @@ class PlayerControlsComponent extends HTMLElement {
                     >
                         ${actionButton(
                             isPlaying ? icons.pause : icons.play,
-                            isPlaying ? 'Pause' : 'Play',
-                            () => playerService.togglePlay(),
+                            isPlaying ? 'Pause' : (isLoaded ? 'Play' : 'Start'),
+                            handlePlayClick,
                             isPlaying
                         )}
                         ${actionButton(
@@ -138,11 +151,7 @@ class PlayerControlsComponent extends HTMLElement {
                         )}
                         ${actionButton(icons.sync, 'Reload', () =>
                             playerService.load(
-                                useAnalysisStore
-                                    .getState()
-                                    .streams.find(
-                                        (s) => s.id === activeStreamId
-                                    ),
+                                streams.find((s) => s.id === activeStreamId),
                                 true
                             )
                         )}

@@ -44,7 +44,7 @@ function renderView() {
 
     const template = html`
         <div
-            class="flex flex-col h-full bg-slate-950 text-slate-200 overflow-hidden"
+            class="flex flex-col h-full bg-slate-950 text-slate-200 overflow-auto"
         >
             <!-- Dashboard Header (Stats) -->
             <div

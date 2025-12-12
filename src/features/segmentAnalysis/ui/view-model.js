@@ -39,8 +39,10 @@ function getIsobmffSummary(data) {
 function analyzeBitstream(parsedData) {
     if (!parsedData.bitstreamAnalysis) return null;
 
-    // FIX: Extract seiMessages from the worker result
     const { frames, summary, seiMessages } = parsedData.bitstreamAnalysis;
+
+    // Safety check: if frames are missing, we can't analyze
+    if (!frames || frames.length === 0) return null;
 
     const distribution = { I: 0, P: 0, B: 0, Other: 0 };
     frames.forEach((f) => {
@@ -54,7 +56,7 @@ function analyzeBitstream(parsedData) {
         ...summary,
         distribution,
         frames,
-        seiMessages, // Pass through to UI
+        seiMessages,
     };
 }
 
@@ -63,11 +65,13 @@ function analyzeBitstream(parsedData) {
  * @param {object} parsedData - The parsed segment structure.
  * @param {number} rawDataSize - The size of the raw segment in bytes.
  * @param {string|null} manifestCodec - Optional codec string derived from the manifest (fallback).
+ * @param {import('@/types').MediaSegment|null} segmentMeta - Original segment object with context info.
  */
 export function createSegmentAnalysisViewModel(
     parsedData,
     rawDataSize,
-    manifestCodec = null
+    manifestCodec = null,
+    segmentMeta = null
 ) {
     const format = parsedData.format;
 
@@ -95,7 +99,6 @@ export function createSegmentAnalysisViewModel(
         stats.type = isoSummary.segmentType;
 
         // Codec detection via sample entries (avc1, hvc1, mp4a)
-        // This is a simplified lookup in the parsed structure
         const jsonStr = JSON.stringify(parsedData.data); // Quick scan
         if (jsonStr.includes('"type":"avc1"')) codecInfo.name = 'H.264 (AVC)';
         else if (jsonStr.includes('"type":"hvc1"'))
@@ -103,7 +106,7 @@ export function createSegmentAnalysisViewModel(
         else if (jsonStr.includes('"type":"mp4a"'))
             codecInfo.name = 'AAC Audio';
 
-        // Calculate duration from samples if available (accurate for fragments)
+        // Calculate duration from samples if available
         if (parsedData.samples?.length > 0) {
             const timescale = parsedData.samples[0].timescale || 90000;
             const durationTicks = parsedData.samples.reduce(
@@ -116,9 +119,13 @@ export function createSegmentAnalysisViewModel(
             stats.duration = !isNaN(parsedDuration) ? parsedDuration : 0;
         }
 
-        // Fallback to manifest codec if internal inspection failed (e.g. missing init segment)
+        // Fallback to manifest codec or worker-detected codec if internal inspection failed
         if (stats.type.includes('Fragment') && codecInfo.name === 'Unknown') {
-            if (manifestCodec) {
+            if (parsedData.detectedCodec) {
+                // Codec found by worker via Init Context
+                codecInfo.name = parsedData.detectedCodec;
+                codecInfo.details.push('From Init Context');
+            } else if (manifestCodec) {
                 // Map common MIME codecs to friendly names
                 if (manifestCodec.startsWith('avc'))
                     codecInfo.name = `H.264 (${manifestCodec})`;
@@ -144,15 +151,41 @@ export function createSegmentAnalysisViewModel(
         if (mediaInfo?.video) {
             codecInfo.name = mediaInfo.video.codec;
             codecInfo.resolution = mediaInfo.video.resolution;
-            codecInfo.details.push(`${mediaInfo.video.frameRate} fps`);
+            if (mediaInfo.video.frameRate) {
+                codecInfo.details.push(`${mediaInfo.video.frameRate} fps`);
+            }
         } else if (mediaInfo?.audio) {
             codecInfo.name = mediaInfo.audio.codec;
-            codecInfo.details.push(`${mediaInfo.audio.sampleRate} Hz`);
-            codecInfo.details.push(`${mediaInfo.audio.channels} Ch`);
+            if (mediaInfo.audio.sampleRate) {
+                codecInfo.details.push(`${mediaInfo.audio.sampleRate} Hz`);
+            }
+            if (mediaInfo.audio.channels) {
+                codecInfo.details.push(`${mediaInfo.audio.channels} Ch`);
+            }
+            if (mediaInfo.audio.language) {
+                 codecInfo.details.push(`Lang: ${mediaInfo.audio.language}`);
+            }
         }
 
-        // TS doesn't have a global duration header easily accessible without scan
-        // We assume the calling context (Explorer) might provide it, or we accept 0.
+        // If Deep Analysis populated codec info (e.g. from bitstream scan), use it to refine
+        if (parsedData.detectedCodec && (codecInfo.name === 'Unknown' || codecInfo.name === undefined)) {
+            codecInfo.name = parsedData.detectedCodec;
+            codecInfo.details.push('Detected via Bitstream Scan');
+        }
+
+        // TS Duration Fallback (PCR)
+        // If we have bitstream analysis, prefer that duration
+        if (parsedData.bitstreamAnalysis?.summary?.duration) {
+             stats.duration = parsedData.bitstreamAnalysis.summary.duration;
+        } else {
+             const pcrList = parsedData.data?.summary?.pcrList;
+             if (pcrList && pcrList.count > 1) {
+                 const first = Number(pcrList.firstPcr);
+                 const last = Number(pcrList.lastPcr);
+                 stats.duration = (last - first) / 27000000;
+             }
+        }
+
     } else if (format === 'vtt') {
         stats.formatLabel = 'WebVTT';
         stats.type = 'Subtitle';
@@ -162,6 +195,22 @@ export function createSegmentAnalysisViewModel(
                 parsedData.data.cues[parsedData.data.cues.length - 1];
             const firstCue = parsedData.data.cues[0];
             stats.duration = lastCue.endTime - firstCue.startTime;
+        }
+    } else if (format === 'ttml') {
+        stats.formatLabel = 'TTML (Timed Text)';
+        stats.type = 'Subtitle';
+        codecInfo.name = 'XML';
+        if (parsedData.data.cues.length > 0) {
+            // Determine duration from first and last cue
+            const start = parsedData.data.cues.reduce(
+                (min, c) => Math.min(min, c.startTime),
+                Infinity
+            );
+            const end = parsedData.data.cues.reduce(
+                (max, c) => Math.max(max, c.endTime),
+                0
+            );
+            stats.duration = end - start;
         }
     } else if (format === 'scte35') {
         stats.formatLabel = 'SCTE-35';
@@ -177,6 +226,19 @@ export function createSegmentAnalysisViewModel(
     // 4. Bitstream Analysis (GOP)
     const bitstream = analyzeBitstream(parsedData);
 
+    // 5. Origin Metadata
+    let origin = null;
+    if (segmentMeta) {
+        origin = {
+            index: segmentMeta.number,
+            range: segmentMeta.range || 'Full Segment',
+            template: segmentMeta.template,
+            presentationTime: segmentMeta.time,
+            timescale: segmentMeta.timescale,
+            repId: segmentMeta.repId
+        };
+    }
+
     return {
         stats,
         codecInfo,
@@ -184,5 +246,8 @@ export function createSegmentAnalysisViewModel(
         structure: parsedData.data,
         issues: parsedData.data.issues || [],
         format,
+        origin,
+        // CRITICAL: Pass mediaInfo to UI for Descriptor display
+        mediaInfo: parsedData.mediaInfo
     };
 }
