@@ -1,9 +1,8 @@
-// ... (Previous interfaces like SourcedData, NetworkEvent remain unchanged until PlayerState)
 
 export interface PlayerState {
     isLoaded: boolean;
     isAbrEnabled: boolean;
-    isAutoResetEnabled: boolean; // Added
+    isAutoResetEnabled: boolean;
     isPictureInPicture: boolean;
     isPipUnmount: boolean;
     isMuted: boolean;
@@ -20,11 +19,9 @@ export interface PlayerState {
     abrHistory: AbrHistoryEntry[];
     playbackHistory: PlaybackHistoryEntry[];
     activeTab: 'controls' | 'stats' | 'log' | 'graphs';
-    retryCount: number; // Added
-    seekableRange: { start: number; end: number }; // Added
+    retryCount: number;
+    seekableRange: { start: number; end: number };
 }
-
-// ... (Rest of the file remains unchanged)
 
 export interface SourcedData<T> {
     value: T;
@@ -193,6 +190,8 @@ export interface Representation {
     accessibility: Descriptor[];
     labels: Label[];
     label?: string;
+    name?: string;
+    format?: string;
     groupLabels: Label[];
     roles: Descriptor[];
     subRepresentations: SubRepresentation[];
@@ -275,6 +274,7 @@ export interface AdaptationSet {
     viewpoints: Descriptor[];
     accessibility: Descriptor[];
     labels: Label[];
+    label?: string;
     groupLabels: Label[];
     roles: Descriptor[];
     contentComponents: ContentComponent[];
@@ -304,13 +304,13 @@ export interface Scte35BreakDuration {
 
 export interface Scte35SpliceCommand {
     type:
-        | 'Splice Insert'
-        | 'Time Signal'
-        | 'Splice Null'
-        | 'Splice Schedule'
-        | 'Bandwidth Reservation'
-        | 'Private Command'
-        | 'Unsupported';
+    | 'Splice Insert'
+    | 'Time Signal'
+    | 'Splice Null'
+    | 'Splice Schedule'
+    | 'Bandwidth Reservation'
+    | 'Private Command'
+    | 'Unsupported';
     splice_event_id?: number;
     splice_event_cancel_indicator?: number;
     out_of_network_indicator?: number;
@@ -445,6 +445,8 @@ export interface Metrics {
 
 export interface VideoTrackSummary {
     id: string;
+    label?: string;
+    format?: string;
     profiles: string | null;
     bandwidth: number;
     manifestBandwidth?: number;
@@ -464,9 +466,11 @@ export interface VideoTrackSummary {
 
 export interface AudioTrackSummary {
     id: string;
+    label?: string;
     lang: string | null;
     codecs: CodecInfo[];
     channels: string | null;
+    format?: string;
     isDefault: boolean;
     isForced: boolean;
     roles: Descriptor[];
@@ -475,7 +479,9 @@ export interface AudioTrackSummary {
 
 export interface TextTrackSummary {
     id: string;
+    label?: string;
     lang: string | null;
+    format?: string;
     codecsOrMimeTypes: CodecInfo[];
     isDefault: boolean;
     isForced: boolean;
@@ -541,6 +547,16 @@ export interface MediaInfoSummary {
     }[];
 }
 
+
+export interface SidxEntry {
+    referencedSize: number;
+    subsegmentDuration: number;
+    startsWithSap: number;
+    sapType: number;
+    sapDeltaTime: number;
+    referenceType: 'media' | 'sidx' | string;
+}
+
 export interface MediaSegment {
     repId: string;
     type: 'Media' | 'Init';
@@ -561,7 +577,8 @@ export interface MediaSegment {
     parsedData?: any;
     inbandEvents?: Event[];
     mediaInfo?: MediaInfoSummary | null;
-    periodStart?: number; // Added: offset of the period start in seconds
+    periodStart?: number;
+    sidx?: SidxEntry;
 }
 
 export interface HlsSegment extends MediaSegment {
@@ -575,7 +592,7 @@ export interface HlsSegment extends MediaSegment {
     dateTime?: string;
     uriLineNumber?: number;
     byteRange?: { length: number; offset: number | null } | null;
-    cue?: { type: 'in' | 'out'; duration?: number };
+    cue?: { type: 'in' | 'out' | 'cont'; duration?: number; elapsedTime?: number };
 }
 
 export interface CmafValidationResult {
@@ -619,6 +636,7 @@ export interface ManifestSummary {
             averageSegmentDuration: number | null;
             hasDiscontinuity: boolean;
             isIFrameOnly: boolean;
+            lastSegmentDuration: number | null;
         } | null;
         dvrWindow: number | null;
         hlsParsed?: any;
@@ -657,6 +675,7 @@ export interface ManifestSummary {
     } | null;
     cmafData: CmafData;
 }
+
 
 export interface Manifest {
     id: string | null;
@@ -724,12 +743,12 @@ export interface AdAvail {
     adManifestUrl: string | null;
     creatives: AdCreative[];
     detectionMethod:
-        | 'SCTE35_INBAND'
-        | 'SCTE35_DATERANGE'
-        | 'ASSET_IDENTIFIER'
-        | 'ENCRYPTION_TRANSITION'
-        | 'STRUCTURAL_DISCONTINUITY'
-        | 'UNKNOWN';
+    | 'SCTE35_INBAND'
+    | 'SCTE35_DATERANGE'
+    | 'ASSET_IDENTIFIER'
+    | 'ENCRYPTION_TRANSITION'
+    | 'STRUCTURAL_DISCONTINUITY'
+    | 'UNKNOWN';
 }
 
 export interface PlayerStats {
@@ -766,14 +785,14 @@ export interface PlayerStats {
 export interface PlayerEvent {
     timestamp: string;
     type:
-        | 'adaptation'
-        | 'buffering'
-        | 'seek'
-        | 'error'
-        | 'stall'
-        | 'lifecycle'
-        | 'interaction'
-        | 'metadata';
+    | 'adaptation'
+    | 'buffering'
+    | 'seek'
+    | 'error'
+    | 'stall'
+    | 'lifecycle'
+    | 'interaction'
+    | 'metadata';
     details: string;
 }
 
@@ -828,13 +847,13 @@ export interface PlayerInstance {
     manifestUrl: string | null;
     streamType: 'live' | 'vod';
     state:
-        | 'idle'
-        | 'loading'
-        | 'playing'
-        | 'paused'
-        | 'buffering'
-        | 'ended'
-        | 'error';
+    | 'idle'
+    | 'loading'
+    | 'playing'
+    | 'paused'
+    | 'buffering'
+    | 'ended'
+    | 'error';
     error: string | null;
     stats: PlayerStats | null;
     playbackHistory: PlaybackHistoryEntry[];
@@ -1101,6 +1120,12 @@ export interface Box {
     messagePayloadType?: 'xml' | 'scte35' | 'id3' | 'binary';
     messagePayload?: any;
     dataView?: DataView;
+    chunkInfo?: {
+        index: number;
+        totalSize: number;
+        baseTime: number;
+        sampleCount: number;
+    };
 }
 
 export interface ComplianceResult {
@@ -1235,11 +1260,11 @@ export interface AuthInfo {
 export interface DrmAuthInfo {
     licenseServerUrl: string | { [key: string]: string };
     serverCertificate:
-        | string
-        | File
-        | ArrayBuffer
-        | { [keySystem: string]: string | File | ArrayBuffer }
-        | null;
+    | string
+    | File
+    | ArrayBuffer
+    | { [keySystem: string]: string | File | ArrayBuffer }
+    | null;
     headers: KeyValuePair[];
     queryParams: KeyValuePair[];
 }
