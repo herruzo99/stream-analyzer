@@ -9,6 +9,7 @@
 import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm.js';
 import { isCodecSupported } from '../utils/codec-support.js';
 import { determineSegmentFormat } from '../utils/media-types.js';
+// import { appLog } from '@/shared/utils/debug';
 
 const isAudioCodec = (codecString) => {
     if (!codecString) return false;
@@ -33,13 +34,9 @@ export async function generateHlsSummary(manifestIR, context) {
     let targetDuration = manifestIR.minBufferTime;
     let totalDuration = manifestIR.duration;
 
-    // --- ARCHITECTURAL FIX: Derive Duration & Stats from Media Playlists ---
-    // For a Master Playlist, the top-level IR has no segments and thus 0 duration.
-    // We must inspect the fetched media playlists to calculate these values.
     let validMediaManifest = null;
 
     if (isMaster && mediaPlaylists && mediaPlaylists.size > 0) {
-        // Prefer the highest bandwidth variant for representative stats
         const highestBwVariant = (manifestIR.variants || []).sort(
             (a, b) => b.attributes.BANDWIDTH - a.attributes.BANDWIDTH
         )[0];
@@ -49,7 +46,6 @@ export async function generateHlsSummary(manifestIR, context) {
             validMediaManifest = playlistData?.manifest;
         }
 
-        // Fallback to first available if variant mapping failed
         if (!validMediaManifest) {
             const firstPlaylist = mediaPlaylists.values().next().value;
             validMediaManifest = firstPlaylist?.manifest;
@@ -62,10 +58,8 @@ export async function generateHlsSummary(manifestIR, context) {
                 segmentFormat = determineSegmentFormat(mediaPlaylistParsed);
             }
 
-            // Use the target duration from the media playlist
             targetDuration = mediaPlaylistParsed.targetDuration;
 
-            // If the master didn't have a duration (VOD), use the media playlist's duration
             if (!totalDuration || totalDuration === 0) {
                 totalDuration = validMediaManifest.duration;
             }
@@ -114,7 +108,7 @@ export async function generateHlsSummary(manifestIR, context) {
                 });
             } else if (rep.serializedManifest?.attributes?.RESOLUTION) {
                 resolutions.push(
-                    /** @type {import('@/types.ts').SourcedData<string>} */ ({
+                    /** @type {import('@/types.ts').SourcedData<string>} */({
                         value: rep.serializedManifest.attributes.RESOLUTION,
                         source: 'manifest',
                     })
@@ -123,6 +117,8 @@ export async function generateHlsSummary(manifestIR, context) {
 
             const videoTrack = /** @type {VideoTrackSummary} */ ({
                 id: rep.id,
+                label: rep.label || rep.serializedManifest?.attributes?.NAME || null,
+                format: rep.format,
                 profiles: null,
                 bandwidth: rep.bandwidth,
                 manifestBandwidth: rep.manifestBandwidth,
@@ -130,7 +126,10 @@ export async function generateHlsSummary(manifestIR, context) {
                 resolutions,
                 codecs: rep.codecs,
                 scanType: null,
-                videoRange: null,
+                videoRange: rep.videoRange, // HLS Video Range
+                sar: null, // HLS doesn't carry SAR in playlist typically
+                codingDependency: null,
+                maxPlayoutRate: null,
                 roles: as.roles,
                 __variantUri: rep.__variantUri,
                 muxedAudio: rep.muxedAudio,
@@ -140,75 +139,130 @@ export async function generateHlsSummary(manifestIR, context) {
         });
     });
 
-    const audioTracks = (allAudioAdaptationSets || []).map((as) => {
-        const codecsMap = new Map();
-        const channelsSet = new Set();
+    const audioTracks = (allAudioAdaptationSets || []).flatMap((as) => {
+        return as.representations.map((rep) => {
+            const serialized = /** @type {any} */ (rep.serializedManifest);
+            const attributes = serialized?.value || {};
 
-        as.representations.forEach((r) => {
-            (r.codecs || []).forEach((codecInfo) => {
-                if (codecInfo.value && !codecsMap.has(codecInfo.value)) {
-                    codecsMap.set(codecInfo.value, codecInfo);
-                }
-            });
+            let sampleRate = null;
+            if (attributes['SAMPLE-RATE']) {
+                sampleRate = parseInt(attributes['SAMPLE-RATE'], 10);
+            }
+
+            let channels = null;
+            if (attributes.CHANNELS) {
+                channels = attributes.CHANNELS;
+            }
+
+            return {
+                id: rep.id,
+                label: attributes.NAME || rep.id,
+                format: rep.format,
+                lang: rep.lang || as.lang,
+                codecs: rep.codecs || [],
+                channels: channels,
+                sampleRate: sampleRate,
+                isDefault: attributes.DEFAULT === 'YES',
+                isForced: attributes.FORCED === 'YES',
+                roles: rep.roles || as.roles,
+                bandwidth: rep.bandwidth || 0,
+            };
         });
-
-        if (as.channels) {
-            channelsSet.add(as.channels);
-        }
-
-        const codecs = Array.from(codecsMap.values());
-        const channels = Array.from(channelsSet);
-
-        return {
-            id: as.stableRenditionId || as.id,
-            lang: as.lang,
-            codecs: codecs,
-            channels: channels.join(', ') || null,
-            isDefault:
-                /** @type {any} */ (as.serializedManifest)?.value?.DEFAULT ===
-                'YES',
-            isForced: as.forced,
-            roles: as.roles,
-            bandwidth: as.representations[0]?.bandwidth || 0,
-        };
     });
 
+    // Check for Muxed Audio (Always check, even if explicit tracks exist)
+    // REMOVED: User requested to not add muxed audio as a general extra track.
+    /*
+    if (videoTracks.length > 0) {
+        const muxedCodecs = new Set();
+        const isAudioCodec = (codecString) => {
+            if (!codecString) return false;
+            const lowerCodec = codecString.toLowerCase();
+            const audioPrefixes = ['mp4a', 'ac-3', 'ec-3', 'opus', 'flac'];
+            return audioPrefixes.some((prefix) => lowerCodec.startsWith(prefix));
+        };
+
+        videoTracks.forEach(vt => {
+            // Check explicit codecs
+            (vt.codecs || []).forEach(c => {
+                if (isAudioCodec(c.value)) {
+                    muxedCodecs.add(c.value);
+                }
+            });
+
+            // Check pre-parsed muxedAudio from adapter
+            if (vt.muxedAudio && vt.muxedAudio.codecs) {
+                vt.muxedAudio.codecs.forEach(c => {
+                    if (isAudioCodec(c.value)) {
+                        muxedCodecs.add(c.value);
+                    }
+                });
+            }
+        });
+
+        if (muxedCodecs.size > 0) {
+            // Create a virtual audio track for the muxed audio
+
+            const muxedTrack = {
+                id: 'muxed-audio',
+                label: 'Muxed',
+                lang: 'und',
+                codecs: Array.from(muxedCodecs).map(c => ({ value: c, source: 'variant' })),
+                channels: null,
+                sampleRate: null,
+                isDefault: audioTracks.length === 0,
+                isForced: false,
+                roles: [],
+                bandwidth: 0,
+                isMuxed: true
+            };
+
+            // Add to audio tracks if not already present
+            if (!audioTracks.some(t => t.id === 'muxed-audio')) {
+                audioTracks.push(muxedTrack);
+            }
+        }
+    }
+    */
     const textTracks = allTextAdaptationSets.map((as) => {
+        const serialized = /** @type {any} */ (as.serializedManifest);
+        const rep = as.representations[0]; // Assuming one rep per text AS in HLS
         const mimeTypes =
-            as.representations[0]?.codecs?.[0]?.value ||
-            as.representations[0]?.mimeType
+            rep?.codecs?.[0]?.value ||
+                rep?.mimeType
                 ? [
-                      {
-                          value:
-                              as.representations[0].codecs?.[0]?.value ||
-                              as.representations[0].mimeType,
-                          source: as.representations[0].codecs?.[0]
-                              ? 'manifest'
-                              : 'mimeType',
-                      },
-                  ]
+                    {
+                        value:
+                            rep.codecs?.[0]?.value ||
+                            rep.mimeType,
+                        source: rep.codecs?.[0]
+                            ? 'manifest'
+                            : 'mimeType',
+                    },
+                ]
                 : [];
         return {
             id: as.stableRenditionId || as.id,
+            label: rep?.label || as.lang,
+            format: rep?.format,
             lang: as.lang,
             codecsOrMimeTypes: mimeTypes.map(
                 (v) =>
-                    /** @type {import('@/types.ts').CodecInfo} */ ({
-                        value: v.value,
-                        source: v.source,
-                        supported: isCodecSupported(v.value),
-                    })
+                    /** @type {import('@/types.ts').CodecInfo} */({
+                    value: v.value,
+                    source: v.source,
+                    supported: isCodecSupported(v.value),
+                })
             ),
             isDefault:
-                /** @type {any} */ (as.serializedManifest).value?.DEFAULT ===
-                'YES',
+                serialized.value?.DEFAULT === 'YES',
             isForced: as.forced,
             roles: as.roles,
         };
     });
 
     const parsedKeyTags = Array.from(allKeyTags).map((tagStr) =>
-        JSON.parse(/** @type {string} */ (tagStr))
+        JSON.parse(/** @type {string} */(tagStr))
     );
     const contentProtectionIRs = parsedKeyTags
         .filter((value) => value.METHOD && value.METHOD !== 'NONE')
@@ -226,10 +280,10 @@ export async function generateHlsSummary(manifestIR, context) {
         isEncrypted: contentProtectionIRs.length > 0,
         systems: contentProtectionIRs.map(
             (cp) =>
-                /** @type {import('@/types').PsshInfo} */ ({
-                    systemId: cp.schemeIdUri,
-                    kids: cp.defaultKid ? [cp.defaultKid] : [],
-                })
+                /** @type {import('@/types').PsshInfo} */({
+                systemId: cp.schemeIdUri,
+                kids: cp.defaultKid ? [cp.defaultKid] : [],
+            })
         ),
         kids: [
             ...new Set(
@@ -258,7 +312,6 @@ export async function generateHlsSummary(manifestIR, context) {
 
     if (statsSource) {
         const segmentCount = statsSource.segments.length;
-        // Use the calculated totalDuration from above (which handles the Master case)
         const durationForCalc = !isMaster
             ? statsSource.duration
             : totalDuration;
@@ -266,6 +319,12 @@ export async function generateHlsSummary(manifestIR, context) {
         const isIFrameOnly = (statsSource.tags || []).some(
             (t) => t.name === 'EXT-X-I-FRAMES-ONLY'
         );
+
+        let lastSegmentDuration = null;
+        if (segmentCount > 0) {
+            const lastSeg = statsSource.segments[segmentCount - 1];
+            if (lastSeg) lastSegmentDuration = lastSeg.duration;
+        }
 
         mediaPlaylistDetails = {
             segmentCount: segmentCount,
@@ -277,10 +336,10 @@ export async function generateHlsSummary(manifestIR, context) {
                 (s) => s.discontinuity
             ),
             isIFrameOnly: isIFrameOnly,
+            lastSegmentDuration: lastSegmentDuration,
         };
     }
 
-    // Correctly cast rawElement to any before accessing internal HLS properties
     const iFramePlaylists =
         /** @type {any} */ (rawElement).iframeStreams?.length || 0;
 
@@ -315,7 +374,7 @@ export async function generateHlsSummary(manifestIR, context) {
                 manifestIR.type === 'dynamic'
                     ? 'text-red-400'
                     : 'text-blue-500',
-            duration: totalDuration, // Use the resolved duration
+            duration: totalDuration,
             segmentFormat: segmentFormat.toLowerCase(),
             title: null,
             locations: [],
@@ -342,7 +401,6 @@ export async function generateHlsSummary(manifestIR, context) {
         content: {
             totalPeriods: manifestIR.periods.length,
             totalVideoTracks: videoTracks.length,
-            // Include muxed audio in the count logic if explicit audio tracks are 0
             totalAudioTracks:
                 (allAudioAdaptationSets || []).length +
                 (hasMuxedAudio && audioTracks.length === 0 ? 1 : 0),
