@@ -3,7 +3,6 @@ import {
     applyPatches,
     generateBlobUrl,
 } from '@/features/manifestPatcher/domain/patchService';
-import { playerService } from '@/features/playerSimulation/application/playerService.js';
 import { parseManifest as parseDash } from '@/infrastructure/parsing/dash/parser.js';
 import { generateDashSummary } from '@/infrastructure/parsing/dash/summary-generator.js';
 import { parseManifest as parseHls } from '@/infrastructure/parsing/hls/index.js';
@@ -12,13 +11,12 @@ import { rebaseManifest } from '@/infrastructure/parsing/utils/manifest-rebaser.
 import {
     prepareForStorage,
     restoreFromStorage,
+    canonicalStringify,
 } from '@/infrastructure/persistence/streamStorage';
-import { appLog } from '@/shared/utils/debug';
 import { EVENTS } from '@/types/events';
 import { showToast } from '@/ui/components/toast.js';
 import { createStore } from 'zustand/vanilla';
 import { useMultiPlayerStore } from './multiPlayerStore.js';
-import { usePlayerStore } from './playerStore.js';
 import { useSegmentCacheStore } from './segmentCacheStore.js';
 import { uiActions } from './uiStore.js';
 
@@ -37,9 +35,24 @@ const createInitialAnalysisState = () => ({
 
 const hydrateStream = (s) => {
     const newStream = { ...s };
-    newStream.originalSerializedManifest = JSON.parse(
-        JSON.stringify(s.manifest.serializedManifest)
-    );
+
+    // --- OPTIMIZATION & SAFETY: Use structuredClone for performance ---
+    if (s.manifest && s.manifest.serializedManifest) {
+        try {
+            if (typeof structuredClone === 'function') {
+                newStream.originalSerializedManifest = structuredClone(s.manifest.serializedManifest);
+            } else {
+                newStream.originalSerializedManifest = JSON.parse(
+                    JSON.stringify(s.manifest.serializedManifest)
+                );
+            }
+        } catch (e) {
+            console.warn('Failed to clone serializedManifest', e);
+            newStream.originalSerializedManifest = {};
+        }
+    } else {
+        newStream.originalSerializedManifest = {};
+    }
 
     const newDashRepState = new Map();
     if (s.dashRepresentationState) {
@@ -98,7 +111,7 @@ const hydrateStream = (s) => {
         newStream.activeMediaPlaylistUrl = s.originalUrl;
     }
 
-    newStream.activeManifestUpdateId = s.manifestUpdates[0]?.id || null;
+    newStream.activeManifestUpdateId = s.manifestUpdates?.[0]?.id || null;
     newStream.segmentPollingReps = new Set(s.segmentPollingReps || []);
     newStream.patchRules = s.patchRules || [];
     newStream.patchedRawManifest = s.patchedRawManifest || s.rawManifest;
@@ -121,11 +134,17 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
 
     completeAnalysis: (streams, urlAuthMapArray, inputs) => {
-        const hydratedInputs = inputs.map((input) => ({
-            ...input,
-            detectedDrm: null,
-            isDrmInfoLoading: false,
-        }));
+        const hydratedInputs = inputs.map((input) => {
+            const hasTier0 = !!input.tier0;
+            const shouldFetch = !!input.url && !hasTier0;
+
+            return {
+                ...input,
+                detectedDrm: null,
+                isDrmInfoLoading: false,
+                isTier0AnalysisLoading: shouldFetch,
+            };
+        });
 
         const fullyFormedStreams = streams.map(hydrateStream);
 
@@ -180,10 +199,50 @@ export const useAnalysisStore = createStore((set, get) => ({
         });
     },
 
-    // ... (rest of actions preserved) ...
-
     setActiveStreamId: (streamId) => set({ activeStreamId: streamId }),
     setActiveStreamInputId: (id) => set({ activeStreamInputId: id }),
+    setActiveMediaPlaylist: (streamId, variantId) => {
+        set((state) => ({
+            streams: state.streams.map((s) => {
+                if (s.id !== streamId) return s;
+
+                let newActiveUrl = null;
+                if (variantId === 'master') {
+                    // If switching to master, we don't set a specific media playlist URL
+                    // The engine handles this by falling back to the master manifest
+                    newActiveUrl = null;
+                } else {
+                    // Find the URL for the selected variant/media
+                    const variant = s.manifest?.variants?.find(
+                        (v) =>
+                            v.stableId === variantId ||
+                            v.id === variantId ||
+                            v.uri === variantId
+                    );
+                    if (variant) {
+                        newActiveUrl = variant.uri;
+                    } else {
+                        const media = s.manifest?.media?.find(
+                            (m) =>
+                                m.value.URI === variantId ||
+                                `media-${m.value.TYPE}-${m.lineNumber}` ===
+                                variantId
+                        );
+                        if (media) {
+                            newActiveUrl = media.value.URI;
+                        }
+                    }
+                }
+
+                return {
+                    ...s,
+                    activeMediaPlaylistId: variantId,
+                    activeMediaPlaylistUrl: newActiveUrl,
+                };
+            }),
+        }));
+        eventBus.dispatch(EVENTS.STATE.STREAM_UPDATED, { streamId });
+    },
     setActiveManifestUpdate: (streamId, updateId) => {
         set((state) => ({
             streams: state.streams.map((s) => {
@@ -248,7 +307,9 @@ export const useAnalysisStore = createStore((set, get) => ({
             delete storable.id;
             delete storable.detectedDrm;
             delete storable.isDrmInfoLoading;
-            return JSON.stringify(storable);
+            // NEW: Ignore name for duplicate check, so same URL = duplicate
+            delete storable.name;
+            return canonicalStringify(storable);
         };
 
         const newComparable = getComparable({
@@ -292,11 +353,11 @@ export const useAnalysisStore = createStore((set, get) => ({
                     drmAuth: preset.drmAuth
                         ? restoreFromStorage(prepareForStorage(preset.drmAuth))
                         : {
-                              licenseServerUrl: null,
-                              serverCertificate: null,
-                              headers: [],
-                              queryParams: [],
-                          },
+                            licenseServerUrl: null,
+                            serverCertificate: null,
+                            headers: [],
+                            queryParams: [],
+                        },
                     detectedDrm: null,
                     isDrmInfoLoading: false,
                     tier0: null,
@@ -552,12 +613,9 @@ export const useAnalysisStore = createStore((set, get) => ({
         eventBus.dispatch(EVENTS.STATE.COMPARE_LIST_CHANGED, { count: 0 });
     },
     updateStream: (streamId, updatedStreamData) => {
-        appLog(
-            'AnalysisStore',
-            'info',
-            `[updateStream] Received update for stream ${streamId}.`,
-            updatedStreamData
-        );
+        // Reduced Log Noise: Removed the verbose logging here
+        // appLog('AnalysisStore', 'info', `[updateStream] ...`, updatedStreamData);
+
         set((state) => ({
             streams: state.streams.map((s) => {
                 if (s.id !== streamId) return s;
@@ -566,7 +624,6 @@ export const useAnalysisStore = createStore((set, get) => ({
 
                 if (updatedStreamData.dashRepresentationState) {
                     const rehydrated = new Map();
-                    // FIX: Directly iterate the array of entries
                     for (const [
                         key,
                         value,
@@ -586,7 +643,6 @@ export const useAnalysisStore = createStore((set, get) => ({
 
                 if (updatedStreamData.hlsVariantState) {
                     const rehydrated = new Map();
-                    // FIX: Directly iterate the array of entries
                     for (const [
                         key,
                         value,
@@ -678,14 +734,20 @@ export const useAnalysisStore = createStore((set, get) => ({
         if (!events || events.length === 0) return;
         get().updateStream(streamId, { inbandEventsToAdd: events });
     },
+    setInitialAnalysisTimestamp: (streamId, timestamp) => {
+        set((state) => ({
+            streams: state.streams.map((s) =>
+                s.id === streamId
+                    ? { ...s, initialAnalysisTimestamp: timestamp }
+                    : s
+            ),
+        }));
+    },
     setAllLiveStreamsPolling: (isPolling, options = {}) => {
-        if (options.fromInactivity && !isPolling) {
-            const { isLoaded } = usePlayerStore.getState();
-            if (isLoaded) {
-                playerService.destroy();
-            }
-        }
-
+        // ARCHITECTURAL FIX:
+        // Removed direct calls to playerService/usePlayerStore to break circular dependencies.
+        // Instead, the primaryStreamMonitor service triggers EVENTS.NOTIFY.POLLING_DISABLED,
+        // which the PlayerController listens for to stop playback if needed.
         set((state) => ({
             streams: state.streams.map((s) => {
                 if (s.manifest?.type === 'dynamic') {
@@ -835,7 +897,7 @@ export const useAnalysisStore = createStore((set, get) => ({
         let newManifest;
         if (stream.protocol === 'hls') {
             parsedResult = await parseHls(
-                patchedContent,
+                rebasedContent,
                 newUrl,
                 undefined,
                 parsingOptions
@@ -847,7 +909,7 @@ export const useAnalysisStore = createStore((set, get) => ({
             newManifest.summary = summaryResult.summary;
         } else {
             parsedResult = await parseDash(
-                patchedContent,
+                rebasedContent,
                 newUrl,
                 parsingOptions
             );
@@ -863,11 +925,11 @@ export const useAnalysisStore = createStore((set, get) => ({
             streams: state.streams.map((s) =>
                 s.id === streamId
                     ? {
-                          ...s,
-                          patchedRawManifest: patchedContent,
-                          patchedManifestUrl: newUrl,
-                          manifest: newManifest,
-                      }
+                        ...s,
+                        patchedRawManifest: patchedContent,
+                        patchedManifestUrl: newUrl,
+                        manifest: newManifest,
+                    }
                     : s
             ),
         }));
