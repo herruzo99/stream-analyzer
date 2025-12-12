@@ -66,29 +66,29 @@ export const aboutModalTemplate = () => html`
                 </h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     ${featureCard(
-    icons.fileText,
-    'Manifest Inspection',
-    'Deep parsing of MPEG-DASH (.mpd) and HLS (.m3u8). Syntax highlighting, tag explanations, and live update diffing.',
-    'text-blue-400'
-)}
+                        icons.fileText,
+                        'Manifest Inspection',
+                        'Deep parsing of MPEG-DASH (.mpd) and HLS (.m3u8). Syntax highlighting, tag explanations, and live update diffing.',
+                        'text-blue-400'
+                    )}
                     ${featureCard(
-    icons.binary,
-    'Segment Analysis',
-    'Byte-level inspection of ISOBMFF boxes and MPEG-TS packets. Visualize frame sizes, GOP structures, and SCTE-35 signals.',
-    'text-purple-400'
-)}
+                        icons.binary,
+                        'Segment Analysis',
+                        'Byte-level inspection of ISOBMFF boxes and MPEG-TS packets. Visualize frame sizes, GOP structures, and SCTE-35 signals.',
+                        'text-purple-400'
+                    )}
                     ${featureCard(
-    icons.play,
-    'Playback Simulation',
-    'Embedded Shaka Player instance for correlating manifest data with real-world playback behavior, buffer health, and ABR logic.',
-    'text-emerald-400'
-)}
+                        icons.play,
+                        'Playback Simulation',
+                        'Embedded Shaka Player instance for correlating manifest data with real-world playback behavior, buffer health, and ABR logic.',
+                        'text-emerald-400'
+                    )}
                     ${featureCard(
-    icons.shieldCheck,
-    'Compliance Checks',
-    'Automated heuristic rules engine to detect violations of DASH-IF and HLS guidelines and best practices.',
-    'text-amber-400'
-)}
+                        icons.shieldCheck,
+                        'Compliance Checks',
+                        'Automated heuristic rules engine to detect violations of DASH-IF and HLS guidelines and best practices.',
+                        'text-amber-400'
+                    )}
                 </div>
             </section>
 
