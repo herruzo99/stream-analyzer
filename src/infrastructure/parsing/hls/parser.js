@@ -1,7 +1,6 @@
-import { appLog } from '@/shared/utils/debug';
+// import { appLog } from '@/shared/utils/debug';
 import { adaptHlsToIr } from './adapter.js';
 
-// ... (parseAttributeList, resolveKeyUri, applyVariableSubstitution, finalizeCurrentSegment remain unchanged) ...
 export function parseAttributeList(attrString) {
     const attributes = {};
     let key = '';
@@ -19,7 +18,6 @@ export function parseAttributeList(attrString) {
                     state = 'PRE_VALUE';
                     key = key.trim();
                 } else if (char === ',') {
-                    // Key without value (shouldn't happen in valid HLS, but handle gracefully)
                     if (key.trim()) {
                         attributes[key.trim()] = null;
                     }
@@ -35,7 +33,6 @@ export function parseAttributeList(attrString) {
                 } else if (char === '"') {
                     state = 'VALUE_QUOTED';
                 } else if (char === ',') {
-                    // Empty value
                     attributes[key] = '';
                     key = '';
                     state = 'KEY';
@@ -47,11 +44,9 @@ export function parseAttributeList(attrString) {
 
             case 'VALUE_QUOTED':
                 if (char === '\\' && i + 1 < len) {
-                    // Handle escape sequence
                     value += attrString[i + 1];
-                    i++; // Skip next char
+                    i++;
                 } else if (char === '"') {
-                    // End of quoted string
                     attributes[key] = value;
                     key = '';
                     value = '';
@@ -63,9 +58,7 @@ export function parseAttributeList(attrString) {
 
             case 'VALUE_UNQUOTED':
                 if (char === ',') {
-                    // End of value
                     let finalValue = value.trim();
-                    // Attempt numeric conversion
                     if (/^-?\d+(\.\d+)?$/.test(finalValue)) {
                         attributes[key] = parseFloat(finalValue);
                     } else {
@@ -83,13 +76,11 @@ export function parseAttributeList(attrString) {
                 if (char === ',') {
                     state = 'KEY';
                 }
-                // Ignore other characters (like spaces) until comma
                 break;
         }
         i++;
     }
 
-    // Handle trailing value
     if (state === 'VALUE_UNQUOTED' && key) {
         let finalValue = value.trim();
         if (/^-?\d+(\.\d+)?$/.test(finalValue)) {
@@ -98,7 +89,6 @@ export function parseAttributeList(attrString) {
             attributes[key] = finalValue;
         }
     } else if (state === 'KEY' && key.trim()) {
-        // Trailing key without value
         attributes[key.trim()] = null;
     }
 
@@ -112,7 +102,6 @@ function resolveKeyUri(uri, baseUrl) {
     try {
         return new URL(uri, baseUrl).href;
     } catch (_e) {
-        // Fallback for cases where baseUrl might also be malformed, return original uri.
         return uri;
     }
 }
@@ -159,7 +148,7 @@ function applyVariableSubstitution(
     }
 
     const substitutedLines = lines.map((line) => {
-        return line.replace(/{\$[a-zA-Z0-9_-]+}/g, (match) => {
+        return line.replace(/{\$[a-zA-Z0-9_-]+}/g, (match, offset, string) => {
             const varName = match.substring(2, match.length - 1);
             return variables.has(varName)
                 ? variables.get(varName).value
@@ -263,6 +252,13 @@ export async function parseManifest(
     let currentSegment = null;
     /** @type {import('@/types.js').EncryptionInfo | null} */
     let currentEncryptionInfo = null;
+
+    /** @type {{ type: 'in' | 'out' | 'cont', duration?: number, elapsedTime?: number } | null} */
+    let pendingCue = null;
+
+    // ARCHITECTURAL FIX: pendingProgramDateTime to capture PDT before EXTINF
+    let pendingProgramDateTime = null;
+
     let currentBitrate = null;
     let discontinuity = false;
     let isGap = false;
@@ -293,10 +289,10 @@ export async function parseManifest(
                 lineNumber: i + 1,
             };
 
+            // Enhanced Tag Value Parsing
             if (tagValue === null) {
                 currentTag.value = null;
             } else {
-                // Check if the tag value is a quoted string first
                 const isQuotedString =
                     tagValue.startsWith('"') && tagValue.endsWith('"');
                 if (isQuotedString) {
@@ -305,17 +301,25 @@ export async function parseManifest(
                         tagValue.length - 1
                     );
                 } else if (tagValue.includes('=') && !tagValue.includes(',')) {
-                    // Special case: single attribute-like syntax (rare but possible) or complex string
-                    // Use new parser if it looks like attribute list
+                    // Single Key=Value pairs or Special tags
                     if (
                         tagName === 'EXT-X-STREAM-INF' ||
                         tagName === 'EXT-X-I-FRAME-STREAM-INF' ||
                         tagName === 'EXT-X-MEDIA' ||
-                        tagName === 'EXT-X-KEY'
+                        tagName === 'EXT-X-KEY' ||
+                        tagName === 'EXT-X-SESSION-KEY' ||
+                        tagName === 'EXT-X-CUE-OUT-CONT' // Force object parsing for this
                     ) {
                         currentTag.value = parseAttributeList(tagValue);
+                    } else if (tagName === 'EXT-X-CUE-OUT') {
+                        // CUE-OUT can be "DURATION=X" or just "X"
+                        // We keep it as string/number for specific handling below, unless it clearly has equals
+                        if (isNaN(parseFloat(tagValue))) {
+                            currentTag.value = parseAttributeList(tagValue);
+                        } else {
+                            currentTag.value = parseFloat(tagValue);
+                        }
                     } else {
-                        // Fallback to simple number parsing if not a known attribute list tag
                         const numValue = parseFloat(tagValue);
                         currentTag.value = !isNaN(numValue)
                             ? numValue
@@ -408,45 +412,118 @@ export async function parseManifest(
                         encryptionInfo: currentEncryptionInfo,
                         byteRange: null,
                     };
+
                     if (discontinuity) {
                         currentSegment.flags.push('discontinuity');
                     }
                     if (currentEncryptionInfo) {
                         currentSegment.flags.push('key-change');
                     }
+
+                    if (pendingCue) {
+                        currentSegment.cue = pendingCue;
+                        // Don't clear pendingCue if it's a CONT that implies state,
+                        // but CUE-OUT usually applies to the immediate segment chain until CUE-IN.
+                        // However, standard ad model attaches start event to start segment.
+                        // We attach it here and clear.
+                        pendingCue = null;
+                    }
+
+                    if (pendingProgramDateTime) {
+                        currentSegment.dateTime = pendingProgramDateTime;
+                        currentSegment.flags.push('pdt');
+                        pendingProgramDateTime = null;
+                    }
+
                     discontinuity = false;
                     break;
                 }
                 case 'EXT-X-CUE-OUT': {
+                    let duration = 0;
+                    // Robust handling: tagValue could be "30", "DURATION=30", or parsed object
+                    if (
+                        typeof currentTag.value === 'object' &&
+                        currentTag.value !== null
+                    ) {
+                        if (currentTag.value.DURATION)
+                            duration = parseFloat(currentTag.value.DURATION);
+                    } else {
+                        const val = String(tagValue);
+                        if (val.includes('DURATION=')) {
+                            const match = val.match(/DURATION=([\d.]+)/);
+                            if (match) duration = parseFloat(match[1]);
+                        } else if (!isNaN(parseFloat(val))) {
+                            duration = parseFloat(val);
+                        }
+                    }
+
+                    /** @type {{ type: 'out', duration: number }} */
+                    const cueData = { type: 'out', duration };
+
                     if (currentSegment) {
-                        const durationMatch = String(tagValue).match(
-                            /DURATION=(\d+(\.\d+)?)/
-                        );
-                        currentSegment.cue = {
-                            type: 'out',
-                            duration: durationMatch
-                                ? parseFloat(durationMatch[1])
-                                : 0,
-                        };
+                        currentSegment.cue = cueData;
+                    } else {
+                        pendingCue = cueData;
                     }
                     break;
                 }
                 case 'EXT-X-CUE-IN': {
+                    /** @type {{ type: 'in' }} */
+                    const cueData = { type: 'in' };
                     if (currentSegment) {
-                        currentSegment.cue = { type: 'in' };
+                        currentSegment.cue = cueData;
+                    } else {
+                        pendingCue = cueData;
                     }
                     break;
                 }
-                case 'EXT-X-MEDIA':
-                    parsed.media.push({
-                        value: parseAttributeList(String(tagValue)),
-                        resolvedUri: new URL(
-                            String(parseAttributeList(String(tagValue)).URI),
+                case 'EXT-X-CUE-OUT-CONT': {
+                    // Robust CUE-OUT-CONT parsing
+                    let duration = 0;
+                    let elapsedTime = 0;
+                    const attrs =
+                        typeof currentTag.value === 'object'
+                            ? currentTag.value
+                            : parseAttributeList(String(tagValue));
+
+                    // Normalize keys (spec is case-sensitive but real world varies)
+                    if (attrs['Duration'] !== undefined)
+                        duration = Number(attrs['Duration']);
+                    else if (attrs['DURATION'] !== undefined)
+                        duration = Number(attrs['DURATION']);
+
+                    if (attrs['ElapsedTime'] !== undefined)
+                        elapsedTime = Number(attrs['ElapsedTime']);
+                    else if (attrs['ELAPSEDTIME'] !== undefined)
+                        elapsedTime = Number(attrs['ELAPSEDTIME']);
+
+                    /** @type {{ type: 'cont', duration: number, elapsedTime: number }} */
+                    const cueData = { type: 'cont', duration, elapsedTime };
+
+                    if (currentSegment) {
+                        currentSegment.cue = cueData;
+                    } else {
+                        pendingCue = cueData;
+                    }
+                    break;
+                }
+                case 'EXT-X-MEDIA': {
+                    const mediaAttrs = parseAttributeList(String(tagValue));
+                    let resolvedMediaUri = '';
+                    if (mediaAttrs.URI) {
+                        resolvedMediaUri = new URL(
+                            String(mediaAttrs.URI),
                             baseUrl
-                        ).href,
+                        ).href;
+                    }
+
+                    parsed.media.push({
+                        value: mediaAttrs,
+                        resolvedUri: resolvedMediaUri,
                         lineNumber: i + 1,
                     });
                     break;
+                }
                 case 'EXT-X-BYTERANGE': {
                     const parts = String(tagValue).split('@');
                     const length = parseInt(parts[0], 10);
@@ -519,9 +596,8 @@ export async function parseManifest(
 
                         if (!isNaN(length) && !isNaN(offset)) {
                             const resolvedUrl = new URL(mapUri, baseUrl).href;
-                            const uniqueId = `${resolvedUrl}@init@${offset}-${
-                                offset + length - 1
-                            }`;
+                            const uniqueId = `${resolvedUrl}@init@${offset}-${offset + length - 1
+                                }`;
                             /** @type {import('@/types.js').HlsSegment} */
                             const initSegment = {
                                 repId: 'hls-media-init',
@@ -553,9 +629,12 @@ export async function parseManifest(
                     break;
                 }
                 case 'EXT-X-PROGRAM-DATE-TIME':
+                    // Capture PDT even if segment isn't open yet
                     if (currentSegment) {
                         currentSegment.dateTime = String(tagValue);
                         currentSegment.flags.push('pdt');
+                    } else {
+                        pendingProgramDateTime = String(tagValue);
                     }
                     break;
                 case 'EXT-X-TARGETDURATION':
@@ -651,13 +730,6 @@ export async function parseManifest(
     }
 
     parsed.segments = parsed.segmentGroups.flat();
-
-    // --- Logging for debugging ---
-    appLog(
-        'HlsParser',
-        'info',
-        `Parsed ${parsed.segments.length} segments from playlist.`
-    );
 
     const startSeq =
         typeof parsed.mediaSequence === 'number' && !isNaN(parsed.mediaSequence)
