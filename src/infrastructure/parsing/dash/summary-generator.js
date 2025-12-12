@@ -12,7 +12,7 @@ import {
 import { isCodecSupported } from '../utils/codec-support.js';
 import { findInitSegmentUrl } from './segment-parser.js';
 
-import { appLog } from '@/shared/utils/debug';
+// import { appLog } from '@/shared/utils/debug';
 
 const getSegmentingStrategy = (serializedManifest) => {
     if (!serializedManifest) return 'unknown';
@@ -89,7 +89,7 @@ const calculateMaxSegmentDuration = (serializedManifest) => {
  * Creates a protocol-agnostic summary view-model from a DASH manifest.
  * @param {Manifest} manifestIR - The adapted manifest IR.
  * @param {object} serializedManifest - The serialized manifest DOM object.
- * @param {{fetchAndParseSegment: Function, manifestUrl: string}} [context] - Context for enrichment.
+ * @param {{fetchAndParseSegment: Function, manifestUrl: string, onInitSegmentParsed?: Function, onSegmentFetched?: Function}} [context] - Context for enrichment.
  * @returns {Promise<import('@/types.ts').ManifestSummary>}
  */
 export async function generateDashSummary(
@@ -182,18 +182,27 @@ export async function generateDashSummary(
                         repBaseUrl
                     );
                     if (initInfo?.url) {
-                        appLog(
-                            'summary-generator',
-                            'info',
-                            'Dispatching init segment fetch',
-                            initInfo
-                        );
+
                         const parsedSegment =
                             await context.fetchAndParseSegment(
                                 initInfo.url,
                                 'isobmff',
                                 initInfo.range
                             );
+
+                        if (context.onInitSegmentParsed) {
+                            const uniqueId = initInfo.range
+                                ? `${initInfo.url}@init@${initInfo.range}`
+                                : initInfo.url;
+
+                            context.onInitSegmentParsed({
+                                uniqueId,
+                                data: parsedSegment.rawBuffer,
+                                parsedData: parsedSegment.parsedData,
+                                template: initInfo.template
+                            });
+                        }
+
                         if (parsedSegment?.parsedData?.data?.boxes) {
                             if (!rep.width.value || !rep.height.value) {
                                 const avc1 = findBoxRecursive(
@@ -267,6 +276,8 @@ export async function generateDashSummary(
 
             return {
                 id: rep.id,
+                label: rep.label || as.label || null,
+                format: rep.format,
                 profiles: as.profiles,
                 bandwidth: rep.bandwidth,
                 manifestBandwidth: rep.manifestBandwidth,
@@ -275,6 +286,9 @@ export async function generateDashSummary(
                 codecs,
                 scanType: rep.scanType || null,
                 videoRange: null,
+                sar: rep.sar || as.sar || null, // Added
+                codingDependency: rep.codingDependency, // Added
+                maxPlayoutRate: rep.maxPlayoutRate, // Added
                 roles: rep.roles,
                 muxedAudio: rep.muxedAudio,
             };
@@ -301,11 +315,17 @@ export async function generateDashSummary(
                 if (c.value) channelsSet.add(c.value);
             });
 
+            // Fallback for sampling rate: Rep -> AS
+            const sampleRate = rep.audioSamplingRate || as.audioSamplingRate || null;
+
             return {
                 id: rep.id || as.id || 'N/A',
+                label: rep.label || as.label || null,
                 lang: as.lang,
+                format: as.format,
                 codecs: Array.from(codecsMap.values()),
                 channels: Array.from(channelsSet).join(', ') || null,
+                sampleRate: sampleRate ? parseInt(sampleRate, 10) : null, // Added
                 isDefault: (rep.roles || []).some((r) => r.value === 'main'),
                 isForced: false,
                 roles: rep.roles,
@@ -313,6 +333,58 @@ export async function generateDashSummary(
             };
         });
     });
+
+    // Check for Muxed Audio (Always check, even if explicit tracks exist)
+    if (allVideoTracks.length > 0) {
+        const muxedCodecs = new Set();
+        const isAudioCodec = (codecString) => {
+            if (!codecString) return false;
+            const lowerCodec = codecString.toLowerCase();
+            const audioPrefixes = ['mp4a', 'ac-3', 'ec-3', 'opus', 'flac'];
+            return audioPrefixes.some((prefix) => lowerCodec.startsWith(prefix));
+        };
+
+        allVideoTracks.forEach(vt => {
+            // Check explicit codecs
+            (vt.codecs || []).forEach(c => {
+                if (isAudioCodec(c.value)) {
+                    muxedCodecs.add(c.value);
+                }
+            });
+
+            // Check pre-parsed muxedAudio from adapter
+            if (vt.muxedAudio && vt.muxedAudio.codecs) {
+                vt.muxedAudio.codecs.forEach(c => {
+                    if (isAudioCodec(c.value)) {
+                        muxedCodecs.add(c.value);
+                    }
+                });
+            }
+        });
+
+        if (muxedCodecs.size > 0 && allAudioTracks.length === 0) {
+            // Create a virtual audio track for the muxed audio
+
+            const muxedTrack = {
+                id: 'muxed-audio',
+                label: 'Muxed',
+                lang: 'und',
+                codecs: Array.from(muxedCodecs).map(c => ({ value: c, source: 'variant', supported: isCodecSupported(c.value) })),
+                channels: null, // Assume stereo, or derive if possible
+                sampleRate: null, // Unknown
+                isDefault: allAudioTracks.length === 0, // Only default if no other tracks
+                isForced: false,
+                roles: ['main'],
+                bandwidth: 0, // Unknown
+                isMuxed: true
+            };
+
+            // Add to audio tracks if not already present
+            if (!allAudioTracks.some(t => t.id === 'muxed-audio')) {
+                allAudioTracks.push(muxedTrack);
+            }
+        }
+    }
 
     const allTextTracks = allTextAdaptationSets.flatMap((as) => {
         return as.representations.map((rep) => {
@@ -343,7 +415,6 @@ export async function generateDashSummary(
         id: period.id,
         start: period.start,
         duration: period.duration,
-        // Distill AdaptationSets to avoid circular references in debug output
         adaptationSets: period.adaptationSets.map((as) => ({
             id: as.id,
             contentType: as.contentType,

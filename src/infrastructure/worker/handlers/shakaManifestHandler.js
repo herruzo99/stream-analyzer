@@ -11,430 +11,635 @@ import { generateHlsSummary } from '../../parsing/hls/summary-generator.js';
 import { fetchWithAuth } from '../http.js';
 
 // --- MEMORY PROTECTION SETTINGS ---
-// Cap segment history to ~20-40 minutes depending on segment duration.
-// This prevents unbounded array growth.
 const MAX_SEGMENT_HISTORY = 300;
 
+/**
+ * Detects the protocol based on content first, then hint.
+ * Fixes issue where default 'dash' hint forced XML parsing on HLS playlists.
+ */
 function detectProtocol(manifestString, hint) {
-    if (hint) return hint;
-    if (typeof manifestString !== 'string') return 'dash';
+    if (typeof manifestString !== 'string') return hint || 'dash';
+
     const trimmed = manifestString.trim();
-    if (trimmed.startsWith('#EXTM3U')) return 'hls';
-    if (/<MPD/i.test(trimmed)) return 'dash';
+
+    // 1. Strong Content Signals (Override Hint)
+    if (trimmed.startsWith('#EXTM3U')) {
+        return 'hls';
+    }
+    if (/<MPD/i.test(trimmed)) {
+        return 'dash';
+    }
+
+    // 2. Fallback to Hint
+    if (hint && hint !== 'unknown') {
+        return hint;
+    }
+
+    // 3. Default
     return 'dash';
 }
 
-async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
-    const {
-        streamId,
-        oldRawManifest,
-        auth,
-        baseUrl,
-        hlsDefinedVariables,
-        oldDashRepresentationState: oldDashRepStateArray,
-        oldAdAvails,
-        isLive,
-        interventionRules, // Extract rules
-    } = payload;
-    const now = Date.now();
-    const detectedProtocol = detectProtocol(
-        newManifestString,
-        payload.protocol
-    );
+/**
+ * Identifies whether the URL corresponds to the Master Playlist or a known Variant.
+ * Robust matching against base URLs and historical redirects.
+ */
+function identifyPlaylist(url, baseUrl, variantStateArray) {
+    const normalize = (u) => (u ? u.split('?')[0] : '');
+    const target = normalize(url);
 
-    // --- Aggressive Normalization for Comparison ---
-    const normalizeText = (str, protocol) => {
-        if (!str) return '';
-        let lines = str.replace(/\r\n/g, '\n').split('\n');
+    // 1. Check against Base URL (likely Master)
+    if (baseUrl && normalize(baseUrl) === target) return 'master';
 
-        if (protocol === 'hls') {
-            lines = lines.map((line) => {
-                const trimmed = line.trim();
-                if (!trimmed) return '';
-                // If it's not a tag/comment, it's a URI. Strip query string.
-                if (!trimmed.startsWith('#')) {
-                    try {
-                        const idx = trimmed.indexOf('?');
-                        return idx > -1 ? trimmed.substring(0, idx) : trimmed;
-                    } catch (_e) {
-                        return trimmed;
-                    }
-                }
-                return trimmed;
-            });
-        } else {
-            lines = lines.map((l) => l.trim());
+    // 2. Check against known Variants
+    if (variantStateArray && Array.isArray(variantStateArray)) {
+        for (const entry of variantStateArray) {
+            // Ensure entry is a valid [key, value] pair
+            if (!Array.isArray(entry) || entry.length < 2) continue;
+            const [id, state] = entry;
+            if (!state) continue;
+
+            if (normalize(state.uri) === target) return id;
+            if (state.historicalUris && state.historicalUris.some(u => normalize(u) === target)) return id;
         }
+    }
 
-        return lines.filter((l) => l.length > 0).join('\n');
-    };
+    // Default to master if we can't find it
+    return 'master';
+}
 
-    const normalizedOld = normalizeText(oldRawManifest, detectedProtocol);
-    const normalizedNew = normalizeText(newManifestString, detectedProtocol);
+async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
+    let currentStep = 'init';
 
-    let newManifestObject, newSerializedObject, newMediaPlaylists;
-    let opportunisticallyCachedSegments = [];
-
-    if (detectedProtocol === 'hls') {
-        const { manifest: masterIR, definedVariables } = await parseHlsManifest(
-            newManifestString,
+    try {
+        currentStep = 'destructuring';
+        const {
+            streamId,
+            oldRawManifest,
+            auth,
             baseUrl,
             hlsDefinedVariables,
-            { isLive }
-        );
+            oldDashRepresentationState: oldDashRepStateArray,
+            oldHlsVariantState: oldHlsVariantStateArray,
+            oldAdAvails,
+            isLive,
+            interventionRules,
+        } = payload;
 
-        const allReps = masterIR.periods
-            .flatMap((p) => p.adaptationSets)
-            .flatMap((as) => as.representations);
+        if (!newManifestString) throw new Error("New manifest string is empty/null");
 
-        const uriToVariantIdMap = new Map(
-            allReps.map((r) => [r.__variantUri, r.id])
-        );
-        const mediaPlaylistUris = [...uriToVariantIdMap.keys()].filter(Boolean);
+        const now = Date.now();
 
-        const mediaPlaylistPromises = mediaPlaylistUris.map((uri) =>
-            fetchWithAuth(
-                uri,
-                auth,
-                null,
-                {},
-                null,
-                null,
-                { streamId, resourceType: 'manifest' }, // Add context for logging blocked requests
-                'GET',
-                interventionRules // Pass rules
-            )
-                .then((res) => {
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    return res.text();
-                })
-                .then((text) => ({ uri, text }))
-                .catch((err) => ({ uri, error: err }))
-        );
-        const mediaPlaylistResults = await Promise.all(mediaPlaylistPromises);
-
-        newMediaPlaylists = new Map();
-        for (const result of mediaPlaylistResults) {
-            if ('text' in result && result.text) {
-                try {
-                    const { manifest: mediaIR } = await parseHlsManifest(
-                        result.text,
-                        result.uri,
-                        definedVariables
-                    );
-                    const variantId = uriToVariantIdMap.get(result.uri);
-                    if (variantId) {
-                        newMediaPlaylists.set(variantId, {
-                            manifest: mediaIR,
-                            rawManifest: result.text,
-                            lastFetched: new Date(),
-                            updates: [],
-                            activeUpdateId: null,
-                        });
-                    }
-                } catch (_) {
-                    /* Ignore parsing errors for individual playlists */
-                }
-            }
-        }
-
-        newManifestObject = masterIR;
-        newSerializedObject = masterIR.serializedManifest;
-
-        const hlsSummaryResult = await generateHlsSummary(newManifestObject, {
-            mediaPlaylists: newMediaPlaylists,
-        });
-        newManifestObject.summary = hlsSummaryResult.summary;
-        opportunisticallyCachedSegments =
-            hlsSummaryResult.opportunisticallyCachedSegments;
-    } else {
-        const { manifest, serializedManifest } = await parseDashManifest(
+        currentStep = 'protocol_detection';
+        const detectedProtocol = detectProtocol(
             newManifestString,
-            baseUrl
-        );
-        newManifestObject = manifest;
-        newSerializedObject = serializedManifest;
-        newManifestObject.summary = await generateDashSummary(
-            newManifestObject,
-            newSerializedObject
-        );
-    }
-    newManifestObject.serializedManifest = newSerializedObject;
-
-    if (opportunisticallyCachedSegments.length > 0) {
-        for (const segment of opportunisticallyCachedSegments) {
-            self.postMessage({
-                type: 'worker:shaka-segment-loaded',
-                payload: { ...segment, streamId: payload.streamId },
-            });
-        }
-    }
-
-    let formattedOld = normalizedOld;
-    let formattedNew = normalizedNew;
-
-    if (detectedProtocol === 'dash') {
-        const formatOptions = { indentation: '  ', lineSeparator: '\n' };
-        formattedOld = xmlFormatter(oldRawManifest || '', formatOptions);
-        formattedNew = xmlFormatter(newManifestString || '', formatOptions);
-    }
-
-    const { diffModel, changes } = diffManifest(formattedOld, formattedNew);
-
-    const manifestObjectForChecks =
-        detectedProtocol === 'hls' ? newManifestObject : newSerializedObject;
-    const complianceResults = runChecks(
-        manifestObjectForChecks,
-        detectedProtocol
-    );
-
-    let dashRepStateForUpdate, hlsVariantStateForUpdate;
-    const newlyDiscoveredInbandEvents = [];
-
-    if (detectedProtocol === 'dash') {
-        const segmentsByCompositeKey = await parseDashSegments(
-            newSerializedObject,
-            baseUrl,
-            { now }
+            payload.protocol
         );
 
-        // Initialize new state with OLD state to preserve history of periods
-        const oldDashRepState = new Map(oldDashRepStateArray);
-        const newDashRepState = new Map(oldDashRepState);
-
-        for (const [key, data] of Object.entries(segmentsByCompositeKey)) {
-            const oldRepState = oldDashRepState.get(key);
-            const initSegment = data.initSegment;
-            const newWindowSegments = data.segments || [];
-
-            const existingSegments = oldRepState?.segments || [];
-            const existingSegmentIds = new Map(
-                existingSegments.map((s) => [s.uniqueId, s])
-            );
-
-            // Robust "New" Detection
-            const oldSegmentNumbers = new Set();
-            const oldSegmentTimes = new Set();
-            const oldSegmentUniqueIds = new Set();
-
-            existingSegments.forEach((s) => {
-                if (typeof s.number === 'number')
-                    oldSegmentNumbers.add(s.number);
-                if (typeof s.time === 'number') oldSegmentTimes.add(s.time);
-                oldSegmentUniqueIds.add(s.uniqueId);
-            });
-
-            const isSegmentNew = (seg) => {
-                // For DASH, Time is the most reliable absolute identifier if SegmentTimeline is used
-                if (typeof seg.time === 'number' && oldSegmentTimes.size > 0) {
-                    return !oldSegmentTimes.has(seg.time);
-                }
-                // Fallback to Number (Sequence)
-                if (
-                    typeof seg.number === 'number' &&
-                    oldSegmentNumbers.size > 0
-                ) {
-                    return !oldSegmentNumbers.has(seg.number);
-                }
-                // Fallback to URL
-                return !oldSegmentUniqueIds.has(seg.uniqueId);
-            };
-
-            if (initSegment && !existingSegmentIds.has(initSegment.uniqueId)) {
-                existingSegmentIds.set(initSegment.uniqueId, initSegment);
-            }
-
-            // Merge new segments
-            for (const newSeg of newWindowSegments) {
-                if (!existingSegmentIds.has(newSeg.uniqueId)) {
-                    existingSegmentIds.set(newSeg.uniqueId, newSeg);
-                }
-            }
-
-            // --- MEMORY FIX: Prune History ---
-            let finalSegments = Array.from(existingSegmentIds.values());
-            if (finalSegments.length > MAX_SEGMENT_HISTORY) {
-                // Always keep Init segment if it exists
-                const init = finalSegments.filter((s) => s.type === 'Init');
-                const media = finalSegments.filter((s) => s.type === 'Media');
-
-                // Keep the newest N segments
-                const keptMedia = media.slice(-MAX_SEGMENT_HISTORY);
-                finalSegments = [...init, ...keptMedia];
-            }
-
-            const currentSegmentUrlsInWindow = newWindowSegments.map(
-                (s) => s.uniqueId
-            );
-
-            // Determine truly new segments this cycle
-            const newlyAddedSegmentUrls = newWindowSegments
-                .filter(isSegmentNew)
-                .map((s) => s.uniqueId);
-
-            newDashRepState.set(key, {
-                segments: finalSegments,
-                currentSegmentUrls: currentSegmentUrlsInWindow,
-                newlyAddedSegmentUrls,
-                diagnostics: data.diagnostics,
-            });
-        }
-        dashRepStateForUpdate = Array.from(newDashRepState.entries());
-    } else {
-        // HLS State Update
-        const newVariantsById = new Map();
-        for (const as of newManifestObject.periods[0].adaptationSets) {
-            for (const rep of as.representations) {
-                newVariantsById.set(rep.id, rep);
-            }
+        // DIAGNOSTIC LOG
+        if (payload.protocol && payload.protocol !== detectedProtocol) {
+            appLog('shakaManifestHandler', 'warn', `Protocol Mismatch Detected. Hint: ${payload.protocol}, Detected: ${detectedProtocol}. Using Detected.`);
         }
 
-        const oldHlsVariantState = new Map(payload.oldHlsVariantState || []);
-        const newHlsVariantState = new Map(oldHlsVariantState);
+        currentStep = 'playlist_identification';
+        let updatedPlaylistId = 'master';
+        if (detectedProtocol === 'hls') {
+            updatedPlaylistId = identifyPlaylist(finalUrl, baseUrl, oldHlsVariantStateArray);
+        }
 
-        for (const [stableId, newRep] of newVariantsById.entries()) {
-            const currentUri = newRep.serializedManifest.resolvedUri;
-            const oldState = oldHlsVariantState.get(stableId);
-            const mediaPlaylistData = newMediaPlaylists.get(stableId);
+        currentStep = 'text_normalization';
+        const normalizeText = (str, protocol) => {
+            if (!str) return '';
+            let lines = str.replace(/\r\n/g, '\n').split('\n');
 
-            const allSegmentsMap = new Map(
-                (oldState?.segments || []).map((seg) => [seg.uniqueId, seg])
-            );
-            const newSegmentsList = mediaPlaylistData?.manifest?.segments || [];
-
-            newSegmentsList.forEach((newSeg) => {
-                allSegmentsMap.set(newSeg.uniqueId, newSeg);
-            });
-
-            // --- MEMORY FIX: Prune History ---
-            let finalSegments = Array.from(allSegmentsMap.values());
-            if (finalSegments.length > MAX_SEGMENT_HISTORY) {
-                finalSegments = finalSegments.slice(-MAX_SEGMENT_HISTORY);
+            if (protocol === 'hls') {
+                lines = lines.map((line) => {
+                    let trimmed = line.trim();
+                    if (!trimmed) return '';
+                    if (!trimmed.startsWith('#')) {
+                        try {
+                            const idx = trimmed.indexOf('?');
+                            if (idx > -1) trimmed = trimmed.substring(0, idx);
+                        } catch (_e) { /* ignore */ }
+                        return '  ' + trimmed;
+                    }
+                    return trimmed;
+                });
+            } else {
+                lines = lines.map((l) => l.trim());
             }
 
-            // HLS New Detection: Rely on Media Sequence Number if available
-            const oldSegmentNumbers = new Set(
-                (oldState?.segments || [])
-                    .filter((s) => typeof s.number === 'number')
-                    .map((s) => s.number)
-            );
-            const oldSegmentIds = new Set(
-                (oldState?.segments || []).map((s) => s.uniqueId)
+            return lines.filter((l) => l.length > 0).join('\n');
+        };
+
+        const normalizedOld = normalizeText(oldRawManifest, detectedProtocol);
+        const normalizedNew = normalizeText(newManifestString, detectedProtocol);
+
+        let newManifestObject, newSerializedObject, newMediaPlaylists;
+        let opportunisticallyCachedSegments = [];
+        const mediaPlaylistAdAvails = [];
+
+        if (detectedProtocol === 'hls') {
+            currentStep = 'hls_parsing';
+            const { manifest: parsedIR, definedVariables } = await parseHlsManifest(
+                newManifestString,
+                finalUrl,
+                hlsDefinedVariables,
+                { isLive }
             );
 
-            const isSegmentNew = (seg) => {
-                if (
-                    typeof seg.number === 'number' &&
-                    oldSegmentNumbers.size > 0
-                ) {
-                    return !oldSegmentNumbers.has(seg.number);
+            let treatAsMaster = (updatedPlaylistId === 'master' && parsedIR.isMaster);
+
+            // Correction: If identifyPlaylist returned 'master' (fallback), but the parser sees Segments,
+            // it's actually a Media Playlist.
+            if (updatedPlaylistId === 'master' && !parsedIR.isMaster && parsedIR.segments.length > 0) {
+                treatAsMaster = false;
+            }
+
+            if (treatAsMaster) {
+                currentStep = 'hls_master_deep_scan';
+                const allReps = parsedIR.periods
+                    .flatMap((p) => p.adaptationSets)
+                    .flatMap((as) => as.representations);
+
+                const uriToVariantIdMap = new Map(
+                    allReps.map((r) => [r.__variantUri, r.id])
+                );
+                const mediaPlaylistUris = [...uriToVariantIdMap.keys()].filter(Boolean);
+
+                const mediaPlaylistPromises = mediaPlaylistUris.map((uri) =>
+                    fetchWithAuth(
+                        uri,
+                        auth,
+                        null,
+                        {},
+                        null,
+                        null,
+                        { streamId, resourceType: 'manifest' },
+                        'GET',
+                        interventionRules
+                    )
+                        .then((res) => {
+                            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                            return res.text();
+                        })
+                        .then((text) => ({ uri, text }))
+                        .catch((err) => ({ uri, error: err }))
+                );
+
+                const mediaPlaylistResults = await Promise.all(mediaPlaylistPromises);
+
+                newMediaPlaylists = new Map();
+                for (const result of mediaPlaylistResults) {
+                    if ('text' in result && result.text) {
+                        try {
+                            const { manifest: mediaIR } = await parseHlsManifest(
+                                result.text,
+                                result.uri,
+                                definedVariables
+                            );
+                            if (mediaIR.adAvails && mediaIR.adAvails.length > 0) {
+                                mediaPlaylistAdAvails.push(...mediaIR.adAvails);
+                            }
+                            const variantId = uriToVariantIdMap.get(result.uri);
+                            if (variantId) {
+                                newMediaPlaylists.set(variantId, {
+                                    manifest: mediaIR,
+                                    rawManifest: result.text,
+                                    lastFetched: new Date(),
+                                    updates: [],
+                                    activeUpdateId: null,
+                                });
+                            }
+                        } catch (_) { /* Ignore */ }
+                    }
                 }
-                return !oldSegmentIds.has(seg.uniqueId);
-            };
 
-            const currentSegmentUrls = new Set(
-                newSegmentsList.map((s) => s.uniqueId)
+                newManifestObject = parsedIR;
+                newSerializedObject = parsedIR.serializedManifest;
+
+                currentStep = 'hls_summary_gen';
+                const hlsSummaryResult = await generateHlsSummary(newManifestObject, {
+                    mediaPlaylists: newMediaPlaylists,
+                });
+                newManifestObject.summary = hlsSummaryResult.summary;
+                opportunisticallyCachedSegments = hlsSummaryResult.opportunisticallyCachedSegments;
+
+            } else {
+                newManifestObject = parsedIR;
+                newSerializedObject = parsedIR.serializedManifest;
+                newMediaPlaylists = new Map();
+
+                // If it's a specific variant update, update that state
+                if (updatedPlaylistId !== 'master') {
+                    newMediaPlaylists.set(updatedPlaylistId, {
+                        manifest: parsedIR,
+                        rawManifest: newManifestString,
+                        lastFetched: new Date(),
+                        updates: [],
+                        activeUpdateId: null
+                    });
+
+                    if (parsedIR.adAvails && parsedIR.adAvails.length > 0) {
+                        mediaPlaylistAdAvails.push(...parsedIR.adAvails);
+                    }
+                }
+            }
+
+        } else {
+            currentStep = 'dash_parsing';
+            const { manifest, serializedManifest } = await parseDashManifest(
+                newManifestString,
+                finalUrl
             );
-            const newlyAddedSegmentUrls = newSegmentsList
-                .filter(isSegmentNew)
-                .map((s) => s.uniqueId);
+            newManifestObject = manifest;
+            newSerializedObject = serializedManifest;
 
-            const mergedState = {
-                ...(oldState || {}),
-                uri: currentUri,
-                historicalUris: [
-                    ...new Set([
-                        ...(oldState?.historicalUris || []),
-                        currentUri,
-                    ]),
-                ],
-                segments: finalSegments,
-                currentSegmentUrls,
-                newlyAddedSegmentUrls: new Set(newlyAddedSegmentUrls),
-                isLoading: false,
-                error: null,
+            currentStep = 'dash_summary';
+            newManifestObject.summary = await generateDashSummary(
+                newManifestObject,
+                newSerializedObject
+            );
+        }
+        newManifestObject.serializedManifest = newSerializedObject;
+
+        if (opportunisticallyCachedSegments.length > 0) {
+            for (const segment of opportunisticallyCachedSegments) {
+                self.postMessage({
+                    type: 'worker:shaka-segment-loaded',
+                    payload: { ...segment, streamId: payload.streamId },
+                });
+            }
+        }
+
+        currentStep = 'diff_prep';
+        let formattedOld = normalizedOld;
+        let formattedNew = normalizedNew;
+
+        if (detectedProtocol === 'dash') {
+            const formatOptions = {
+                indentation: '  ',
+                lineSeparator: '\n',
+                collapseContent: true,
+            };
+            try {
+                formattedOld = xmlFormatter(oldRawManifest || '', formatOptions);
+            } catch (_e) {
+                formattedOld = oldRawManifest || '';
+            }
+            try {
+                formattedNew = xmlFormatter(newManifestString || '', formatOptions);
+            } catch (_e) {
+                formattedNew = newManifestString || '';
+            }
+        }
+
+        currentStep = 'diff_calc';
+        const { diffModel, changes } = diffManifest(formattedOld, formattedNew);
+
+        currentStep = 'compliance_checks';
+        const manifestObjectForChecks =
+            detectedProtocol === 'hls' ? newManifestObject : newSerializedObject;
+        const complianceResults = runChecks(
+            manifestObjectForChecks,
+            detectedProtocol
+        );
+
+        let dashRepStateForUpdate, hlsVariantStateForUpdate;
+        const newlyDiscoveredInbandEvents = [];
+
+        currentStep = 'state_reconcile';
+        if (detectedProtocol === 'dash') {
+            const segmentsByCompositeKey = await parseDashSegments(
+                newSerializedObject,
+                baseUrl,
+                { now }
+            );
+
+            const oldDashRepState = new Map(oldDashRepStateArray);
+            const newDashRepState = new Map(oldDashRepState);
+
+            for (const [key, data] of Object.entries(segmentsByCompositeKey)) {
+                const oldRepState = oldDashRepState.get(key);
+                const initSegment = data.initSegment;
+                const newWindowSegments = data.segments || [];
+
+                const existingSegments = oldRepState?.segments || [];
+                const existingSegmentIds = new Map(
+                    existingSegments.map((s) => [s.uniqueId, s])
+                );
+
+                const oldSegmentNumbers = new Set();
+                const oldSegmentTimes = new Set();
+                const oldSegmentUniqueIds = new Set();
+
+                existingSegments.forEach((s) => {
+                    if (typeof s.number === 'number')
+                        oldSegmentNumbers.add(s.number);
+                    if (typeof s.time === 'number') oldSegmentTimes.add(s.time);
+                    oldSegmentUniqueIds.add(s.uniqueId);
+                });
+
+                const isSegmentNew = (seg) => {
+                    if (typeof seg.time === 'number' && oldSegmentTimes.size > 0) {
+                        return !oldSegmentTimes.has(seg.time);
+                    }
+                    if (
+                        typeof seg.number === 'number' &&
+                        oldSegmentNumbers.size > 0
+                    ) {
+                        return !oldSegmentNumbers.has(seg.number);
+                    }
+                    return !oldSegmentUniqueIds.has(seg.uniqueId);
+                };
+
+                if (initSegment && !existingSegmentIds.has(initSegment.uniqueId)) {
+                    existingSegmentIds.set(initSegment.uniqueId, initSegment);
+                }
+
+                for (const newSeg of newWindowSegments) {
+                    if (!existingSegmentIds.has(newSeg.uniqueId)) {
+                        existingSegmentIds.set(newSeg.uniqueId, newSeg);
+                    }
+                }
+
+                let finalSegments = Array.from(existingSegmentIds.values());
+                if (finalSegments.length > MAX_SEGMENT_HISTORY) {
+                    const init = finalSegments.filter((s) => s.type === 'Init');
+                    const media = finalSegments.filter((s) => s.type === 'Media');
+                    const keptMedia = media.slice(-MAX_SEGMENT_HISTORY);
+                    finalSegments = [...init, ...keptMedia];
+                }
+
+                let currentSegmentUrlsInWindow;
+                if (isLive && newWindowSegments.length === 0 && existingSegments.length > 0) {
+                    currentSegmentUrlsInWindow = oldRepState.currentSegmentUrls || [];
+                } else {
+                    currentSegmentUrlsInWindow = newWindowSegments.map(s => s.uniqueId);
+                }
+
+                const newlyAddedSegmentUrls = newWindowSegments
+                    .filter(isSegmentNew)
+                    .map((s) => s.uniqueId);
+
+                // Find the representation in the parsed manifest to get metadata
+                let repMetadata = null;
+                if (newManifestObject && newManifestObject.periods) {
+                    for (const [periodIndex, period] of newManifestObject.periods.entries()) {
+                        for (const as of period.adaptationSets) {
+                            for (const rep of as.representations) {
+                                // MATCHING LOGIC: Must match parseDashSegments composite key
+                                const compositeKey = `${period.id || periodIndex}-${rep.id}`;
+
+                                // appLog('shakaManifestHandler', 'info', `Checking key match: ${compositeKey} vs ${key}`);
+
+                                if (compositeKey === key) {
+                                    repMetadata = {
+                                        mediaType: as.contentType,
+                                        mimeType: rep.mimeType || as.mimeType,
+                                        codecs: rep.codecs?.[0]?.value || null,
+                                        // Handle DASH Label element or attribute. Use bracket notation to bypass strict type checks if needed.
+                                        label: rep.label || rep['Label'] || as.label || as['Label'] || null
+                                    };
+
+
+                                    break;
+                                }
+                            }
+                            if (repMetadata) break;
+                        }
+                        if (repMetadata) break;
+                    }
+                }
+
+                newDashRepState.set(key, {
+                    segments: finalSegments,
+                    currentSegmentUrls: currentSegmentUrlsInWindow,
+                    newlyAddedSegmentUrls,
+                    diagnostics: data.diagnostics,
+                    mediaType: repMetadata?.mediaType,
+                    mimeType: repMetadata?.mimeType,
+                    codecs: repMetadata?.codecs,
+                    label: repMetadata?.label
+                });
+            }
+            dashRepStateForUpdate = Array.from(newDashRepState.entries());
+        } else {
+            const oldHlsVariantState = new Map(oldHlsVariantStateArray || []);
+            const newHlsVariantState = new Map(oldHlsVariantState);
+
+            const processVariantState = (variantId, parsedPlaylist) => {
+                if (!parsedPlaylist) return;
+
+                const oldState = oldHlsVariantState.get(variantId);
+                const currentUri = finalUrl;
+
+                const allSegmentsMap = new Map(
+                    (oldState?.segments || []).map((seg) => [seg.uniqueId, seg])
+                );
+
+                const newSegmentsList = parsedPlaylist.segments || [];
+
+                let timeOffset = 0;
+                if (newSegmentsList.length > 0 && oldState?.segments?.length > 0) {
+                    const firstNewSeg = newSegmentsList[0];
+                    const matchingOldSeg = oldState.segments.find(
+                        (s) => typeof s.number === 'number' && s.number === firstNewSeg.number
+                    );
+                    if (matchingOldSeg) {
+                        timeOffset = matchingOldSeg.time - firstNewSeg.time;
+                    } else {
+                        const lastOldSeg = oldState.segments[oldState.segments.length - 1];
+                        if (lastOldSeg && typeof lastOldSeg.number === 'number' && typeof firstNewSeg.number === 'number') {
+                            const seqDiff = firstNewSeg.number - lastOldSeg.number;
+                            if (seqDiff > 0) {
+                                const avgDuration = newManifestObject.summary?.hls?.targetDuration || 6;
+                                timeOffset = (lastOldSeg.time + lastOldSeg.duration) + ((seqDiff - 1) * avgDuration) - firstNewSeg.time;
+                            }
+                        }
+                    }
+                }
+
+                if (timeOffset !== 0) {
+                    newSegmentsList.forEach(s => s.time += timeOffset);
+                }
+
+                newSegmentsList.forEach(newSeg => {
+                    if (newSeg.repId === 'hls-media') newSeg.repId = variantId;
+                    allSegmentsMap.set(newSeg.uniqueId, newSeg);
+                });
+
+                let finalSegments = Array.from(allSegmentsMap.values());
+                if (finalSegments.length > MAX_SEGMENT_HISTORY) {
+                    finalSegments.sort((a, b) => a.number - b.number);
+                    finalSegments = finalSegments.slice(-MAX_SEGMENT_HISTORY);
+                }
+
+                const oldSegmentNumbers = new Set(
+                    (oldState?.segments || []).filter(s => typeof s.number === 'number').map(s => s.number)
+                );
+                const oldSegmentIds = new Set((oldState?.segments || []).map(s => s.uniqueId));
+
+                const isSegmentNew = (seg) => {
+                    if (typeof seg.number === 'number' && oldSegmentNumbers.size > 0) {
+                        return !oldSegmentNumbers.has(seg.number);
+                    }
+                    return !oldSegmentIds.has(seg.uniqueId);
+                };
+
+                let currentSegmentUrls;
+                if (isLive && newSegmentsList.length === 0 && (oldState?.segments || []).length > 0) {
+                    currentSegmentUrls = oldState.currentSegmentUrls || new Set();
+                } else {
+                    currentSegmentUrls = new Set(newSegmentsList.map(s => s.uniqueId));
+                }
+
+                const newlyAddedSegmentUrls = newSegmentsList.filter(isSegmentNew).map(s => s.uniqueId);
+
+                // Extract label from Master Playlist IR
+                let variantLabel = null;
+                if (newManifestObject && newManifestObject.periods) {
+                    for (const p of newManifestObject.periods) {
+                        for (const as of p.adaptationSets) {
+                            for (const r of as.representations) {
+                                if (r.id === variantId) {
+                                    // HLS 'NAME' attribute usually maps to 'name' or 'label' in IR
+                                    variantLabel = r.name || r.label || null;
+                                    break;
+                                }
+                            }
+                            if (variantLabel) break;
+                        }
+                        if (variantLabel) break;
+                    }
+                }
+
+                const mergedState = {
+                    ...(oldState || {}),
+                    uri: currentUri,
+                    historicalUris: [...new Set([...(oldState?.historicalUris || []), currentUri])],
+                    segments: finalSegments,
+                    currentSegmentUrls,
+                    newlyAddedSegmentUrls: new Set(newlyAddedSegmentUrls),
+                    isLoading: false,
+                    error: null,
+                    label: variantLabel, // Store label
+                };
+                newHlsVariantState.set(variantId, mergedState);
             };
 
-            newHlsVariantState.set(stableId, mergedState);
-        }
-        hlsVariantStateForUpdate = Array.from(newHlsVariantState.entries());
-    }
+            if (updatedPlaylistId !== 'master') {
+                processVariantState(updatedPlaylistId, newManifestObject);
+            } else {
+                newMediaPlaylists.forEach((playlistData, variantId) => {
+                    processVariantState(variantId, playlistData.manifest);
+                });
+            }
 
-    const oldAvailsById = new Map((oldAdAvails || []).map((a) => [a.id, a]));
-    const potentialNewAvails = [
-        ...(newManifestObject.adAvails || []),
-        ...newlyDiscoveredInbandEvents
-            .filter((e) => e.scte35)
-            .map((event) => ({
-                id:
-                    String(
-                        event.scte35?.splice_command?.splice_event_id ||
+            hlsVariantStateForUpdate = Array.from(newHlsVariantState.entries());
+        }
+
+        currentStep = 'ad_resolution';
+        const oldAvailsById = new Map((oldAdAvails || []).map((a) => [a.id, a]));
+        const potentialNewAvails = [
+            ...(newManifestObject.adAvails || []),
+            ...mediaPlaylistAdAvails,
+            ...newlyDiscoveredInbandEvents
+                .filter((e) => e.scte35)
+                .map((event) => ({
+                    id:
+                        String(
+                            event.scte35?.splice_command?.splice_event_id ||
                             event.scte35?.descriptors?.[0]
                                 ?.segmentation_event_id
-                    ) || String(event.startTime),
-                startTime: event.startTime,
-                duration:
-                    event.duration ||
-                    (event.scte35?.splice_command?.break_duration?.duration ||
-                        0) / 90000,
-                scte35Signal: event.scte35,
-                adManifestUrl:
-                    event.scte35?.descriptors?.[0]?.segmentation_upid_type ===
-                    0x0c
-                        ? event.scte35.descriptors[0].segmentation_upid
-                        : null,
-                creatives: [],
-                detectionMethod: /** @type {const} */ ('SCTE35_INBAND'),
-            })),
-    ];
+                        ) || String(event.startTime),
+                    startTime: event.startTime,
+                    duration:
+                        event.duration ||
+                        (event.scte35?.splice_command?.break_duration?.duration ||
+                            0) / 90000,
+                    scte35Signal: event.scte35,
+                    adManifestUrl:
+                        event.scte35?.descriptors?.[0]?.segmentation_upid_type ===
+                            0x0c
+                            ? event.scte35.descriptors[0].segmentation_upid
+                            : null,
+                    creatives: [],
+                    detectionMethod: 'SCTE35_INBAND',
+                })),
+        ];
 
-    const hasUnconfirmed = (oldAdAvails || []).some(
-        (a) => a.id === 'unconfirmed-inband-scte35'
-    );
-    const availsToResolve = potentialNewAvails.filter(
-        (a) => a.id !== 'unconfirmed-inband-scte35' && !oldAvailsById.has(a.id)
-    );
-
-    const newlyResolvedAvails = await resolveAdAvailsInWorker(availsToResolve);
-
-    let finalAdAvails = [...(oldAdAvails || [])];
-
-    if (newlyResolvedAvails.length > 0 && hasUnconfirmed) {
-        finalAdAvails = finalAdAvails.filter(
-            (a) => a.id !== 'unconfirmed-inband-scte35'
+        const hasUnconfirmed = (oldAdAvails || []).some(
+            (a) => a.id === 'unconfirmed-inband-scte35'
         );
-    }
+        const availsToResolve = potentialNewAvails.filter(
+            (a) => a.id !== 'unconfirmed-inband-scte35' && !oldAvailsById.has(a.id)
+        );
 
-    newlyResolvedAvails.forEach((newAvail) => {
-        if (!finalAdAvails.some((a) => a.id === newAvail.id)) {
-            finalAdAvails.push(newAvail);
+        const newlyResolvedAvails = await resolveAdAvailsInWorker(availsToResolve);
+
+        let finalAdAvails = [...(oldAdAvails || [])];
+
+        if (newlyResolvedAvails.length > 0 && hasUnconfirmed) {
+            finalAdAvails = finalAdAvails.filter(
+                (a) => a.id !== 'unconfirmed-inband-scte35'
+            );
         }
-    });
 
-    self.postMessage({
-        type: 'livestream:manifest-updated',
-        payload: {
-            streamId,
-            newManifestObject,
-            newManifestString,
-            complianceResults,
-            serializedManifest: newSerializedObject,
-            diffModel,
-            changes,
-            dashRepresentationState: dashRepStateForUpdate,
-            hlsVariantState: hlsVariantStateForUpdate,
-            adAvails: finalAdAvails,
-            inbandEvents: newlyDiscoveredInbandEvents,
-            finalUrl,
-            newMediaPlaylists: Array.from(newMediaPlaylists || []),
-        },
-    });
+        newlyResolvedAvails.forEach((newAvail) => {
+            if (!finalAdAvails.some((a) => a.id === newAvail.id)) {
+                finalAdAvails.push(newAvail);
+            }
+        });
+
+        currentStep = 'post_message';
+        self.postMessage({
+            type: 'livestream:manifest-updated',
+            payload: {
+                streamId,
+                updatedPlaylistId,
+                newManifestObject,
+                newManifestString,
+                complianceResults,
+                serializedManifest: newSerializedObject,
+                diffModel,
+                changes,
+                dashRepresentationState: dashRepStateForUpdate,
+                hlsVariantState: hlsVariantStateForUpdate,
+                adAvails: finalAdAvails,
+                inbandEvents: newlyDiscoveredInbandEvents,
+                finalUrl,
+                newMediaPlaylists: Array.from(newMediaPlaylists || []),
+            },
+        });
+
+    } catch (err) {
+        // Enhanced error logging to pinpoint the failure
+        let details = {};
+        if (typeof err === 'object' && err !== null) {
+            details = {
+                message: err.message,
+                stack: err.stack,
+                step: currentStep,
+                name: err.name
+            };
+        } else {
+            details = {
+                message: String(err),
+                step: currentStep
+            };
+        }
+
+        // Use console.error directly to bypass any potential stripping in appLog
+        console.error(`[shakaManifestHandler] Analysis failed at step "${currentStep}":`, details);
+
+        // Still send to appLog for UI visibility if possible
+        appLog('shakaManifestHandler', 'error', 'Analysis failed during playback update', details);
+    }
 }
 
 export async function handleShakaManifestFetch(payload, signal) {
-    const { streamId, url, auth, isLive, baseUrl, interventionRules } = payload; // Extract rules
+    const { streamId, url, auth, isLive, baseUrl, interventionRules, purpose } = payload;
     const startTime = performance.now();
-    appLog('shakaManifestHandler', 'info', `Fetching manifest for ${url}`);
 
     const response = await fetchWithAuth(
         url,
@@ -443,9 +648,9 @@ export async function handleShakaManifestFetch(payload, signal) {
         {},
         null,
         signal,
-        {}, // Logging Context
+        {},
         'GET',
-        interventionRules // Pass rules (9th arg)
+        interventionRules
     );
 
     const requestHeadersForLogging = {};
@@ -455,7 +660,8 @@ export async function handleShakaManifestFetch(payload, signal) {
         }
     }
 
-    // Log network event (Manual logic preserved)
+    // Only log networking events for explicit analysis or player loads, to reduce noise for background polling?
+    // Actually, primary polling is important. Let's keep logging.
     self.postMessage({
         type: 'worker:network-event',
         payload: {
@@ -468,8 +674,7 @@ export async function handleShakaManifestFetch(payload, signal) {
                 status: response.status,
                 statusText: response.statusText,
                 headers: response.headers,
-                contentLength:
-                    Number(response.headers['content-length']) || null,
+                contentLength: Number(response.headers['content-length']) || null,
                 contentType: response.headers['content-type'],
             },
             timing: {
@@ -507,8 +712,15 @@ export async function handleShakaManifestFetch(payload, signal) {
         }
     }
 
-    if (isLive) {
-        await analyzeUpdateAndNotify(payload, newManifestString, responseUri);
+    // ARCHITECTURAL FIX: Decouple player fetch from analysis.
+    // Only run full analysis logic if this request was explicitly for analysis (the monitor service).
+    // If Shaka requested it (playback/buffering), we skip the heavy lift to prevent race conditions or state corruption.
+    // We also support 'isPlayerLoadRequest' which is the *first* load, where we DO want to analyze.
+    if ((isLive || payload.isPlayerLoadRequest) && purpose === 'analysis') {
+        // Use non-blocking call to ensure response returns quickly
+        analyzeUpdateAndNotify(payload, newManifestString, responseUri).catch(e => {
+            console.error('[shakaManifestHandler] Background analysis failed', e);
+        });
     }
 
     return {
