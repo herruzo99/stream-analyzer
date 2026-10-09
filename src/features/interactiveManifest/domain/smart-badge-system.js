@@ -31,6 +31,29 @@ const pill = (cls, title, text) => html`<span
     >${text}</span
 >`;
 
+const verdictTreePill = (verdict) => {
+    if (!verdict) return null;
+    if (verdict.kind === 'live') {
+        return html`<span
+            class="ml-0.5 mr-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30 inline-flex items-center gap-1 select-none whitespace-nowrap align-middle leading-none h-4"
+            title=${verdict.title}
+            ><span class="relative flex h-1.5 w-1.5"
+                ><span
+                    class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"
+                ></span
+                ><span
+                    class="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"
+                ></span></span
+            >LIVE</span
+        >`;
+    }
+    const cls =
+        verdict.kind === 'future'
+            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+            : 'bg-slate-700/60 text-slate-300 border border-slate-600';
+    return pill(cls, verdict.title, verdict.label);
+};
+
 const prettyKey = (key) =>
     String(key)
         .replace(/[_-]+/g, ' ')
@@ -40,6 +63,115 @@ const detailRow = (label, value) =>
     `<div style="display:flex;justify-content:space-between;gap:1rem;padding:2px 0;">` +
     `<span style="opacity:.65">${escapeHtml(label)}</span>` +
     `<span style="font-family:monospace">${escapeHtml(value)}</span></div>`;
+
+/** Humanize a millisecond age for live-edge badges ("5s ago" style). */
+const humanAge = (ms) => {
+    const s = Math.max(0, Math.round(ms / 1000));
+    if (s < 60) return `${s}s`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m`;
+    const h = Math.floor(m / 60);
+    if (h < 48) return `${h}h`;
+    return `${Math.floor(h / 24)}d`;
+};
+
+/** Normalize an SPD value (seconds number, numeric string, or {total}). */
+const spdSeconds = (spd) => {
+    if (spd === null || spd === undefined) return 0;
+    const raw = typeof spd === 'object' ? spd.total : spd;
+    const num = typeof raw === 'string' ? parseFloat(raw) : Number(raw);
+    return Number.isFinite(num) && num > 0 ? num : 0;
+};
+
+const wallClock = (ms) => {
+    try {
+        return new Date(ms).toISOString().slice(11, 23);
+    } catch {
+        return '—';
+    }
+};
+
+/**
+ * Live-edge verdict for a segment span. The SPD offset is applied here,
+ * from the raw wall clock (see the manifest ticker comment in
+ * `interactiveManifest/ui/index.js`): edge = now - SPD when active.
+ * @returns {{ kind: 'live'|'ago'|'future', label: string, title: string, startMs: number, endMs: number|null } | null}
+ */
+const liveVerdict = ({
+    tTicks,
+    dTicks,
+    timescale,
+    anchorTimeMs,
+    nowMs,
+    spd,
+    isSpdActive,
+}) => {
+    // Null clocks (VOD / unknown) must yield no verdict: Number(null)
+    // is 0, which would otherwise fake a 1970 edge and label every span
+    // decades stale or future.
+    if (nowMs === null || nowMs === undefined) return null;
+    if (anchorTimeMs === null || anchorTimeMs === undefined) return null;
+    const ts = Number(timescale);
+    const anchor = Number(anchorTimeMs);
+    const now = Number(nowMs);
+    if (!Number.isFinite(ts) || ts <= 0) return null;
+    if (!Number.isFinite(anchor) || !Number.isFinite(now)) return null;
+    const t =
+        tTicks === null || tTicks === undefined || tTicks === ''
+            ? 0
+            : Number(tTicks);
+    const d =
+        dTicks === null || dTicks === undefined || dTicks === ''
+            ? null
+            : Number(dTicks);
+    if (Number.isNaN(t)) return null;
+    if (d !== null && (!Number.isFinite(d) || d < 0)) return null;
+    const edge = now - (isSpdActive ? spdSeconds(spd) * 1000 : 0);
+    const start = anchor + (t / ts) * 1000;
+    const end = d === null ? null : start + (d / ts) * 1000;
+    const span = `${wallClock(start)}${end === null ? '' : ' → ' + wallClock(end)} UTC`;
+    if (end !== null && edge >= start && edge <= end) {
+        return {
+            kind: 'live',
+            label: 'LIVE',
+            title: `Live edge inside span (${span})`,
+            startMs: start,
+            endMs: end,
+        };
+    }
+    if (end !== null && edge > end) {
+        return {
+            kind: 'ago',
+            label: `${humanAge(edge - end)} ago`,
+            title: `Span ended ${span}; live edge ${humanAge(edge - end)} past it`,
+            startMs: start,
+            endMs: end,
+        };
+    }
+    if (start > edge) {
+        return {
+            kind: 'future',
+            label: `in ${humanAge(start - edge)}`,
+            title: `Span starts ${span}; available ${humanAge(start - edge)} after the edge`,
+            startMs: start,
+            endMs: end,
+        };
+    }
+    return {
+        kind: 'ago',
+        label: `started ${humanAge(edge - start)} ago`,
+        title: `Span started ${span}`,
+        startMs: start,
+        endMs: end,
+    };
+};
+
+/** Verdict dot colors for the details panel (inline styles survive unsafeHTML). */
+const verdictDot = (kind) => {
+    const color =
+        kind === 'live' ? '#ef4444' : kind === 'future' ? '#f59e0b' : '#94a3b8';
+    return `<span style="display:inline-block;width:7px;height:7px;border-radius:99px;background:${color};margin-right:6px"></span>`;
+};
 
 /**
  * @param {string} key Attribute/tag name.
@@ -70,16 +202,40 @@ function getDetails(key, value, context = {}) {
             detailRow('r (repeat)', String(rRaw ?? '—')),
         ];
         let parsedValue = `d=${attrs.d ?? attrs.D ?? '?'} r=${rRaw ?? '?'}`;
+        let worked = '';
         if (!isNaN(d) && timescale && timescale > 0) {
             const r = rRaw === null ? 0 : parseInt(rRaw, 10);
             if (!isNaN(r) && r >= 0) {
-                parsedValue += ` ≈ ${formatDurationPill(((r + 1) * d) / timescale)} total`;
+                const total = ((r + 1) * d) / timescale;
+                parsedValue += ` ≈ ${formatDurationPill(total)} total`;
+                worked = detailRow(
+                    'Worked',
+                    `(${r} + 1) × ${d} / ${timescale} = ${formatDurationPill(total)}`
+                );
             }
         }
+        const verdict = liveVerdict({
+            tTicks: t ?? null,
+            dTicks: Number.isNaN(d) ? null : d,
+            timescale,
+            anchorTimeMs: context.anchorTime ?? null,
+            nowMs: context.now ?? null,
+            spd: context.spd,
+            isSpdActive: context.isSpdActive,
+        });
+        const verdictHtml = verdict
+            ? `<div style="display:flex;justify-content:space-between;gap:1rem;padding:2px 0;">` +
+              `<span style="opacity:.65">Status</span>` +
+              `<span style="font-family:monospace">${verdictDot(verdict.kind)}${escapeHtml(verdict.label)}</span></div>` +
+              detailRow(
+                  'Span',
+                  `${wallClock(verdict.startMs)}${verdict.endMs === null ? '' : ' → ' + wallClock(verdict.endMs)} UTC`
+              )
+            : '';
         return {
             label: 'S Span Aggregator',
             parsedValue,
-            tooltipHtml: `<div>${rows.join('')}</div>`,
+            tooltipHtml: `<div>${rows.join('')}${worked}${verdictHtml}</div>`,
         };
     }
 
@@ -90,6 +246,27 @@ function getDetails(key, value, context = {}) {
         const d = parseFloat(dVal);
         if (!isNaN(r) && !isNaN(d)) {
             const count = r < 0 ? 'Until End' : r + 1;
+            const worked =
+                typeof count === 'number'
+                    ? detailRow(
+                          'Worked',
+                          `(${r} + 1) × ${d} / ${timescale} = ${formatDurationPill(((r + 1) * d) / timescale)}`
+                      )
+                    : '';
+            const verdict = liveVerdict({
+                tTicks: allAttributes['t'] ?? allAttributes['T'] ?? null,
+                dTicks: d,
+                timescale,
+                anchorTimeMs: context.anchorTime ?? null,
+                nowMs: context.now ?? null,
+                spd: context.spd,
+                isSpdActive: context.isSpdActive,
+            });
+            const verdictHtml = verdict
+                ? `<div style="display:flex;justify-content:space-between;gap:1rem;padding:2px 0;">` +
+                  `<span style="opacity:.65">Status</span>` +
+                  `<span style="font-family:monospace">${verdictDot(verdict.kind)}${escapeHtml(verdict.label)}</span></div>`
+                : '';
             return {
                 label: 'Repeat Count',
                 parsedValue:
@@ -99,7 +276,7 @@ function getDetails(key, value, context = {}) {
                 tooltipHtml:
                     `<div>${detailRow('Formula', '(r + 1) × d / timescale')}` +
                     `${detailRow('Raw r', text)}${detailRow('d', String(dVal))}` +
-                    `${detailRow('Timescale', String(timescale))}</div>`,
+                    `${detailRow('Timescale', String(timescale))}${worked}${verdictHtml}</div>`,
             };
         }
     }
@@ -128,12 +305,50 @@ function getDetails(key, value, context = {}) {
     if (timescale && scaledFields.includes(shortKey)) {
         const num = parseFloat(text);
         if (!isNaN(num) && timescale > 0) {
+            const seconds = num / timescale;
+            let worked = '';
+            let verdictHtml = '';
+            if (shortKey === 'd' || shortKey === 't') {
+                const siblingT =
+                    shortKey === 'd'
+                        ? (allAttributes['t'] ?? allAttributes['T'] ?? null)
+                        : num;
+                const siblingD =
+                    shortKey === 'd'
+                        ? num
+                        : (allAttributes['d'] ?? allAttributes['D'] ?? null);
+                worked = detailRow(
+                    'Worked',
+                    shortKey === 'd'
+                        ? `${num} / ${timescale} = ${formatDurationPill(seconds)}`
+                        : `wall = anchor + ${num} / ${timescale}`
+                );
+                const verdict = liveVerdict({
+                    tTicks: siblingT,
+                    dTicks: siblingD,
+                    timescale,
+                    anchorTimeMs: context.anchorTime ?? null,
+                    nowMs: context.now ?? null,
+                    spd: context.spd,
+                    isSpdActive: context.isSpdActive,
+                });
+                if (verdict) {
+                    worked += detailRow(
+                        'Span',
+                        `${wallClock(verdict.startMs)}${verdict.endMs === null ? '' : ' → ' + wallClock(verdict.endMs)} UTC`
+                    );
+                    verdictHtml =
+                        `<div style="display:flex;justify-content:space-between;gap:1rem;padding:2px 0;">` +
+                        `<span style="opacity:.65">Status</span>` +
+                        `<span style="font-family:monospace">${verdictDot(verdict.kind)}${escapeHtml(verdict.label)}</span></div>`;
+                }
+            }
             return {
-                label: prettyKey(key),
-                parsedValue: formatDurationPill(num / timescale),
+                label: prettyKey(labelKey),
+                parsedValue: formatDurationPill(seconds),
                 tooltipHtml:
                     `<div>${detailRow('Raw ticks', text)}` +
-                    `${detailRow('Timescale', String(timescale))}</div>`,
+                    `${detailRow('Timescale', String(timescale))}${worked}${verdictHtml}</div>`,
             };
         }
     }
@@ -141,7 +356,7 @@ function getDetails(key, value, context = {}) {
         const parsed = parseDuration(text);
         if (parsed) {
             return {
-                label: prettyKey(key),
+                label: prettyKey(labelKey),
                 parsedValue: formatDurationPill(parsed.total),
             };
         }
@@ -238,11 +453,25 @@ function renderBadge(key, value, context = {}) {
         const num = parseFloat(text);
         if (!isNaN(num) && timescale > 0) {
             const seconds = num / timescale;
-            return pill(
+            const main = pill(
                 'bg-teal-500/20 text-teal-300 border border-teal-500/30',
                 `Raw: ${text} / Scale: ${timescale}`,
                 formatDurationPill(seconds)
             );
+            // Live-edge verdict only on the duration pill (the t pill
+            // shares the same span; the details panel covers both).
+            if (shortKey !== 'd') return main;
+            const verdict = liveVerdict({
+                tTicks: allAttributes['t'] ?? allAttributes['T'] ?? null,
+                dTicks: num,
+                timescale,
+                anchorTimeMs: context.anchorTime ?? null,
+                nowMs: context.now ?? null,
+                spd: context.spd,
+                isSpdActive: context.isSpdActive,
+            });
+            const extra = verdictTreePill(verdict);
+            return extra ? [main, extra] : main;
         }
     }
 

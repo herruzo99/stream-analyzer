@@ -400,7 +400,7 @@ const detailTemplate = (item, isSelected) => {
 export class InteractiveManifestSidebar extends HTMLElement {
     constructor() {
         super();
-        this._now = Date.now();
+        this._now = null;
         this._isSpdActive = true; // Default
     }
 
@@ -437,9 +437,11 @@ export class InteractiveManifestSidebar extends HTMLElement {
             interactiveManifestSelectedItem || interactiveManifestHoveredItem;
         const isSelected = !!interactiveManifestSelectedItem;
 
-        // Inject 'now' and 'isSpdActive' into item context if it exists
+        // Inject 'now' and 'isSpdActive' into item context if it exists.
+        // `.now` is the live-only raw clock from the index (null on VOD),
+        // so freshness badges stay off unless the stream is live.
         if (itemToDisplay && itemToDisplay.context) {
-            itemToDisplay.context.now = Date.now();
+            itemToDisplay.context.now = this._now;
             itemToDisplay.context.isSpdActive = this._isSpdActive;
         }
 

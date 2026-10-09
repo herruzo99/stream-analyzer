@@ -484,13 +484,12 @@ class InteractiveManifestView {
         `;
         // (1.2.0 has no shell slots: toolbar is composed into the template below)
 
-        // Sidebar
-        let now = Date.now();
-        if (this.useSPD && stream.manifest?.serializedManifest?.[':@']?.suggestedPresentationDelay) {
-            const spdStr = stream.manifest.serializedManifest[':@'].suggestedPresentationDelay;
-            const spd = parseDuration(spdStr);
-            if (spd) now -= spd.total * 1000;
-        }
+        // Sidebar + rows share one clock: raw wall time for live streams
+        // only. Badges subtract SPD themselves (see the manifest ticker
+        // comment in updateClock); VOD gets null so no live/freshness
+        // badges render.
+        const isLiveStream = stream?.manifest?.type === 'dynamic';
+        const now = isLiveStream ? Date.now() : null;
         // Pass useSPD state to sidebar (rendered into the shell's contextual
         // sidebar element, as in 1.2.0 — there are no shell slots)
         const sidebarContainer = document.getElementById('contextual-sidebar');
