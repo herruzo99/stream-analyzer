@@ -50,8 +50,7 @@ export class FrameAccessService {
                     } else {
                         reject(
                             new Error(
-                                `Failed to load segment ${id} (HTTP ${
-                                    entry.status || 'Error'
+                                `Failed to load segment ${id} (HTTP ${entry.status || 'Error'
                                 })`
                             )
                         );
@@ -289,9 +288,9 @@ export class FrameAccessService {
             mediaInfo: {
                 video: config
                     ? {
-                          codec: config.codec,
-                          resolution: `${config.codedWidth}x${config.codedHeight}`,
-                      }
+                        codec: config.codec,
+                        resolution: `${config.codedWidth}x${config.codedHeight}`,
+                    }
                     : undefined,
             },
             timescale: 90000,
@@ -413,8 +412,8 @@ export class FrameAccessService {
                     codec: isEncrypted
                         ? 'encv'
                         : `avc1.${this._toHex(profile)}${this._toHex(
-                              compat
-                          )}${this._toHex(level)}`,
+                            compat
+                        )}${this._toHex(level)}`,
                     originalCodec: `avc1.${this._toHex(profile)}${this._toHex(
                         compat
                     )}${this._toHex(level)}`,
@@ -499,6 +498,12 @@ export class FrameAccessService {
                 } else {
                     baseTime = baseTime || 0;
                 }
+
+                // Apply Presentation Time Offset (common in DASH)
+                if (options.presentationTimeOffset !== undefined) {
+                    baseTime -= options.presentationTimeOffset;
+                }
+
                 currentBaseTime = baseTime;
             }
 
@@ -593,9 +598,9 @@ export class FrameAccessService {
             mediaInfo: {
                 video: config
                     ? {
-                          codec: config.codec,
-                          resolution: `${config.codedWidth}x${config.codedHeight}`,
-                      }
+                        codec: config.codec,
+                        resolution: `${config.codedWidth}x${config.codedHeight}`,
+                    }
                     : undefined,
             },
         };

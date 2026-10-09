@@ -78,7 +78,8 @@ export class VideoScopeRenderer {
             this.ctx.fillStyle = '#020617';
             this.ctx.fillRect(0, 0, outW, outH);
 
-            // 3. Grid Layout Logic
+            // 3. Stack Layout Logic (Vertical Column)
+            // User requested: "each analysis in a row, one under the other, never distort"
             const activeScopes = [
                 this.config.showBroadcastCompliance && 'compliance',
                 this.config.showWaveform && 'waveform',
@@ -92,15 +93,17 @@ export class VideoScopeRenderer {
                 return;
             }
 
-            let cols = activeScopes.length > 2 ? 2 : activeScopes.length;
-            let rows = Math.ceil(activeScopes.length / cols);
-            const cellW = outW / cols;
+            // Force 1 column for strict vertical stacking
+            const rows = activeScopes.length;
+
+            // We assume the canvas height has been set externally to accommodate the stack
+            // But we calculate the cell dimensions based on current canvas size
+            const cellW = outW;
             const cellH = outH / rows;
 
             activeScopes.forEach((scope, index) => {
-                const col = index % cols;
-                const row = Math.floor(index / cols);
-                const x = col * cellW;
+                const row = index;
+                const x = 0;
                 const y = row * cellH;
 
                 this.ctx.save();
@@ -228,8 +231,8 @@ export class VideoScopeRenderer {
                 const i = (row * this.procW + col) * 4;
                 const luma = Math.round(
                     0.2126 * data[i] +
-                        0.7152 * data[i + 1] +
-                        0.0722 * data[i + 2]
+                    0.7152 * data[i + 1] +
+                    0.0722 * data[i + 2]
                 );
                 // Accumulate intensity
                 const idx = (255 - luma) * this.procW + col;

@@ -27,6 +27,16 @@ export const ANALYSIS_LAYERS = {
         speed: 'Fast',
         category: 'Metrics',
     },
+    METRIC_SCENE_CHANGE: {
+        id: 'scene_change',
+        label: 'Scene Change Detection',
+        description: 'Detect scene cuts and capture reference frames.',
+        default: false,
+        cost: 'High',
+        speed: 'Deep Scan',
+        requiresSequential: true,
+        category: 'Analysis',
+    },
     METRIC_AUDIO_LEVEL: {
         id: 'metric_audio_level',
         label: 'Audio Levels',
@@ -142,15 +152,22 @@ export const ANALYSIS_LAYERS = {
 
 export const LAYER_PRESETS = [
     {
+        id: 'lightweight',
+        label: 'Lightweight Monitoring',
+        description: 'Basic health check. Suitable for 24/7 monitoring.',
+        layers: ['metric_luma', 'metric_audio_level', 'black_frame', 'silence'],
+    },
+    {
         id: 'standard',
         label: 'Standard Audit',
-        description: 'Basic video health and audio levels.',
+        description: 'Comprehensive video health and legality check.',
         layers: [
             'metric_luma',
             'metric_motion',
             'metric_audio_level',
             'black_frame',
             'silence',
+            'broadcast_safe',
         ],
     },
     {
@@ -201,18 +218,21 @@ export const SCAN_SPEEDS = {
     DEEP: {
         id: 'deep',
         label: 'Deep Scan',
+        subtitle: 'Analyzes every frame',
         interval: 1,
         description: 'Analyze every frame. Required for freeze detection.',
     },
     BALANCED: {
         id: 'balanced',
         label: 'Balanced',
+        subtitle: '1 in 5 frames',
         interval: 5,
         description: 'Skips frames to save CPU. Disables temporal checks.',
     },
     FAST: {
         id: 'fast',
         label: 'Fast Survey',
+        subtitle: '1 in 15 frames',
         interval: 15,
         description: 'Sparse sampling for quick spot-checks.',
     },

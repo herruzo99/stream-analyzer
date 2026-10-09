@@ -101,7 +101,7 @@ class SignalMonitorAudio extends HTMLElement {
 
             const y = height - i * barHeight;
 
-            this.ctx.fillStyle = `rgba(52, 211, 153, ${0.2 + percent * 0.8})`;
+            this.ctx.fillStyle = `rgba(20, 184, 166, ${0.2 + percent * 0.8})`;
             this.ctx.fillRect(
                 (width - barWidth) / 2,
                 y,
@@ -112,56 +112,47 @@ class SignalMonitorAudio extends HTMLElement {
     }
 
     render() {
+        // Compact Audio Monitor (Horizontal Layout)
         const meterBar = (id) => html`
-            <div
-                class="relative w-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800 h-full group"
-            >
-                <div
-                    id="${id}"
-                    class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-emerald-500 via-yellow-400 to-red-500 opacity-90 transition-[height] duration-75 ease-linear"
+            <div class="relative w-1.5 h-full bg-slate-800 rounded-full overflow-hidden border border-slate-800/30 group mx-0.5">
+                <div id="${id}"
+                    class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-emerald-500 via-amber-500 to-red-500 opacity-90 transition-[height] duration-75 ease-linear"
                     style="height: 0%"
                 ></div>
             </div>
         `;
 
         const template = html`
-            <div
-                class="h-full w-full flex flex-col bg-slate-950 border-r border-slate-800 items-center py-2 gap-2"
-            >
-                <div
-                    class="text-slate-600 scale-75 pb-2 border-b border-slate-900"
-                >
-                    ${icons.volumeUp}
+            <div class="h-full w-full flex items-center bg-slate-800 px-3 gap-3 backdrop-blur-md">
+                
+                <!-- 1. Meters (L/R) -->
+                <div class="h-12 flex items-end justify-center">
+                    ${meterBar('bar-l')}
+                    ${meterBar('bar-r')}
                 </div>
-                <div
-                    class="grow flex flex-col items-center w-full min-h-0 gap-2"
-                >
-                    <div class="h-1/2 flex justify-center gap-1 w-full px-1">
-                        ${meterBar('bar-l')} ${meterBar('bar-r')}
-                    </div>
-                    <div class="h-1/2 w-full px-1 relative opacity-60">
-                        <canvas
-                            id="audio-spectrum-canvas"
-                            width="40"
-                            height="150"
-                            class="w-full h-full block"
-                        ></canvas>
-                    </div>
+
+                <!-- 2. Spectrum (Wide) -->
+                <div class="grow h-12 relative opacity-60">
+                    <canvas id="audio-spectrum-canvas" width="200" height="40" class="w-full h-full block"></canvas>
+                    <!-- Label -->
+                     <div class="absolute bottom-0 right-0 text-[8px] text-slate-400 font-mono pointer-events-none">SPECTRUM</div>
                 </div>
-                <div
-                    class="w-8 h-8 relative border-t border-slate-800 mt-2 shrink-0"
-                >
-                    <div
-                        class="absolute bottom-0 left-1/2 w-px h-full bg-slate-800"
-                    ></div>
-                    <div
-                        id="phase-needle"
-                        class="absolute bottom-0 left-1/2 w-0.5 h-full bg-slate-500 origin-bottom transition-transform duration-75"
-                    ></div>
-                    <div
-                        class="absolute -bottom-1 left-0 right-0 text-center text-[7px] text-slate-700 font-mono"
-                    >
-                        PH
+
+                <!-- 3. Phase Correlation (Simple Horizontal Bar or Compact Needle) -->
+                <div class="w-16 h-8 relative shrink-0 border-l border-slate-800/30 pl-3 ml-1">
+                    <div class="w-full h-full relative overflow-hidden">
+                        <!-- Scale -->
+                        <div class="absolute bottom-0 left-1/2 w-px h-full bg-slate-800/30"></div>
+                        <div class="absolute bottom-0 left-0 right-0 h-px bg-slate-800/30"></div>
+                        
+                        <!-- Needle -->
+                        <div id="phase-needle"
+                            class="absolute bottom-0 left-1/2 w-0.5 h-full bg-slate-400 origin-bottom transition-transform duration-75"
+                            style="transform: translateX(-50%) rotate(0deg)"
+                        ></div>
+                    </div>
+                     <div class="absolute -bottom-2 left-0 right-0 text-center text-[7px] text-slate-400 font-mono">
+                        PHASE
                     </div>
                 </div>
             </div>
@@ -240,18 +231,54 @@ class SignalMonitorVideo extends HTMLElement {
     }
 
     observeCanvas(canvas) {
-        const ro = new ResizeObserver(() => {
-            if (canvas.isConnected) {
-                canvas.width = canvas.clientWidth;
-                canvas.height = canvas.clientHeight;
-            }
-        });
-        ro.observe(canvas);
+        // We use a ResizeObserver to detect container width changes
+        // AND we must manually update height when scopes change.
+        // We'll decouple the resize logic to a shared method.
+        this.updateCanvasDimensions = () => {
+            if (!canvas.isConnected) return;
+
+            // 1. Get container width
+            const width = canvas.parentElement.clientWidth;
+            canvas.width = width;
+
+            // 2. Calculate necessary height for "Non-Distorted" Stacking
+            // User wants "Real Ratio". Most scopes (Vector) need Square.
+            // Waveform/Parade can accept 16:9 or similar, but Square is safe for strict verticality.
+            // Let's use a 4:3 (0.75) ratio per scope for a balanced look, or 1:1 if preferred.
+            // 1:1 ensures Vector is perfect. 4:3 is better for Waveform.
+            // Let's compromise: Vectorscope gets 1:1, others get 3:4 or 16:9?
+            // For simplicity in the single-canvas renderer, we treat them uniformly for now,
+            // or we'd need complex renderer logic. The renderer divides height by N.
+            // So if we set TotalHeight = N * (Width * Ratio), each cell gets (Width * Ratio).
+
+            const activeCount = [
+                this._state.showWaveform,
+                this._state.showVectorscope,
+                this._state.showParade,
+                this._state.showHistogram,
+                this._state.showBroadcastCompliance
+            ].filter(Boolean).length;
+
+            // Use 56.25% (16:9) for scopes generally, or 100% (square) for Vector?
+            // Vector needs height >= width to be a circle. If height < width, circle shrinks.
+            // If we use square (ratio 1.0), it's taller but safe.
+            // If activeCount is 0, height 0.
+            const ratio = 0.75; // 4:3 aspect ratio per scope
+            const effectiveCount = Math.max(1, activeCount);
+
+            // Min height to avoid breakage
+            canvas.height = Math.max(300, width * ratio * effectiveCount);
+        };
+
+        const ro = new ResizeObserver(() => this.updateCanvasDimensions());
+        ro.observe(canvas.parentElement); // Observe PARENT to fit into it
     }
 
     toggleScope(key) {
         this._state[key] = !this._state[key];
         this.renderer.setMode(this._state);
+        // Force re-calc of height immediately
+        if (this.updateCanvasDimensions) this.updateCanvasDimensions();
         this.render();
     }
 
@@ -264,14 +291,14 @@ class SignalMonitorVideo extends HTMLElement {
             icon,
             label,
             onClick,
-            activeColor = 'bg-blue-600'
+            activeColor = 'bg-blue-500'
         ) => html`
             <button
                 @click=${onClick}
                 ?disabled=${isDrmLocked || isRestricted}
                 class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all ${active
-                    ? `${activeColor} text-white border-transparent shadow-md`
-                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800 hover:text-slate-200 hover:border-slate-700'} 
+                ? `${activeColor} text-white border-transparent shadow-[0_0_10px_#3b82f6]`
+                : 'bg-slate-800 border-slate-800/50 text-slate-400 hover:bg-slate-800 hover:text-slate-100 hover:border-slate-800'} 
                        disabled:opacity-50 disabled:cursor-not-allowed text-[10px] font-bold uppercase tracking-wider whitespace-nowrap"
             >
                 <span class="scale-90">${icon}</span>
@@ -283,12 +310,14 @@ class SignalMonitorVideo extends HTMLElement {
         if (isDrmLocked) {
             overlay = html`
                 <div
-                    class="absolute inset-0 z-20 bg-black/90 flex flex-col items-center justify-center text-slate-400 p-4 text-center"
+                    class="absolute inset-0 z-20 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center text-slate-400 p-4 text-center"
                 >
-                    <div class="text-amber-500 mb-2 scale-150">
+                    <div class="text-amber-400 mb-2 scale-150">
                         ${icons.shield}
                     </div>
-                    <h4 class="text-sm font-bold text-white mb-1">
+                    <h4
+                        class="text-sm font-bold text-slate-100 mb-1"
+                    >
                         Signal Analysis Unavailable
                     </h4>
                     <p class="text-xs max-w-xs">
@@ -300,9 +329,11 @@ class SignalMonitorVideo extends HTMLElement {
         } else if (isRestricted) {
             overlay = html`
                 <div
-                    class="absolute inset-0 z-20 bg-black/90 flex flex-col items-center justify-center text-slate-500 p-4"
+                    class="absolute inset-0 z-20 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center text-slate-400 p-4"
                 >
-                    <div class="text-red-500 mb-2">${icons.lockClosed}</div>
+                    <div class="text-red-400 mb-2">
+                        ${icons.lockClosed}
+                    </div>
                     <p class="text-xs font-bold">Signal Locked (CORS)</p>
                 </div>
             `;
@@ -310,52 +341,55 @@ class SignalMonitorVideo extends HTMLElement {
 
         const template = html`
             <div
-                class="flex flex-col h-full bg-slate-950 border-t border-slate-800 relative overflow-hidden"
+                class="flex flex-col h-full bg-slate-800 border-t border-slate-800/50 relative overflow-hidden backdrop-blur-3xl"
             >
                 ${overlay}
 
                 <!-- Top Controls Toolbar -->
                 <div
-                    class="w-full shrink-0 bg-slate-950 border-b border-slate-800 flex items-center p-2 gap-2 z-10 overflow-x-auto custom-scrollbar"
+                    class="w-full shrink-0 bg-slate-800 border-b border-slate-800/50 flex items-center p-2 gap-2 z-10 overflow-x-auto custom-scrollbar backdrop-blur-xl"
                 >
                     ${btn(
-                        this._state.showWaveform,
-                        icons.activity,
-                        'Wave',
-                        () => this.toggleScope('showWaveform')
-                    )}
+            this._state.showWaveform,
+            icons.activity,
+            'Wave',
+            () => this.toggleScope('showWaveform')
+        )}
                     ${btn(this._state.showParade, icons.barChart, 'RGB', () =>
-                        this.toggleScope('showParade')
-                    )}
+            this.toggleScope('showParade')
+        )}
                     ${btn(
-                        this._state.showVectorscope,
-                        icons.radar,
-                        'Vector',
-                        () => this.toggleScope('showVectorscope')
-                    )}
+            this._state.showVectorscope,
+            icons.radar,
+            'Vector',
+            () => this.toggleScope('showVectorscope')
+        )}
                     ${btn(
-                        this._state.showHistogram,
-                        icons.barChart,
-                        'Hist',
-                        () => this.toggleScope('showHistogram')
-                    )}
+            this._state.showHistogram,
+            icons.barChart,
+            'Hist',
+            () => this.toggleScope('showHistogram')
+        )}
 
-                    <div class="h-6 w-px bg-slate-800 mx-1 shrink-0"></div>
+                    <div
+                        class="h-6 w-px bg-slate-800/30 mx-1 shrink-0"
+                    ></div>
 
                     ${btn(
-                        this._state.showBroadcastCompliance,
-                        icons.shieldCheck,
-                        'QC',
-                        () => this.toggleScope('showBroadcastCompliance'),
-                        'bg-red-600'
-                    )}
+            this._state.showBroadcastCompliance,
+            icons.shieldCheck,
+            'QC',
+            () => this.toggleScope('showBroadcastCompliance'),
+            'bg-red-500'
+        )}
                 </div>
 
                 <!-- Scope Canvas Area -->
-                <div class="grow relative bg-black min-h-0">
+                <div class="grow relative bg-black/50 min-h-0 overflow-y-auto custom-scrollbar">
+                    <!-- Canvas is no longer absolute inset-0 forced. It's block, width 100%, height controlled by JS -->
                     <canvas
                         id="scope-canvas"
-                        class="absolute inset-0 w-full h-full block"
+                        class="block w-full bg-black"
                     ></canvas>
                 </div>
             </div>

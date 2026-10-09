@@ -1,11 +1,14 @@
+
 import * as icons from '@/ui/icons';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import { html, render } from 'lit-html';
 
 const statusColors = {
-    running: 'text-blue-400 border-blue-500/30 bg-blue-900/10',
-    complete: 'text-emerald-400 border-emerald-500/30 bg-emerald-900/10',
-    error: 'text-red-400 border-red-500/30 bg-red-900/10',
+    running:
+        'text-blue-400 border-blue-500/30 bg-blue-500/10',
+    complete:
+        'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',
+    error: 'text-red-400 border-red-500/30 bg-red-500/10',
 };
 
 const METRIC_DEFINITIONS = {
@@ -56,6 +59,12 @@ const METRIC_DEFINITIONS = {
         unit: '/100',
         color: '#10b981',
         layerId: 'metric_predicted_quality',
+    },
+    sceneChangeScore: {
+        label: 'Scene Diff',
+        unit: 'Δ',
+        color: '#6366f1', // Indigo
+        layerId: 'scene_change',
     },
 };
 
@@ -174,7 +183,7 @@ const MetricBox = (label, value, unit, history, key, color) => {
 
     return html`
         <div
-            class="relative flex flex-col bg-slate-800 hover:bg-slate-700/80 p-3 rounded-xl border border-slate-700/50 text-center overflow-hidden h-24 justify-between group/metric transition-all duration-200 shadow-sm"
+            class="relative flex flex-col bg-slate-800 hover:bg-slate-800 p-3 rounded-xl border border-slate-800/50 text-center overflow-hidden h-24 justify-between group/metric transition-all duration-200 shadow-md backdrop-blur-md"
         >
             ${renderSparkline(history, key, color, 100, 60)}
             <div class="relative z-10 flex flex-col h-full justify-between">
@@ -193,10 +202,11 @@ const MetricBox = (label, value, unit, history, key, color) => {
                         class="text-2xl font-mono font-black text-slate-100 tracking-tighter leading-none drop-shadow-sm"
                     >
                         ${typeof displayValue === 'number'
-                            ? displayValue.toFixed(1)
-                            : '-'}
+            ? displayValue.toFixed(1)
+            : '-'}
                     </span>
-                    <span class="text-[10px] text-slate-400 font-bold"
+                    <span
+                        class="text-[10px] text-slate-400 font-bold"
                         >${unit}</span
                     >
                 </div>
@@ -262,6 +272,7 @@ export class QcStreamCard extends HTMLElement {
             'blockiness',
             'contrastStdDev',
             'banding',
+            'sceneChangeScore',
         ];
         return priorityOrder.filter((k) => metricsSet.has(k));
     }
@@ -287,7 +298,7 @@ export class QcStreamCard extends HTMLElement {
         const issueCount = issues.length;
         const recentIssues = issues.slice(-2).reverse();
         const statusClass = statusColors[status] || statusColors.running;
-        const recentHistory = frameMetrics.slice(-30);
+        const recentHistory = frameMetrics.slice(-150);
         const isComplete = status === 'complete';
         const isError = status === 'error';
         const isLive = this.stream.manifest?.type === 'dynamic';
@@ -321,7 +332,7 @@ export class QcStreamCard extends HTMLElement {
         const videoBadge = videoLabel
             ? html`
                   <span
-                      class="text-[9px] px-1.5 py-0.5 rounded bg-blue-900/20 text-blue-300 border border-blue-500/20 font-bold"
+                      class="flex text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold"
                       title="Video Track"
                   >
                       ${icons.clapperboard} ${videoLabel}
@@ -332,7 +343,7 @@ export class QcStreamCard extends HTMLElement {
         const audioBadge = audioLabel
             ? html`
                   <span
-                      class="text-[9px] px-1.5 py-0.5 rounded bg-purple-900/20 text-purple-300 border border-purple-500/20 font-bold uppercase"
+                      class="flex text-[9px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20 font-bold uppercase"
                       title="Audio Track"
                   >
                       ${icons.audioLines} ${audioLabel}
@@ -340,26 +351,36 @@ export class QcStreamCard extends HTMLElement {
               `
             : '';
 
+        // --- PRISM GLASS OVERHAUL ---
+        // Using 0.75rem, blur(12px), etc.
         const template = html`
             <div
                 @click=${this.onClick}
-                class="bg-slate-900 border border-slate-700/60 rounded-2xl flex flex-col h-auto min-h-[360px] hover:border-blue-500/50 transition-all cursor-pointer group relative overflow-hidden shadow-xl hover:shadow-2xl hover:shadow-blue-900/10"
+                class="flex flex-col h-auto min-h-[360px] cursor-pointer group relative overflow-hidden transition-all duration-300
+                       hover:shadow-[0_0_20px_#3b82f6]"
+                style="
+                    background: #1e293b;
+                    border-radius: 0.75rem;
+                    border: 1px solid #1e293b;
+                    backdrop-filter: blur(12px);
+                    box-shadow: 0 8px 30px rgb(0 0 0 / 0.35);
+                "
             >
                 <!-- Header Section -->
                 <div
-                    class="p-5 pb-4 border-b border-slate-800/50 bg-slate-900/30 relative z-20 backdrop-blur-sm"
+                    class="p-5 pb-4 border-b border-slate-800/50 bg-slate-800 relative z-20 backdrop-blur-xl"
                 >
                     <div class="flex justify-between items-start mb-3">
                         <div class="min-w-0 mr-4">
                             <div class="flex items-center gap-2 mb-1.5">
                                 <h4
-                                    class="font-bold text-white text-base truncate tracking-tight"
+                                    class="font-bold text-slate-100 text-base truncate tracking-tight"
                                     title="${this.stream.name}"
                                 >
                                     ${this.stream.name}
                                 </h4>
                                 ${isLive
-                                    ? html`
+                ? html`
                                           <span
                                               class="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-bold flex items-center gap-1 ${tooltipTriggerClasses}"
                                               data-tooltip="Live Edge Analysis"
@@ -367,12 +388,12 @@ export class QcStreamCard extends HTMLElement {
                                               ${icons.activity} LIVE
                                           </span>
                                       `
-                                    : ''}
+                : ''}
                             </div>
 
                             <div class="flex items-center gap-2 flex-wrap">
                                 <span
-                                    class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border bg-slate-900/50 text-slate-500 border-slate-800"
+                                    class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border bg-slate-800 text-slate-400 border-slate-800/50"
                                 >
                                     ${this.stream.protocol}
                                 </span>
@@ -385,14 +406,14 @@ export class QcStreamCard extends HTMLElement {
                                 class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border flex items-center gap-1.5 ${statusClass} shadow-sm"
                             >
                                 ${status === 'running'
-                                    ? html`<span
+                ? html`<span
                                           class="w-1.5 h-1.5 rounded-full bg-current animate-pulse"
                                       ></span>`
-                                    : ''}
+                : ''}
                                 ${status}
                             </div>
                             ${status === 'running'
-                                ? html`
+                ? html`
                                       <button
                                           @click=${this.handleStop}
                                           class="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-950/30 transition-all opacity-0 group-hover:opacity-100"
@@ -401,66 +422,99 @@ export class QcStreamCard extends HTMLElement {
                                           ${icons.stop}
                                       </button>
                                   `
-                                : ''}
+                : ''}
                         </div>
                     </div>
 
                     ${!isComplete && !isError
-                        ? html`
+                ? html`
                               <div class="mt-3">
                                   <div
-                                      class="flex justify-between text-[10px] text-slate-500 font-mono mb-1.5"
+                                      class="flex justify-between text-[10px] text-slate-400 font-mono mb-1.5"
                                   >
                                       <span
                                           >Frame:
-                                          <span class="text-slate-300"
+                                          <span
+                                              class="text-slate-100"
                                               >${currentFrame}</span
                                           >
-                                          <span class="text-slate-600">/</span>
+                                          <span
+                                              class="text-slate-400"
+                                              >/</span
+                                          >
                                           ${this.job.totalFrames}</span
                                       >
-                                      <span class="text-blue-400 font-bold"
+                                      <span
+                                          class="text-blue-400 font-bold"
                                           >${progress.toFixed(0)}%</span
                                       >
                                   </div>
                                   <div
-                                      class="w-full h-1 bg-slate-800/50 rounded-full overflow-hidden"
+                                      class="w-full h-1 bg-slate-800 rounded-full overflow-hidden"
                                   >
                                       <div
-                                          class="h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)] transition-all duration-300 ease-out"
+                                          class="h-full bg-blue-500 shadow-[0_0_10px_#3b82f6] transition-all duration-300 ease-out"
                                           style="width: ${progress}%"
                                       ></div>
                                   </div>
                               </div>
                           `
-                        : ''}
+                : ''}
+                    ${this.stream.warnings && this.stream.warnings.length > 0
+                ? html`
+                              <div
+                                  class="mt-3 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2"
+                              >
+                                  <div
+                                      class="flex items-center gap-2 text-amber-400 text-[10px] font-bold uppercase tracking-wide mb-1"
+                                  >
+                                      ${icons.alertTriangle} Analysis Warnings
+                                  </div>
+                                  <div class="space-y-1">
+                                      ${this.stream.warnings.map(
+                    (w) => html`
+                                              <div
+                                                  class="text-[10px] text-slate-400 flex gap-1.5 items-start leading-tight"
+                                              >
+                                                  <span
+                                                      class="text-amber-400 mt-0.5"
+                                                      >•</span
+                                                  >
+                                                  <span>${w.message}</span>
+                                              </div>
+                                          `
+                )}
+                                  </div>
+                              </div>
+                          `
+                : ''}
                 </div>
 
                 <!-- Body Section -->
                 <div
-                    class="p-5 pt-4 flex flex-col grow min-h-0 relative z-10 bg-gradient-to-b from-slate-900 to-slate-900/95"
+                    class="p-5 pt-4 flex flex-col grow min-h-0 relative z-10 bg-transparent"
                 >
                     <!-- Metrics Grid -->
                     <div class="grid grid-cols-3 gap-3 mb-5">
                         ${metricsToShow.map((key) => {
-                            const def = METRIC_DEFINITIONS[key];
-                            let history = recentHistory;
-                            if (
-                                key === 'audioLevel' &&
-                                this.job.audioHistory &&
-                                this.job.audioHistory.length > 0
-                            ) {
-                                history = this.job.audioHistory.slice(-100);
-                            }
-                            return MetricBox(
-                                def.label,
-                                displayMetrics?.[key],
-                                def.unit,
-                                history,
-                                key,
-                                def.color
-                            );
-                        })}
+                    const def = METRIC_DEFINITIONS[key];
+                    let history = recentHistory;
+                    if (
+                        key === 'audioLevel' &&
+                        this.job.audioHistory &&
+                        this.job.audioHistory.length > 0
+                    ) {
+                        history = this.job.audioHistory.slice(-100);
+                    }
+                    return MetricBox(
+                        def.label,
+                        displayMetrics?.[key],
+                        def.unit,
+                        history,
+                        key,
+                        def.color
+                    );
+                })}
                     </div>
 
                     <!-- Issues Section -->
@@ -471,78 +525,78 @@ export class QcStreamCard extends HTMLElement {
                             >
                                 Detected Issues
                                 ${issueCount > 0
-                                    ? html`
+                ? html`
                                           <span
-                                              class="bg-red-500/20 text-red-300 border border-red-500/30 text-[9px] font-bold px-1.5 rounded-full"
+                                              class="bg-red-500/20 text-red-400 border border-red-500/30 text-[9px] font-bold px-1.5 rounded-full"
                                           >
                                               ${issueCount}
                                           </span>
                                       `
-                                    : ''}
+                : ''}
                             </span>
                         </div>
 
                         <div class="space-y-2 relative min-h-[60px]">
                             ${recentIssues.length === 0
-                                ? html`
+                ? html`
                                       <div
-                                          class="flex items-center gap-2 text-[11px] text-slate-500 italic pl-1 py-2 opacity-80"
+                                          class="flex items-center gap-2 text-[11px] text-slate-400 italic pl-1 py-2 opacity-80"
                                       >
                                           ${icons.checkCircle} No anomalies
                                           detected yet.
                                       </div>
                                   `
-                                : recentIssues.map(
-                                      (issue) => html`
+                : recentIssues.map(
+                    (issue) => html`
                                           <div
-                                              class="flex items-center justify-between text-[10px] bg-slate-800/80 border border-slate-700/50 p-2.5 rounded-lg animate-slideInRight hover:border-red-500/30 transition-colors group/issue shadow-sm"
+                                              class="flex items-center justify-between text-[10px] bg-slate-800 border border-slate-800/50 p-2.5 rounded-lg animate-slideInRight hover:border-red-500/30 transition-colors group/issue shadow-sm"
                                           >
                                               <div
                                                   class="flex items-center gap-2 min-w-0"
                                               >
                                                   <div
-                                                      class="w-1 h-1 rounded-full bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.5)]"
+                                                      class="w-1 h-1 rounded-full bg-red-500 shadow-[0_0_5px_#ef4444]"
                                                   ></div>
                                                   <span
-                                                      class="text-slate-200 font-medium uppercase whitespace-nowrap"
+                                                      class="text-slate-100 font-medium uppercase whitespace-nowrap"
                                                       >${issue.type}</span
                                                   >
                                                   <span
-                                                      class="text-slate-400 truncate group-hover/issue:text-slate-300 transition-colors"
+                                                      class="text-slate-400 truncate group-hover/issue:text-slate-100 transition-colors"
                                                       title="${issue.value}"
                                                       >${issue.value}</span
                                                   >
                                               </div>
                                               <span
-                                                  class="font-mono text-slate-500 whitespace-nowrap ml-2 bg-slate-900/50 px-1.5 rounded border border-slate-800"
+                                                  class="font-mono text-slate-400 whitespace-nowrap ml-2 bg-slate-800 px-1.5 rounded border border-slate-800/30"
                                               >
                                                   ${issue.startTime.toFixed(1)}s
                                               </span>
                                           </div>
                                       `
-                                  )}
+                )}
                         </div>
                     </div>
                 </div>
 
                 <!-- Footer Action -->
                 ${isComplete || isError
-                    ? html`
+                ? html`
                           <div
-                              class="p-1 bg-slate-900 border-t border-slate-800"
+                              class="p-1 bg-slate-800 border-t border-slate-800/50"
                           >
                               ${isComplete
-                                  ? html`
+                        ? html`
                                         <button
                                             @click=${this.handleViewReport}
-                                            class="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-wide transition-all py-3 rounded-lg shadow-lg shadow-blue-900/20 hover:shadow-blue-600/20"
+                                            class="w-full flex items-center justify-center gap-2 bg-blue-500 hover:bg-[#60a5fa] text-white font-bold text-xs uppercase tracking-wide transition-all py-3 rounded-lg shadow-lg shadow-[0_0_15px_#3b82f6] hover:scale-[1.02] active:scale-[0.98]"
                                         >
                                             ${icons.fileText} View Full Report
                                         </button>
                                     `
-                                  : html`
+                        : html`
                                         <div
-                                            class="w-full flex items-center justify-between px-4 bg-red-950/30 border border-red-900/30 rounded-lg text-red-400 text-[10px] font-bold py-2.5"
+                                            class="w-full flex items-center justify-between px-4 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-[10px] font-bold py-2.5"
                                         >
                                             <span
                                                 class="flex items-center gap-2 truncate pr-2 min-w-0"
@@ -552,25 +606,25 @@ export class QcStreamCard extends HTMLElement {
                                                     class="truncate"
                                                     title="${statusMessage}"
                                                     >${statusMessage ||
-                                                    'Analysis Failed'}</span
+                            'Analysis Failed'}</span
                                                 >
                                             </span>
                                             ${progress > 0
-                                                ? html`
+                                ? html`
                                                       <button
                                                           @click=${this
-                                                              .handleViewReport}
-                                                          class="px-3 py-1 bg-red-900/50 hover:bg-red-800/50 text-red-200 border border-red-800 rounded transition-colors whitespace-nowrap ml-2 text-[9px]"
+                                        .handleViewReport}
+                                                          class="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 rounded transition-colors whitespace-nowrap ml-2 text-[9px]"
                                                       >
                                                           View Partial
                                                       </button>
                                                   `
-                                                : ''}
+                                : ''}
                                         </div>
                                     `}
                           </div>
                       `
-                    : ''}
+                : ''}
             </div>
         `;
         render(template, this);

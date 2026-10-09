@@ -1,6 +1,4 @@
-import { qualityActions } from '@/state/qualityStore';
 import * as icons from '@/ui/icons';
-// import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import { formatBitrate } from '@/ui/shared/format';
 import { html, render } from 'lit-html';
 import {
@@ -24,946 +22,1264 @@ class QcConfig extends HTMLElement {
         this._trackSelections = new Map();
         this._configuringStreamId = null;
         this._maxStreamDuration = 600; // Initialize to default safe value
+        this._hasInitialized = false;
+
+        // UI State
+        this._openDropdownId = null; // 'streamId-type' e.g. '1-video'
+
+        // Timeline Interaction State
+        this._dragState = null; // { mode: 'move'|'resize-l'|'resize-r'|'draw', startX, startOffset, startDuration, startTime }
+        this._boundMouseMove = this._onMouseMove.bind(this);
+        this._boundMouseUp = this._onMouseUp.bind(this);
+
+        this._boundClickOutside = this._onClickOutside.bind(this);
+
+        this._isEditingDuration = false;
     }
 
     connectedCallback() {
         this.classList.add('block', 'h-full', 'w-full', 'overflow-hidden');
+        document.addEventListener('click', this._boundClickOutside);
         this.render();
+    }
+
+    disconnectedCallback() {
+        window.removeEventListener('mousemove', this._boundMouseMove);
+        window.removeEventListener('mouseup', this._boundMouseUp);
+        document.removeEventListener('click', this._boundClickOutside);
+    }
+
+    _onClickOutside(e) {
+        if (this._openDropdownId) {
+            // If click is not inside a dropdown toggle or menu, close it
+            const isDropdown = e.target.closest('.custom-dropdown-container');
+            if (!isDropdown) {
+                this._openDropdownId = null;
+                this.render();
+            }
+        }
+    }
+
+    _extractTracks(manifest) {
+        if (!manifest || !manifest.periods) return [];
+
+        const tracks = [];
+        // We typically only care about the first period for configuration
+        // or we could aggregate across all. For now, let's look at the first period
+        // that has adaptation sets.
+        const period = manifest.periods[0];
+        if (!period || !period.adaptationSets) return [];
+
+        period.adaptationSets.forEach((as) => {
+            const type = as.contentType; // 'video', 'audio', 'text'
+            if (!['video', 'audio'].includes(type)) return;
+
+            as.representations.forEach((rep) => {
+                tracks.push({
+                    id: rep.id,
+                    type: type,
+                    bandwidth: rep.bandwidth,
+                    height: rep.height?.value,
+                    width: rep.width?.value,
+                    language: as.lang || rep.lang || 'und',
+                    codecs: rep.codecs?.map((c) => c.value).join(', '),
+                    frameRate: rep.frameRate,
+                });
+            });
+        });
+
+        return tracks;
+    }
+
+    _isLiveOnlySelection() {
+        if (this._selectedStreamIds.size === 0) return false;
+
+        let allLive = true;
+        this._selectedStreamIds.forEach((id) => {
+            const stream = this._streams.find((s) => s.id === id);
+            if (stream && stream.manifest?.type !== 'dynamic') {
+                allLive = false;
+            }
+        });
+        return allLive;
     }
 
     set data(val) {
         if (!val) return;
-        this.activeLayers = val.activeLayers;
-        this._duration = val.scanDuration;
-        this._offset = val.scanStartOffset;
-        this._scanSpeed = val.scanSpeed || 'deep';
+
         this._streams = val.streams || [];
-        this._maxStreamDuration = val.streamDuration || 600; // Update from data
+        this._maxStreamDuration = val.streamDuration || 600;
         this._onStart = val.onStart;
         this._onCancel = val.onCancel;
 
-        if (this._selectedStreamIds.size === 0 && this._streams.length > 0) {
-            this._streams.forEach((s) => this._selectedStreamIds.add(s.id));
+        // Initialize defaults ONLY ONCE
+        if (!this._hasInitialized) {
+            if (val.activeLayers) {
+                this.activeLayers = val.activeLayers;
+            } else {
+                // Default to Standard Audit if no layers provided
+                const standardPreset = LAYER_PRESETS.find(p => p.id === 'standard');
+                if (standardPreset) {
+                    this.activeLayers = new Set(standardPreset.layers);
+                }
+            }
+
+            if (val.scanDuration) this._duration = val.scanDuration;
+            if (val.scanStartOffset) this._offset = val.scanStartOffset;
+            if (val.scanSpeed) this._scanSpeed = val.scanSpeed || 'deep';
+
+            if (
+                this._selectedStreamIds.size === 0 &&
+                this._streams.length > 0
+            ) {
+                this._streams.forEach((s) => this._selectedStreamIds.add(s.id));
+            }
+            this._hasInitialized = true;
         }
 
-        // Default track selections (Targeting 720p)
-        // Default track selections (Targeting 720p for video, first track for audio)
-        const TARGET_HEIGHT = 720;
+        // Always update track selections for NEW streams, but preserve existing ones
         this._streams.forEach((stream) => {
             if (!this._trackSelections.has(stream.id)) {
-                const videoTracks = stream.manifest?.summary?.videoTracks || [];
-                const audioTracks = stream.manifest?.summary?.audioTracks || [];
+                const tracks = this._extractTracks(stream.manifest);
+                const videoTracks = tracks.filter((t) => t.type === 'video');
+                const audioTracks = tracks.filter((t) => t.type === 'audio');
 
-                let videoTrackId = null;
-                let audioTrackId = null;
+                // Find 720p or closest
+                let bestVideo = videoTracks[0];
+                const targetHeight = 720;
+                let minDiff = Infinity;
 
-                if (videoTracks.length > 0) {
-                    // Find closest to 720p
-                    const bestTrack = videoTracks.reduce((prev, curr) => {
-                        const prevH = prev.height || 0;
-                        const currH = curr.height || 0;
-                        const prevDiff = Math.abs(prevH - TARGET_HEIGHT);
-                        const currDiff = Math.abs(currH - TARGET_HEIGHT);
-
-                        if (prevDiff === currDiff) {
-                            // Break ties with bandwidth (higher is usually better quality for QC)
-                            return (curr.bandwidth || 0) > (prev.bandwidth || 0)
-                                ? curr
-                                : prev;
+                for (const t of videoTracks) {
+                    if (t.height) {
+                        const diff = Math.abs(t.height - targetHeight);
+                        if (diff < minDiff) {
+                            minDiff = diff;
+                            bestVideo = t;
                         }
-                        return currDiff < prevDiff ? curr : prev;
-                    }, videoTracks[0]);
-                    videoTrackId = bestTrack.id;
+                    }
+                }
+                // Fallback to highest bitrate if no height info
+                if (!bestVideo && videoTracks.length > 0) {
+                    bestVideo = videoTracks.sort(
+                        (a, b) => b.bandwidth - a.bandwidth
+                    )[0];
                 }
 
-                if (audioTracks.length > 0) {
-                    audioTrackId = audioTracks[0].id;
-                }
-
-                if (videoTrackId || audioTrackId) {
-                    this._trackSelections.set(stream.id, {
-                        videoTrackId,
-                        audioTrackId,
-                    });
-                }
+                this._trackSelections.set(stream.id, {
+                    video: bestVideo ? bestVideo.id : null,
+                    audio: audioTracks[0] ? audioTracks[0].id : null,
+                });
             }
         });
 
         this.render();
     }
 
-    toggleLayer(id) {
-        const layer = Object.values(ANALYSIS_LAYERS).find((l) => l.id === id);
-        const currentSpeed = SCAN_SPEEDS[this._scanSpeed.toUpperCase()];
-        if (layer.requiresSequential && currentSpeed.interval > 1) return;
-        const isActive = this.activeLayers.has(id);
-        qualityActions.setLayerActive(id, !isActive);
+    toggleLayer(layerId) {
+        if (this.activeLayers.has(layerId)) {
+            this.activeLayers.delete(layerId);
+        } else {
+            this.activeLayers.add(layerId);
+        }
+        this.activeLayers = new Set(this.activeLayers); // Trigger reactivity if needed
+        this.render();
     }
 
-    toggleBulk(layers) {
-        const ids = layers.map((l) => l.id);
-        const allActive = ids.every((id) => this.activeLayers.has(id));
-        qualityActions.setBulkLayersActive(ids, !allActive);
+    toggleStream(streamId) {
+        if (this._selectedStreamIds.has(streamId)) {
+            this._selectedStreamIds.delete(streamId);
+        } else {
+            this._selectedStreamIds.add(streamId);
+        }
+
+        // If switching to live-only, reset offset
+        if (this._isLiveOnlySelection()) {
+            this._offset = 0;
+        }
+
+        this.render();
+    }
+
+    setScanSpeed(speed) {
+        this._scanSpeed = speed;
+
+        // If speed is not 'deep', remove incompatible layers
+        if (speed !== 'deep') {
+            const incompatibleLayers = Object.values(ANALYSIS_LAYERS)
+                .filter((l) => l.requiresSequential)
+                .map((l) => l.id);
+
+            incompatibleLayers.forEach((id) => this.activeLayers.delete(id));
+            this.activeLayers = new Set(this.activeLayers);
+        }
+
+        this.render();
     }
 
     applyLayerPreset(preset) {
-        qualityActions.setBulkLayersActive(
-            Object.values(ANALYSIS_LAYERS).map((l) => l.id),
-            false
-        );
-        qualityActions.setBulkLayersActive(preset.layers, true);
-    }
-
-    updateConfig(updates) {
-        let { scanStartOffset, scanDuration } = {
-            scanStartOffset: this._offset,
-            scanDuration: this._duration,
-            ...updates,
-        };
-        const total = this._maxStreamDuration;
-        const maxStart = Math.max(0, total - 1);
-        scanStartOffset = Math.max(0, Math.min(scanStartOffset, maxStart));
-        const maxDuration = Math.max(1, total - scanStartOffset);
-        scanDuration = Math.max(1, Math.min(scanDuration, maxDuration));
-        qualityActions.setConfig({ scanStartOffset, scanDuration });
-    }
-
-    setPreset(type) {
-        const total = this._maxStreamDuration;
-        let newOffset = this._offset;
-        let newDuration = this._duration;
-        switch (type) {
-            case 'start':
-                newOffset = 0;
-                break;
-            case 'middle':
-                newOffset = Math.floor(total / 2) - this._duration / 2;
-                break;
-            case 'end':
-                newOffset = Math.max(0, total - this._duration);
-                break;
-            case 'short':
-                newDuration = 10;
-                break;
-            case 'long':
-                newDuration = 60;
-                break;
-            case 'full':
-                newOffset = 0;
-                newDuration = total;
-                break;
-        }
-        this.updateConfig({
-            scanStartOffset: newOffset,
-            scanDuration: newDuration,
+        const layers = new Set(preset.layers);
+        const hasSequential = preset.layers.some((id) => {
+            const layer = Object.values(ANALYSIS_LAYERS).find(
+                (l) => l.id === id
+            );
+            return layer?.requiresSequential;
         });
+
+        if (hasSequential && this._scanSpeed !== 'deep') {
+            this._scanSpeed = 'deep';
+        }
+
+        this.activeLayers = layers;
+        this.render();
     }
 
-    toggleStreamSelection(id) {
-        if (this._selectedStreamIds.has(id)) {
-            this._selectedStreamIds.delete(id);
+    handleStart() {
+        console.log('[QcConfig] handleStart called');
+        if (this._onStart) {
+            // Build config object
+            const streamConfigs = {};
+            this._selectedStreamIds.forEach((id) => {
+                const tracks = this._trackSelections.get(id);
+                streamConfigs[id] = {
+                    videoTrackId: tracks?.video,
+                    audioTrackId: tracks?.audio,
+                };
+            });
+
+            const payload = {
+                activeLayers: this.activeLayers,
+                scanDuration: this._duration,
+                scanStartOffset: this._isLiveOnlySelection() ? 0 : this._offset,
+                scanSpeed: this._scanSpeed,
+                streamConfigs: streamConfigs,
+            };
+
+            console.log('[QcConfig] invoking onStart with payload:', payload);
+
+            this._onStart(payload);
         } else {
-            this._selectedStreamIds.add(id);
+            console.error('[QcConfig] _onStart callback is missing!');
         }
+    }
+
+    // --- Timeline Interaction Logic ---
+
+    _getEventTime(e, rect) {
+        const x = e.clientX - rect.left;
+        const pct = Math.max(0, Math.min(1, x / rect.width));
+        return Math.round(pct * this._maxStreamDuration);
+    }
+
+    _onTrackMouseDown(e) {
+        if (this._isLiveOnlySelection()) return; // Disable for live only
+
+        const rect = e.currentTarget.getBoundingClientRect();
+        const startTime = this._getEventTime(e, rect);
+
+        this._dragState = {
+            mode: 'draw',
+            startX: e.clientX,
+            startTime: startTime,
+            rect: rect,
+        };
+
+        this._offset = startTime;
+        this._duration = 0;
+
+        window.addEventListener('mousemove', this._boundMouseMove);
+        window.addEventListener('mouseup', this._boundMouseUp);
         this.render();
     }
 
-    toggleAllStreams() {
-        if (this._selectedStreamIds.size === this._streams.length) {
-            this._selectedStreamIds.clear();
-        } else {
-            this._streams.forEach((s) => this._selectedStreamIds.add(s.id));
+    _onSelectionMouseDown(e) {
+        if (this._isLiveOnlySelection()) return; // Disable move for live only
+
+        e.stopPropagation(); // Prevent track click
+        const rect = e.currentTarget.parentElement.getBoundingClientRect();
+
+        this._dragState = {
+            mode: 'move',
+            startX: e.clientX,
+            startOffset: this._offset,
+            rect: rect,
+            secondsPerPixel: this._maxStreamDuration / rect.width,
+        };
+
+        window.addEventListener('mousemove', this._boundMouseMove);
+        window.addEventListener('mouseup', this._boundMouseUp);
+    }
+
+    _onHandleMouseDown(e, side) {
+        e.stopPropagation(); // Prevent selection/track click
+
+        // Disable left handle resize (start time) for live only
+        if (this._isLiveOnlySelection() && side === 'left') return;
+
+        const rect =
+            e.currentTarget.parentElement.parentElement.getBoundingClientRect();
+
+        this._dragState = {
+            mode: side === 'left' ? 'resize-l' : 'resize-r',
+            startX: e.clientX,
+            startOffset: this._offset,
+            startDuration: this._duration,
+            rect: rect,
+            secondsPerPixel: this._maxStreamDuration / rect.width,
+        };
+
+        window.addEventListener('mousemove', this._boundMouseMove);
+        window.addEventListener('mouseup', this._boundMouseUp);
+    }
+
+    _onMouseMove(e) {
+        if (!this._dragState) return;
+
+        const {
+            mode,
+            startX,
+            startOffset,
+            startDuration,
+            startTime,
+            rect,
+            secondsPerPixel,
+        } = this._dragState;
+        const dxPixels = e.clientX - startX;
+
+        if (mode === 'move') {
+            const dt = Math.round(dxPixels * secondsPerPixel);
+            let newOffset = startOffset + dt;
+
+            // Clamp to bounds
+            newOffset = Math.max(
+                0,
+                Math.min(newOffset, this._maxStreamDuration - this._duration)
+            );
+            this._offset = newOffset;
+        } else if (mode === 'resize-r') {
+            const dt = Math.round(dxPixels * secondsPerPixel);
+            let newDuration = startDuration + dt;
+
+            // Clamp duration (min 1s, max available space)
+            newDuration = Math.max(
+                1,
+                Math.min(newDuration, this._maxStreamDuration - this._offset)
+            );
+            this._duration = newDuration;
+        } else if (mode === 'resize-l') {
+            const dt = Math.round(dxPixels * secondsPerPixel);
+            let newOffset = startOffset + dt;
+            let newDuration = startDuration - dt;
+
+            // Clamp: Offset can't go below 0. Duration can't go below 1.
+            if (newOffset < 0) {
+                newDuration += newOffset; // Add back the overshoot
+                newOffset = 0;
+            }
+            if (newDuration < 1) {
+                newOffset = startOffset + startDuration - 1;
+                newDuration = 1;
+            }
+
+            this._offset = newOffset;
+            this._duration = newDuration;
+        } else if (mode === 'draw') {
+            const currentTime = this._getEventTime(e, rect);
+            if (currentTime >= startTime) {
+                this._offset = startTime;
+                this._duration = Math.max(1, currentTime - startTime);
+            } else {
+                this._offset = currentTime;
+                this._duration = Math.max(1, startTime - currentTime);
+            }
         }
+
         this.render();
     }
 
-    toggleConfiguringStream(streamId) {
-        if (this._configuringStreamId === streamId) {
-            this._configuringStreamId = null;
-        } else {
-            this._configuringStreamId = streamId;
-        }
-        this.render();
+    _onMouseUp(e) {
+        this._dragState = null;
+        window.removeEventListener('mousemove', this._boundMouseMove);
+        window.removeEventListener('mouseup', this._boundMouseUp);
     }
 
-    setStreamTrack(streamId, type, trackId) {
-        const currentSelection = this._trackSelections.get(streamId) || {};
-        const newSelection = { ...currentSelection };
-        if (type === 'video') newSelection.videoTrackId = trackId;
-        if (type === 'audio') newSelection.audioTrackId = trackId;
-        if (!trackId) {
-            if (type === 'video') delete newSelection.videoTrackId;
-            if (type === 'audio') delete newSelection.audioTrackId;
+    _handleDurationInput(e) {
+        const value = parseInt(e.target.value, 10);
+        const maxDuration = this._maxStreamDuration || 600;
+
+        if (!isNaN(value)) {
+            // Clamp value
+            this._duration = Math.max(1, Math.min(value, maxDuration));
         }
-        this._trackSelections.set(streamId, newSelection);
-        this.render();
+
+        // Defer the render to avoid lit-html conflict during blur event
+        setTimeout(() => {
+            this._isEditingDuration = false;
+            this.render();
+        }, 0);
     }
+
+    // --- Render Methods ---
 
     renderSpeedSelector() {
-        const speeds = Object.values(SCAN_SPEEDS);
         return html`
-            <div
-                class="flex flex-col gap-2 bg-slate-900/50 p-1.5 rounded-xl border border-slate-800/50"
-            >
-                ${speeds.map((speed) => {
-                    const isActive = this._scanSpeed === speed.id;
-                    return html`
+            <div class="grid grid-cols-3 gap-2">
+                ${Object.entries(SCAN_SPEEDS).map(([key, config]) => {
+            const isSelected = this._scanSpeed === key.toLowerCase();
+            return html`
                         <button
-                            @click=${() =>
-                                qualityActions.setConfig({
-                                    scanSpeed: speed.id,
-                                })}
-                            class="relative p-3 rounded-lg text-left transition-all duration-200 group ${isActive
-                                ? 'bg-slate-800 ring-1 ring-slate-700 shadow-sm'
-                                : 'hover:bg-slate-800/50'}"
+                            @click=${() => this.setScanSpeed(key.toLowerCase())}
+                            class="relative p-2 rounded-xl border transition-all duration-300 group overflow-hidden ${isSelected
+                    ? 'bg-blue-500/10 border-blue-500 shadow-[0_0_15px_rgba(59, 130, 246,0.2)]'
+                    : 'bg-slate-800 border-slate-800 hover:border-slate-400 text-slate-400 hover:text-slate-100'}"
                         >
                             <div
-                                class="flex justify-between items-center mb-0.5"
+                                class="relative z-10 flex flex-col items-center gap-1"
                             >
-                                <span
-                                    class="text-xs font-bold ${isActive
-                                        ? 'text-white'
-                                        : 'text-slate-400'}"
-                                    >${speed.label}</span
+                                <div
+                                    class="${isSelected
+                    ? 'text-blue-400'
+                    : 'text-current'} scale-90"
                                 >
-                                ${isActive
-                                    ? html`<span
-                                          class="text-emerald-400 scale-75"
-                                          >${icons.checkCircle}</span
-                                      >`
-                                    : ''}
-                            </div>
-                            <div
-                                class="text-[10px] ${isActive
-                                    ? 'text-slate-400'
-                                    : 'text-slate-600'}"
-                            >
-                                Every ${speed.interval}
-                                frame${speed.interval > 1 ? 's' : ''}
+                                    ${key === 'FAST'
+                    ? icons.zap
+                    : key === 'BALANCED'
+                        ? icons.activity
+                        : icons.search}
+                                </div>
+                                <div
+                                    class="text-[9px] font-bold uppercase tracking-wider text-current"
+                                >
+                                    ${config.label}
+                                </div>
+                                <div
+                                    class="text-[8px] font-mono opacity-80"
+                                >
+                                    ${config.subtitle}
+                                </div>
                             </div>
                         </button>
                     `;
-                })}
+        })}
             </div>
         `;
     }
 
     renderModuleCard(layer) {
         const isActive = this.activeLayers.has(layer.id);
-        const currentSpeed = SCAN_SPEEDS[this._scanSpeed.toUpperCase()];
         const isDisabled =
-            layer.requiresSequential && currentSpeed.interval > 1;
-
-        const baseClass =
-            'relative flex items-center p-3 rounded-lg border cursor-pointer transition-all select-none h-full';
-        const stateClass = isDisabled
-            ? 'bg-slate-900/50 border-slate-800 opacity-40 grayscale cursor-not-allowed'
-            : isActive
-              ? 'bg-emerald-900/10 border-emerald-500/50 shadow-sm'
-              : 'bg-slate-900 border-slate-800 hover:border-slate-600 hover:bg-slate-800/80';
-
-        let icon = icons.activity;
-        if (layer.id.includes('luma') || layer.id === 'black_frame')
-            icon = icons.sun;
-        if (layer.id.includes('audio') || layer.id === 'silence')
-            icon = icons.volumeUp;
-        if (layer.id === 'freeze' || layer.id === 'metric_motion')
-            icon = icons.history;
-        if (layer.id === 'broadcast_safe') icon = icons.shieldCheck;
+            layer.requiresSequential && this._scanSpeed !== 'deep';
 
         return html`
             <div
-                @click=${() => this.toggleLayer(layer.id)}
-                class="${baseClass} ${stateClass}"
+                @click=${() => !isDisabled && this.toggleLayer(layer.id)}
+                class="group relative p-3 rounded-xl border transition-all duration-300 overflow-hidden flex items-center gap-3 ${isDisabled
+                ? 'opacity-50 cursor-not-allowed bg-slate-800 border-slate-800/50'
+                : isActive
+                    ? 'cursor-pointer bg-slate-800 border-blue-500 shadow-[0_0_15px_rgba(59, 130, 246,0.1)]'
+                    : 'cursor-pointer bg-slate-800 border-slate-800 hover:bg-slate-800 hover:border-slate-400/50'}"
             >
+                <!-- Icon -->
                 <div
-                    class="flex items-center justify-center w-10 h-10 rounded-md bg-slate-950 border border-slate-800 mr-3 ${isActive
-                        ? 'text-emerald-400'
-                        : 'text-slate-500'}"
+                    class="p-2 rounded-lg shrink-0 ${isActive && !isDisabled
+                ? 'bg-blue-500/20 text-blue-400'
+                : 'bg-slate-800 text-slate-400'} transition-colors shadow-inner"
                 >
-                    ${icon}
+                    ${layer.icon || icons.layers}
                 </div>
-                <div class="min-w-0 flex-1">
-                    <div class="flex justify-between items-center mb-0.5">
-                        <div
-                            class="font-bold text-xs text-slate-200 truncate pr-2"
+
+                <!-- Content -->
+                <div
+                    class="relative z-10 grow min-w-0 flex flex-col justify-center"
+                >
+                    <div class="flex items-center justify-between gap-2">
+                        <h3
+                            class="text-xs font-bold ${isActive && !isDisabled
+                ? 'text-slate-100'
+                : 'text-slate-400'} truncate transition-colors"
                         >
                             ${layer.label}
-                        </div>
-                        ${isActive
-                            ? html`<div
-                                  class="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_currentColor]"
-                              ></div>`
-                            : ''}
+                        </h3>
+                        ${isActive && !isDisabled
+                ? html`
+                                  <div
+                                      class="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-white shadow-sm animate-scaleIn shrink-0"
+                                  >
+                                      ${icons.check}
+                                  </div>
+                              `
+                : ''}
+                        ${isDisabled
+                ? html`
+                                  <div
+                                      class="text-slate-400 opacity-50 shrink-0"
+                                      title="Requires Deep Scan"
+                                  >
+                                      ${icons.lockClosed}
+                                  </div>
+                              `
+                : ''}
                     </div>
-                    <div
-                        class="text-[10px] text-slate-500 leading-tight line-clamp-2"
-                        title="${isDisabled
-                            ? 'Requires Deep Scan'
-                            : layer.description}"
+                    <p
+                        class="text-[9px] text-slate-400 opacity-60 truncate mt-0.5"
                     >
                         ${isDisabled ? 'Requires Deep Scan' : layer.description}
-                    </div>
-
-                    <div class="flex gap-2 mt-2">
-                        <span
-                            class="text-[9px] font-mono text-slate-600 bg-black/20 px-1 rounded border border-white/5 uppercase"
-                            >${layer.cost} CPU</span
-                        >
-                    </div>
+                    </p>
                 </div>
+
+                <!-- Active Glow -->
+                ${isActive && !isDisabled
+                ? html`
+                          <div
+                              class="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-transparent pointer-events-none"
+                          ></div>
+                      `
+                : ''}
             </div>
         `;
     }
 
-    renderSelectAllBtn(layers, label = 'All') {
-        const ids = layers.map((l) => l.id);
-        const allSelected = ids.every((id) => this.activeLayers.has(id));
-        const someSelected = ids.some((id) => this.activeLayers.has(id));
-        const icon = allSelected
-            ? icons.checkCircle
-            : someSelected
-              ? icons.minusCircle
-              : icons.circle;
-        const color = allSelected
-            ? 'text-blue-400'
-            : 'text-slate-500 hover:text-slate-300';
-        return html`
-            <button
-                @click=${() => this.toggleBulk(layers)}
-                class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider ${color} transition-colors"
-            >
-                <span class="scale-75">${icon}</span>
-                ${allSelected ? 'Clear' : 'Select All'}
-            </button>
-        `;
-    }
-
-    renderStreamTrackSelector(stream) {
-        const isConfiguring = this._configuringStreamId === stream.id;
-        if (!isConfiguring) return '';
-        const selection = this._trackSelections.get(stream.id) || {};
-        const videoTracks = stream.manifest?.summary?.videoTracks || [];
-        const audioTracks = stream.manifest?.summary?.audioTracks || [];
+    renderCustomDropdown(streamId, type, options, selectedId, onSelect) {
+        const dropdownId = `${streamId}-${type}`;
+        const isOpen = this._openDropdownId === dropdownId;
+        const selectedOption =
+            options.find((o) => o.id === selectedId) || options[0];
 
         return html`
-            <div
-                class="p-4 bg-slate-950/50 border-t border-slate-800/50 animate-slideInDown text-xs shadow-inner"
-            >
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <div>
-                        <div
-                            class="text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-2"
-                        >
-                            ${icons.clapperboard} Video Track
-                        </div>
-                        <div class="flex flex-wrap gap-2">
-                            <button
-                                @click=${(e) => {
-                                    e.stopPropagation();
-                                    this.setStreamTrack(
-                                        stream.id,
-                                        'video',
-                                        null
-                                    );
-                                }}
-                                class="px-3 py-1.5 rounded-full border transition-all text-[11px] font-medium ${!selection.videoTrackId
-                                    ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-900/20'
-                                    : 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-slate-200'}"
-                            >
-                                Auto
-                            </button>
-                            ${videoTracks.map((t) => {
-                                const isSelected =
-                                    selection.videoTrackId === t.id;
-                                const res =
-                                    t.resolutions?.[0]?.value || 'Unknown';
-                                return html`
-                                    <button
-                                        @click=${(e) => {
-                                            e.stopPropagation();
-                                            this.setStreamTrack(
-                                                stream.id,
-                                                'video',
-                                                t.id
-                                            );
-                                        }}
-                                        class="px-3 py-1.5 rounded-full border transition-all text-[11px] font-medium ${isSelected
-                                            ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-900/20'
-                                            : 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-slate-200'}"
-                                    >
-                                        ${t.label || res}
-                                        <span
-                                            class="opacity-60 ml-1 font-normal"
-                                            >${t.label
-                                                ? res
-                                                : formatBitrate(
-                                                      t.bandwidth
-                                                  )}</span
-                                        >
-                                    </button>
-                                `;
-                            })}
-                        </div>
-                    </div>
-                    <div>
-                        <div
-                            class="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-2 flex items-center gap-2"
-                        >
-                            ${icons.audioLines} Audio Track
-                        </div>
-                        <div class="flex flex-wrap gap-2">
-                            ${audioTracks.map((t) => {
-                                const isSelected =
-                                    selection.audioTrackId === t.id;
-                                return html`
-                                    <button
-                                        @click=${(e) => {
-                                            e.stopPropagation();
-                                            this.setStreamTrack(
-                                                stream.id,
-                                                'audio',
-                                                t.id
-                                            );
-                                        }}
-                                        class="px-3 py-1.5 rounded-full border transition-all text-[11px] font-medium ${isSelected
-                                            ? 'bg-purple-600 border-purple-500 text-white shadow-md shadow-purple-900/20'
-                                            : 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-slate-200'}"
-                                    >
-                                        ${t.label ||
-                                        t.lang?.toUpperCase() ||
-                                        'UND'}
-                                    </button>
-                                `;
-                            })}
-                        </div>
-                    </div>
-                </div>
+            <div class="relative custom-dropdown-container">
+                <label
+                    class="text-[8px] font-bold uppercase text-slate-400 mb-1 block tracking-wider opacity-80"
+                    >${type}</label
+                >
+
+                <button
+                    @click=${(e) => {
+                e.stopPropagation();
+                this._openDropdownId = isOpen ? null : dropdownId;
+                this.render();
+            }}
+                    class="w-full flex items-center justify-between bg-slate-800 border border-slate-800 rounded-lg px-2 py-1.5 text-[10px] font-mono text-slate-100 hover:border-purple-500/50 transition-colors ${isOpen
+                ? 'border-purple-500 ring-1 ring-purple-500/20'
+                : ''}"
+                >
+                    <span class="truncate">
+                        ${selectedOption
+                ? html`
+                                  ${type === 'video'
+                        ? html`${selectedOption.height
+                            ? `${selectedOption.height}p`
+                            : 'Unknown'}
+                                            <span class="opacity-50 mx-1"
+                                                >|</span
+                                            >
+                                            ${formatBitrate(
+                                selectedOption.bandwidth
+                            )}`
+                        : html`${selectedOption.language}
+                                            <span class="opacity-50 mx-1"
+                                                >|</span
+                                            >
+                                            ${formatBitrate(
+                            selectedOption.bandwidth
+                        )}`}
+                              `
+                : 'Select...'}
+                    </span>
+                    <span
+                        class="text-slate-400 scale-75 transition-transform duration-200 ${isOpen
+                ? 'rotate-180'
+                : ''}"
+                    >
+                        ${icons.chevronDown}
+                    </span>
+                </button>
+
+                ${isOpen
+                ? html`
+                          <div
+                              class="absolute left-0 right-0 top-[calc(100%+4px)] z-50 bg-slate-800 backdrop-filter backdrop-blur-xl border border-slate-800 rounded-lg shadow-xl overflow-hidden max-h-[200px] overflow-y-auto custom-scrollbar animate-slideDown origin-top"
+                          >
+                              ${options.map((opt) => {
+                    const isSelected = opt.id === selectedId;
+                    return html`
+                                      <button
+                                          @click=${(e) => {
+                            e.stopPropagation();
+                            onSelect(opt.id);
+                            this._openDropdownId = null;
+                            this.render();
+                        }}
+                                          class="w-full text-left px-3 py-2 text-[10px] font-mono border-b border-slate-800/30 last:border-0 hover:bg-slate-800 transition-colors flex items-center justify-between group ${isSelected
+                            ? 'bg-purple-500/10 text-purple-300'
+                            : 'text-slate-100'}"
+                                      >
+                                          <span>
+                                              ${type === 'video'
+                            ? html`<span class="font-bold"
+                                                            >${opt.height
+                                    ? `${opt.height}p`
+                                    : 'Unknown'}</span
+                                                        >
+                                                        <span
+                                                            class="opacity-50 mx-1"
+                                                            >|</span
+                                                        >
+                                                        ${formatBitrate(
+                                        opt.bandwidth
+                                    )}`
+                            : html`<span
+                                                            class="font-bold uppercase"
+                                                            >${opt.language}</span
+                                                        >
+                                                        <span
+                                                            class="opacity-50 mx-1"
+                                                            >|</span
+                                                        >
+                                                        ${formatBitrate(
+                                opt.bandwidth
+                            )}`}
+                                          </span>
+                                          ${isSelected
+                            ? html`<span class="scale-75"
+                                                    >${icons.check}</span
+                                                >`
+                            : ''}
+                                      </button>
+                                  `;
+                })}
+                          </div>
+                      `
+                : ''}
             </div>
         `;
     }
 
     renderStreamSelector() {
-        const allSelected =
-            this._streams.length > 0 &&
-            this._selectedStreamIds.size === this._streams.length;
-
         return html`
-            <div class="mb-8">
-                <div class="flex items-center justify-between mb-3">
-                    <span
-                        class="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2"
-                    >
-                        ${icons.server} Target Streams
-                    </span>
-                    <button
-                        @click=${() => this.toggleAllStreams()}
-                        class="text-[10px] font-bold text-blue-400 hover:text-white uppercase tracking-wider transition-colors"
-                    >
-                        ${allSelected ? 'Select None' : 'Select All'}
-                    </button>
-                </div>
+            <div class="space-y-2">
+                ${this._streams.map((stream) => {
+            const isSelected = this._selectedStreamIds.has(stream.id);
+            const isConfiguring =
+                this._configuringStreamId === stream.id;
+            const tracks = this._trackSelections.get(stream.id) || {};
+            const isLive = stream.manifest?.type === 'dynamic';
 
-                <div class="flex flex-col gap-2">
-                    ${this._streams.map((s) => {
-                        const isSelected = this._selectedStreamIds.has(s.id);
-                        const isConfiguring =
-                            this._configuringStreamId === s.id;
-                        const selection = this._trackSelections.get(s.id);
-                        // const hasCustomTrack = selection && (selection.videoTrackId || selection.audioTrackId);
-                        const isLive = s.manifest?.type === 'dynamic';
+            // Extract tracks using the new helper
+            const allTracks = this._extractTracks(stream.manifest);
+            const videoTracks = allTracks.filter(
+                (t) => t.type === 'video'
+            );
+            const audioTracks = allTracks.filter(
+                (t) => t.type === 'audio'
+            );
 
-                        // --- BADGE LOGIC ---
-                        let videoText = 'Auto';
-                        let audioText = 'Default';
+            const selectedVideoTrack = videoTracks.find(
+                (t) => t.id === tracks.video
+            );
+            const selectedAudioTrack = audioTracks.find(
+                (t) => t.id === tracks.audio
+            );
 
-                        if (selection?.videoTrackId) {
-                            const t = s.manifest?.summary?.videoTracks.find(
-                                (vt) => vt.id === selection.videoTrackId
-                            );
-                            if (t)
-                                videoText =
-                                    t.label ||
-                                    t.resolutions?.[0]?.value ||
-                                    t.height ||
-                                    '?p';
-                        }
-
-                        if (selection?.audioTrackId) {
-                            const t = s.manifest?.summary?.audioTracks.find(
-                                (at) => at.id === selection.audioTrackId
-                            );
-                            if (t)
-                                audioText =
-                                    t.label || t.lang?.toUpperCase() || 'UND';
-                            else
-                                audioText =
-                                    selection.audioTrackId.toUpperCase();
-                        }
-                        // -------------------
-
-                        return html`
+            return html`
+                        <div
+                            class="relative group rounded-xl border transition-all duration-300 ${isSelected
+                    ? 'bg-slate-800 border-purple-500/50 shadow-md'
+                    : 'bg-slate-800 border-slate-800 hover:border-slate-400/30'}"
+                        >
+                            <!-- Main Row -->
                             <div
-                                class="flex flex-col rounded-lg border transition-all overflow-hidden ${isSelected
-                                    ? 'bg-blue-900/10 border-blue-500/50 shadow-sm'
-                                    : 'bg-slate-900 border-slate-800 hover:border-slate-700'}"
+                                class="p-2.5 flex items-center gap-2.5 cursor-pointer"
+                                @click=${() => this.toggleStream(stream.id)}
                             >
-                                <div class="flex items-center p-3 gap-4 group">
-                                    <!-- Checkbox Area -->
-                                    <div
-                                        class="flex items-center justify-center w-8 h-8 rounded-lg cursor-pointer transition-colors ${isSelected
-                                            ? 'bg-blue-600 text-white shadow-sm'
-                                            : 'bg-slate-950 border border-slate-800 text-transparent hover:border-slate-600'}"
-                                        @click=${() =>
-                                            this.toggleStreamSelection(s.id)}
-                                    >
-                                        <span class="scale-75"
-                                            >${icons.checkCircle}</span
+                                <!-- Checkbox -->
+                                <div
+                                    class="w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0 ${isSelected
+                    ? 'bg-purple-500 border-purple-500 text-[#1e293b]'
+                    : 'border-slate-400/30 group-hover:border-slate-400'}"
+                                >
+                                    ${isSelected ? icons.check : ''}
+                                </div>
+
+                                <!-- Stream Info -->
+                                <div class="grow min-w-0">
+                                    <div class="flex items-center gap-2">
+                                        <div
+                                            class="text-[11px] font-bold text-slate-100 truncate"
                                         >
+                                            ${stream.name}
+                                        </div>
+                                        ${isLive
+                    ? html`
+                                                  <div
+                                                      class="px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/20 text-red-400 text-[8px] font-bold uppercase tracking-wider"
+                                                      title="Start time ignored for live streams"
+                                                  >
+                                                      LIVE
+                                                  </div>
+                                              `
+                    : ''}
+                                    </div>
+                                    <div
+                                        class="text-[9px] font-mono text-slate-400 opacity-60 truncate mb-1.5"
+                                    >
+                                        ${stream.id}
                                     </div>
 
-                                    <!-- Stream Info -->
+                                    <!-- Track Badges -->
                                     <div
-                                        class="min-w-0 grow cursor-pointer"
-                                        @click=${() =>
-                                            this.toggleStreamSelection(s.id)}
+                                        class="flex items-center gap-1.5 flex-wrap"
                                     >
-                                        <div
-                                            class="flex items-center gap-2 mb-0.5"
-                                        >
-                                            <span
-                                                class="text-sm font-bold text-slate-200 truncate"
-                                                >${s.name}</span
-                                            >
-                                            ${isLive
-                                                ? html`<span
-                                                      class="text-[9px] font-black text-red-400 bg-red-900/20 px-1.5 py-0.5 rounded border border-red-500/30 tracking-wide"
-                                                      >LIVE</span
-                                                  >`
-                                                : ''}
-                                            <span
-                                                class="text-[9px] font-mono text-slate-500 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800 uppercase"
-                                                >${s.protocol}</span
-                                            >
-                                        </div>
-                                        <div
-                                            class="text-[10px] text-slate-500 font-mono truncate opacity-70"
-                                        >
-                                            ${new URL(s.originalUrl).hostname}
-                                        </div>
-                                    </div>
-
-                                    <!-- Configuration Summary & Toggle -->
-                                    <div
-                                        class="flex items-center gap-3 pl-4 border-l border-slate-800/50 cursor-pointer hover:bg-white/5 self-stretch -my-3 py-3 pr-3 transition-colors"
-                                        @click=${(e) => {
-                                            e.stopPropagation();
-                                            this.toggleConfiguringStream(s.id);
-                                        }}
-                                    >
-                                        <div
-                                            class="flex flex-col items-end gap-0.5"
-                                        >
-                                            <div
-                                                class="flex items-center gap-1.5 text-[10px] font-medium ${selection?.videoTrackId
-                                                    ? 'text-blue-400'
-                                                    : 'text-slate-500'}"
-                                            >
-                                                ${icons.clapperboard}
-                                                ${videoText}
-                                            </div>
-                                            <div
-                                                class="flex items-center gap-1.5 text-[10px] font-medium ${selection?.audioTrackId
-                                                    ? 'text-purple-400'
-                                                    : 'text-slate-500'}"
-                                            >
-                                                ${icons.audioLines} ${audioText}
-                                            </div>
-                                        </div>
-                                        <div
-                                            class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 transition-all ${isConfiguring
-                                                ? 'bg-slate-800 text-white rotate-180'
-                                                : 'hover:bg-slate-800 hover:text-slate-300'}"
-                                        >
-                                            ${icons.chevronDown}
-                                        </div>
+                                        ${selectedVideoTrack
+                    ? html`
+                                                  <div
+                                                      class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-800 text-[9px] font-mono text-slate-400 flex items-center gap-1.5 shadow-sm"
+                                                  >
+                                                      <span
+                                                          class="text-blue-400 scale-75"
+                                                          >${icons.display}</span
+                                                      >
+                                                      <span
+                                                          class="font-bold text-slate-100"
+                                                          >${selectedVideoTrack.height
+                            ? `${selectedVideoTrack.height}p`
+                            : 'Auto'}</span
+                                                      >
+                                                      <span
+                                                          class="opacity-50 text-[8px] border-l border-slate-800 pl-1.5"
+                                                          >${formatBitrate(
+                                selectedVideoTrack.bandwidth
+                            )}</span
+                                                      >
+                                                  </div>
+                                              `
+                    : ''}
+                                        ${selectedAudioTrack
+                    ? html`
+                                                  <div
+                                                      class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-800 text-[9px] font-mono text-slate-400 flex items-center gap-1.5 shadow-sm"
+                                                  >
+                                                      <span
+                                                          class="text-purple-300 scale-75"
+                                                          >${icons.volumeUp}</span
+                                                      >
+                                                      <span
+                                                          class="font-bold text-slate-100 uppercase"
+                                                          >${selectedAudioTrack.language}</span
+                                                      >
+                                                      <span
+                                                          class="opacity-50 text-[8px] border-l border-slate-800 pl-1.5"
+                                                          >${formatBitrate(
+                        selectedAudioTrack.bandwidth
+                    )}</span
+                                                      >
+                                                  </div>
+                                              `
+                    : ''}
                                     </div>
                                 </div>
 
-                                ${this.renderStreamTrackSelector(s)}
+                                <!-- Config Toggle -->
+                                <button
+                                    @click=${(e) => {
+                    e.stopPropagation();
+                    this._configuringStreamId =
+                        isConfiguring ? null : stream.id;
+                    this.render();
+                }}
+                                    class="p-1.5 rounded hover:bg-slate-800 text-slate-400 transition-colors ${isConfiguring
+                    ? 'bg-slate-800 text-slate-100'
+                    : ''}"
+                                >
+                                    ${icons.settings}
+                                </button>
                             </div>
-                        `;
-                    })}
-                </div>
+
+                            <!-- Config Panel (Slide Down) -->
+                            ${isConfiguring
+                    ? html`
+                                      <div
+                                          class="border-t border-slate-800/50 bg-slate-800 p-3 animate-slideDown"
+                                      >
+                                          <div class="space-y-3">
+                                              <!-- Video Track Dropdown -->
+                                              ${this.renderCustomDropdown(
+                        stream.id,
+                        'video',
+                        videoTracks,
+                        tracks.video,
+                        (newId) => {
+                            const newTracks = {
+                                ...tracks,
+                                video: newId,
+                            };
+                            this._trackSelections.set(
+                                stream.id,
+                                newTracks
+                            );
+                        }
+                    )}
+
+                                              <!-- Audio Track Dropdown -->
+                                              ${this.renderCustomDropdown(
+                        stream.id,
+                        'audio',
+                        audioTracks,
+                        tracks.audio,
+                        (newId) => {
+                            const newTracks = {
+                                ...tracks,
+                                audio: newId,
+                            };
+                            this._trackSelections.set(
+                                stream.id,
+                                newTracks
+                            );
+                        }
+                    )}
+                                          </div>
+                                      </div>
+                                  `
+                    : ''}
+                        </div>
+                    `;
+        })}
             </div>
         `;
     }
 
-    renderTimelineStrip() {
-        const maxStreamDuration = this._maxStreamDuration;
-        const startPct = (this._offset / maxStreamDuration) * 100;
-        const widthPct = (this._duration / maxStreamDuration) * 100;
-        const formatTime = (secs) =>
-            new Date(secs * 1000).toISOString().substr(11, 8);
-        const maxStart = Math.max(0, maxStreamDuration - 1);
-        const maxDuration = Math.max(1, maxStreamDuration - this._offset);
-
-        const styleBlock = html`<style>
-            .no-spinner::-webkit-inner-spin-button,
-            .no-spinner::-webkit-outer-spin-button {
-                -webkit-appearance: none;
-                margin: 0;
-            }
-            .no-spinner {
-                -moz-appearance: textfield;
-            }
-        </style>`;
-
-        const renderTimelineControl = ({
-            label,
-            valStr,
-            highlightColor,
-            inputValue,
-            min,
-            max,
-            onChange,
-            onAdjust,
-        }) => html`
-            <div
-                class="flex-1 bg-slate-800/40 rounded-xl p-2 border border-slate-700/50 flex flex-col justify-center relative group hover:border-${highlightColor.replace(
-                    'text-',
-                    ''
-                )}/30 transition-colors min-w-[200px]"
-            >
-                <div class="flex justify-between items-center px-2 mb-1">
-                    <label
-                        class="text-[10px] font-bold text-slate-500 uppercase tracking-wider"
-                        >${label}</label
-                    >
-                    <span class="font-mono text-[10px] ${highlightColor}"
-                        >${valStr}</span
-                    >
-                </div>
-                <div class="flex items-center gap-3 px-1">
-                    <input
-                        type="number"
-                        min="${min}"
-                        max="${max}"
-                        .value=${inputValue}
-                        @change=${onChange}
-                        class="font-mono text-lg font-bold text-white bg-transparent outline-none w-16 text-center focus:${highlightColor} transition-colors no-spinner"
-                    />
-                    <div class="flex items-center gap-2 grow">
-                        <button
-                            @click=${() => onAdjust(-1)}
-                            class="w-6 h-6 flex items-center justify-center rounded bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors text-xs font-bold"
-                        >
-                            ${icons.arrowLeft}
-                        </button>
-                        <input
-                            type="range"
-                            min="${min}"
-                            max="${max}"
-                            .value=${inputValue}
-                            @input=${onChange}
-                            class="grow h-1.5 bg-slate-700 rounded-full appearance-none cursor-pointer accent-${highlightColor.replace(
-                                'text-',
-                                ''
-                            )} hover:opacity-80"
-                        />
-                        <button
-                            @click=${() => onAdjust(1)}
-                            class="w-6 h-6 flex items-center justify-center rounded bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors text-xs font-bold"
-                        >
-                            ${icons.arrowRight}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        const isDisabled = this._selectedStreamIds.size === 0;
-
+    renderSelectAllBtn(layers) {
+        const allSelected = layers.every((l) => this.activeLayers.has(l.id));
         return html`
-            ${styleBlock}
-            <div
-                class="bg-slate-900/95 border-t border-slate-800 p-0 backdrop-blur-md absolute bottom-0 left-0 right-0 z-20 shadow-2xl"
+            <button
+                @click=${() => {
+                if (allSelected) {
+                    this.activeLayers.clear();
+                } else {
+                    layers.forEach((l) => this.activeLayers.add(l.id));
+                }
+                this.render();
+            }}
+                class="text-[10px] font-bold uppercase tracking-wider text-blue-400 hover:text-[#60a5fa] transition-colors bg-blue-500/10 px-3 py-1.5 rounded-lg border border-blue-500/20"
             >
-                <div
-                    class="relative h-2 w-full bg-slate-950 border-b border-slate-800"
-                >
-                    <div
-                        class="absolute top-0 bottom-0 bg-gradient-to-r from-blue-600 to-emerald-500 opacity-50"
-                        style="left: ${startPct}%; width: ${widthPct}%;"
-                    ></div>
-                </div>
-                <div
-                    class="flex flex-col xl:flex-row items-center justify-between p-4 max-w-7xl mx-auto gap-6"
-                >
-                    <div class="flex gap-3 shrink-0 w-full xl:w-auto">
-                        <!-- CANCEL BUTTON (Visible if callback present) -->
-                        ${this._onCancel
-                            ? html`
-                                  <button
-                                      @click=${this._onCancel}
-                                      class="px-6 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-sm transition-colors flex-1 xl:flex-none"
-                                  >
-                                      Cancel
-                                  </button>
-                              `
-                            : ''}
-
-                        <button
-                            @click=${() =>
-                                this._onStart(
-                                    Array.from(this._selectedStreamIds),
-                                    this._trackSelections
-                                )}
-                            ?disabled=${isDisabled}
-                            class="px-8 py-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-700 text-white rounded-xl font-black uppercase tracking-wider text-sm shadow-lg shadow-blue-900/40 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-3 group flex-1 xl:flex-none"
-                        >
-                            <span
-                                class="bg-white/20 p-1.5 rounded-full group-hover:bg-white/30 transition-colors"
-                                >${icons.play}</span
-                            >
-                            <span
-                                >Start Scan
-                                ${isDisabled
-                                    ? ''
-                                    : `(${this._selectedStreamIds.size})`}</span
-                            >
-                        </button>
-                    </div>
-
-                    <div
-                        class="h-px w-full xl:h-12 xl:w-px bg-slate-800 hidden xl:block"
-                    ></div>
-
-                    <div class="flex flex-wrap gap-4 grow w-full">
-                        ${renderTimelineControl({
-                            label: 'Start Time',
-                            valStr: formatTime(this._offset),
-                            highlightColor: 'text-blue-400',
-                            inputValue: this._offset,
-                            min: 0,
-                            max: maxStart,
-                            onChange: (e) =>
-                                this.updateConfig({
-                                    scanStartOffset: Number(e.target.value),
-                                }),
-                            onAdjust: (delta) =>
-                                this.updateConfig({
-                                    scanStartOffset: this._offset + delta,
-                                }),
-                        })}
-                        ${renderTimelineControl({
-                            label: 'Duration',
-                            valStr: `Limit: ${formatTime(maxDuration)}`,
-                            highlightColor: 'text-emerald-400',
-                            inputValue: this._duration,
-                            min: 1,
-                            max: maxDuration,
-                            onChange: (e) =>
-                                this.updateConfig({
-                                    scanDuration: Number(e.target.value),
-                                }),
-                            onAdjust: (delta) =>
-                                this.updateConfig({
-                                    scanDuration: this._duration + delta,
-                                }),
-                        })}
-                    </div>
-
-                    <div
-                        class="h-px w-full xl:h-12 xl:w-px bg-slate-800 hidden xl:block"
-                    ></div>
-
-                    <!-- PRESETS -->
-                    <div
-                        class="flex flex-col gap-1 shrink-0 w-full xl:w-auto min-w-[100px]"
-                    >
-                        <div
-                            class="text-[9px] font-bold text-slate-600 uppercase tracking-widest xl:text-right mb-1"
-                        >
-                            Presets
-                        </div>
-                        <div class="grid grid-cols-6 xl:grid-cols-3 gap-1">
-                            <button
-                                @click=${() => this.setPreset('short')}
-                                class="px-2 py-1 text-[10px] font-bold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded transition-colors"
-                            >
-                                10s
-                            </button>
-                            <button
-                                @click=${() => this.setPreset('long')}
-                                class="px-2 py-1 text-[10px] font-bold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded transition-colors"
-                            >
-                                60s
-                            </button>
-                            <button
-                                @click=${() => this.setPreset('full')}
-                                class="px-2 py-1 text-[10px] font-bold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded transition-colors"
-                            >
-                                Max
-                            </button>
-                            <button
-                                @click=${() => this.setPreset('start')}
-                                class="px-2 py-1 text-[10px] font-bold text-slate-500 hover:text-white bg-slate-900 hover:bg-slate-800 rounded transition-colors border border-slate-800"
-                            >
-                                Head
-                            </button>
-                            <button
-                                @click=${() => this.setPreset('middle')}
-                                class="px-2 py-1 text-[10px] font-bold text-slate-500 hover:text-white bg-slate-900 hover:bg-slate-800 rounded transition-colors border border-slate-800"
-                            >
-                                Mid
-                            </button>
-                            <button
-                                @click=${() => this.setPreset('end')}
-                                class="px-2 py-1 text-[10px] font-bold text-slate-500 hover:text-white bg-slate-900 hover:bg-slate-800 rounded transition-colors border border-slate-800"
-                            >
-                                Tail
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                ${allSelected ? 'Deselect All' : 'Select All'}
+            </button>
         `;
+    }
+
+    setPreset(position) {
+        if (this._isLiveOnlySelection()) return; // Disable presets for live only
+
+        if (position === 'start') {
+            this._offset = 0;
+        } else if (position === 'middle') {
+            this._offset = Math.floor(this._maxStreamDuration / 2);
+        } else if (position === 'end') {
+            this._offset = Math.max(
+                0,
+                this._maxStreamDuration - this._duration
+            );
+        }
+        this.render();
     }
 
     render() {
-        const layers = Object.values(ANALYSIS_LAYERS);
-        const metricLayers = layers.filter((l) => l.category === 'Metrics');
-        const anomalyLayers = layers.filter((l) => l.category === 'Anomalies');
+        // Group layers by category
+        const layersByCategory = Object.values(ANALYSIS_LAYERS).reduce(
+            (acc, layer) => {
+                const cat = layer.category || 'Other';
+                if (!acc[cat]) acc[cat] = [];
+                acc[cat].push(layer);
+                return acc;
+            },
+            {}
+        );
+
+        // Define category order
+        const categoryOrder = ['Metrics', 'Anomalies', 'Analysis', 'Other'];
 
         const template = html`
-            <div class="flex h-full">
-                <!-- LEFT RAIL -->
+            <div
+                class="h-full flex flex-col relative overflow-hidden text-slate-200"
+            >
+                <!-- Main Content Grid -->
                 <div
-                    class="w-64 shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col p-5 z-10 overflow-y-auto custom-scrollbar"
+                    class="grow overflow-hidden px-6 pb-6 z-10 flex flex-col lg:flex-row gap-[0.75rem] min-h-0 pt-6"
                 >
-                    <div class="mb-8">
-                        <h2
-                            class="text-xl font-black text-white tracking-tight mb-1"
+                    <!-- Left Sidebar (Setup) -->
+                    <div
+                        class="w-full lg:w-[320px] shrink-0 flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-1"
+                    >
+                        <!-- Target Streams -->
+                        <div
+                            class="bg-slate-800 backdrop-blur-3xl border border-slate-800/30 rounded-xl shadow-lg p-4 relative group"
                         >
-                            QC Config
-                        </h2>
-                        <p class="text-xs text-slate-500">
-                            Configure engine parameters.
-                        </p>
-                    </div>
-                    <div class="mb-6">
-                        <label
-                            class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 block"
-                            >Mission Profiles</label
-                        >
-                        <div class="flex flex-col gap-2">
-                            ${LAYER_PRESETS.map((preset) => {
-                                const isMatched =
-                                    preset.layers.every((id) =>
-                                        this.activeLayers.has(id)
-                                    ) &&
-                                    this.activeLayers.size ===
-                                        preset.layers.length;
-                                return html`
-                                    <button
-                                        @click=${() =>
-                                            this.applyLayerPreset(preset)}
-                                        class="w-full text-left p-3 rounded-lg border transition-all ${isMatched
-                                            ? 'bg-blue-600 border-blue-500 text-white shadow-md'
-                                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-600 hover:text-slate-200'}"
+                            <div
+                                class="absolute inset-0 pointer-events-none rounded-xl ring-1 ring-inset ring-white/5"
+                            ></div>
+                            <div class="flex items-center justify-between mb-4">
+                                <h3
+                                    class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2"
+                                >
+                                    <span
+                                        class="p-1.5 rounded-lg bg-slate-800 text-purple-300"
+                                        >${icons.film}</span
                                     >
-                                        <div
-                                            class="flex justify-between items-center mb-0.5"
+                                    Target Streams
+                                </h3>
+                                <span
+                                    class="text-[10px] font-bold text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20"
+                                >
+                                    ${this._selectedStreamIds.size}
+                                </span>
+                            </div>
+                            ${this.renderStreamSelector()}
+                        </div>
+
+                        <!-- Scan Speed -->
+                        <div
+                            class="bg-slate-800 backdrop-blur-3xl border border-slate-800/30 rounded-xl shadow-lg p-4 relative"
+                        >
+                            <div
+                                class="absolute inset-0 pointer-events-none rounded-xl ring-1 ring-inset ring-white/5"
+                            ></div>
+                            <h3
+                                class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-4"
+                            >
+                                <span
+                                    class="p-1.5 rounded-lg bg-slate-800 text-teal-300"
+                                    >${icons.gauge}</span
+                                >
+                                Scan Precision
+                            </h3>
+                            ${this.renderSpeedSelector()}
+                        </div>
+
+                        <!-- Presets -->
+                        <div
+                            class="bg-slate-800 backdrop-blur-3xl border border-slate-800/30 rounded-xl shadow-lg p-4 relative"
+                        >
+                            <div
+                                class="absolute inset-0 pointer-events-none rounded-xl ring-1 ring-inset ring-white/5"
+                            ></div>
+                            <h3
+                                class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-4"
+                            >
+                                <span
+                                    class="p-1.5 rounded-lg bg-slate-800 text-blue-400"
+                                    >${icons.zap}</span
+                                >
+                                Quick Presets
+                            </h3>
+                            <div class="grid grid-cols-2 gap-2">
+                                ${Object.values(LAYER_PRESETS).map(
+            (preset) => html`
+                                        <button
+                                            @click=${() =>
+                    this.applyLayerPreset(preset)}
+                                            class="p-2 rounded-lg border border-slate-800 bg-slate-800 hover:bg-slate-800 hover:border-slate-400 transition-all text-left group"
                                         >
-                                            <span
-                                                class="font-bold text-xs uppercase tracking-wide"
-                                                >${preset.label}</span
+                                            <div
+                                                class="text-[10px] font-bold text-slate-100 mb-0.5 group-hover:text-blue-400 transition-colors"
                                             >
-                                            ${isMatched
-                                                ? html`<span class="scale-75"
-                                                      >${icons.checkCircle}</span
-                                                  >`
-                                                : ''}
-                                        </div>
-                                        <div class="text-[10px] opacity-70">
-                                            ${preset.description}
-                                        </div>
-                                    </button>
-                                `;
-                            })}
+                                                ${preset.label}
+                                            </div>
+                                            <div
+                                                class="text-[8px] text-slate-400 leading-tight opacity-70 line-clamp-1"
+                                            >
+                                                ${preset.description}
+                                            </div>
+                                        </button>
+                                    `
+        )}
+                            </div>
                         </div>
                     </div>
-                    <div class="mb-6">
-                        <label
-                            class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 block"
-                            >Sampling</label
+
+                    <!-- Main Area (Modules Grid) -->
+                    <div
+                        class="grow bg-slate-800 backdrop-blur-2xl border border-slate-800/40 rounded-xl shadow-lg overflow-hidden flex flex-col relative group"
+                    >
+                        <div
+                            class="absolute inset-0 pointer-events-none rounded-xl ring-1 ring-inset ring-white/5"
+                        ></div>
+
+                        <!-- Header -->
+                        <div
+                            class="p-4 border-b border-slate-700/30 bg-slate-800 backdrop-blur-md flex items-center justify-between shrink-0"
                         >
-                        ${this.renderSpeedSelector()}
+                            <h3
+                                class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2"
+                            >
+                                <span
+                                    class="p-1.5 rounded-lg bg-slate-800 text-blue-400"
+                                    >${icons.layers}</span
+                                >
+                                Active Modules
+                            </h3>
+                            ${this.renderSelectAllBtn(
+            Object.values(ANALYSIS_LAYERS)
+        )}
+                        </div>
+
+                        <!-- Grid -->
+                        <div
+                            class="p-6 overflow-y-auto custom-scrollbar grow space-y-6"
+                        >
+                            ${categoryOrder.map((category) => {
+            const layers = layersByCategory[category];
+            if (!layers || layers.length === 0) return '';
+
+            return html`
+                                    <div>
+                                        <div
+                                            class="flex items-center gap-2 mb-3"
+                                        >
+                                            <div
+                                                class="h-px grow bg-slate-800/30"
+                                            ></div>
+                                            <span
+                                                class="text-[9px] font-bold uppercase tracking-widest text-slate-400 opacity-70"
+                                                >${category}</span
+                                            >
+                                            <div
+                                                class="h-px grow bg-slate-800/30"
+                                            ></div>
+                                        </div>
+                                        <div
+                                            class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3"
+                                        >
+                                            ${layers.map((layer) =>
+                this.renderModuleCard(layer)
+            )}
+                                        </div>
+                                    </div>
+                                `;
+        })}
+                        </div>
                     </div>
                 </div>
 
-                <!-- MAIN STAGE -->
-                <div
-                    class="grow relative bg-slate-950 overflow-hidden flex flex-col"
-                >
-                    <div
-                        class="absolute inset-0 top-0 overflow-y-auto custom-scrollbar p-8 pb-48"
-                    >
-                        ${this.renderStreamSelector()}
-                        <div class="flex justify-end mb-4">
-                            ${this.renderSelectAllBtn(layers, 'Global')}
-                        </div>
-                        <div class="mb-8">
-                            <div class="flex items-center justify-between mb-5">
-                                <div class="flex items-center gap-3">
-                                    <span
-                                        class="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2"
-                                        >${icons.barChart} Measurement
-                                        Metrics</span
-                                    >
-                                </div>
-                                <div class="h-px grow bg-slate-800 mx-4"></div>
-                                ${this.renderSelectAllBtn(metricLayers)}
-                            </div>
-                            <div
-                                class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"
-                            >
-                                ${metricLayers.map((l) =>
-                                    this.renderModuleCard(l)
-                                )}
-                            </div>
-                        </div>
-                        <div>
-                            <div class="flex items-center justify-between mb-5">
-                                <div class="flex items-center gap-3">
-                                    <span
-                                        class="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2"
-                                        >${icons.alertTriangle} Anomaly
-                                        Detection</span
-                                    >
-                                </div>
-                                <div class="h-px grow bg-slate-800 mx-4"></div>
-                                ${this.renderSelectAllBtn(anomalyLayers)}
-                            </div>
-                            <div
-                                class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"
-                            >
-                                ${anomalyLayers.map((l) =>
-                                    this.renderModuleCard(l)
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="absolute bottom-0 left-0 right-0 z-20">
-                        ${this.renderTimelineStrip()}
-                    </div>
-                </div>
             </div>
         `;
         render(template, this);
+
+        // Dispatch UI Update for Bottom Bar
+        this.dispatchEvent(new CustomEvent('config-ui-update', {
+            detail: {
+                bottomBarTemplate: this.renderTimelineStrip()
+            },
+            bubbles: true,
+            composed: true
+        }));
+    }
+
+    renderTimelineStrip() {
+        const maxDuration = this._maxStreamDuration || 600;
+        const progress = (this._offset / maxDuration) * 100;
+        const width = (this._duration / maxDuration) * 100;
+        const isLiveOnly = this._isLiveOnlySelection();
+
+        return html`
+            <div class="w-full h-full pointer-events-auto">
+                <div
+                    class="bg-slate-800 backdrop-blur-2xl border-t border-slate-700/50 p-4 flex items-center gap-6 w-full h-full"
+                >
+                    <!-- Start Button -->
+                    <button
+                        @click=${() => this.handleStart()}
+                        class="shrink-0 px-8 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold uppercase tracking-widest text-xs shadow-lg hover:shadow-[0_0_20px_rgba(59, 130, 246,0.4)] hover:scale-105 transition-all duration-300 flex items-center gap-2"
+                    >
+                        ${icons.play} Start Scan
+                    </button>
+
+                    <!-- Timeline Slider Container -->
+                    <div
+                        class="grow relative h-12 bg-slate-800 rounded-xl border border-slate-700/30 overflow-hidden group select-none ${isLiveOnly
+                ? 'cursor-not-allowed opacity-70'
+                : 'cursor-crosshair'}"
+                        @mousedown=${(e) =>
+                isLiveOnly ? null : this._onTrackMouseDown(e)}
+                    >
+                        <!-- Ticks -->
+                        <div
+                            class="absolute inset-0 flex justify-between px-2 opacity-30 pointer-events-none"
+                        >
+                            ${Array.from({ length: 11 }).map(
+                    (_, i) => html`
+                                    <div
+                                        class="w-px h-full bg-slate-400"
+                                    ></div>
+                                `
+                )}
+                        </div>
+
+                        <!-- Selected Range (Draggable & Resizable) -->
+                        <div
+                            class="absolute top-0 bottom-0 bg-blue-500/20 border-x border-blue-500/50 backdrop-blur-sm ${isLiveOnly
+                ? ''
+                : 'cursor-move group-hover:border-blue-500'} transition-colors"
+                            style="left: ${progress}%; width: ${width}%"
+                            @mousedown=${(e) =>
+                isLiveOnly
+                    ? null
+                    : this._onSelectionMouseDown(e)}
+                        >
+                            <!-- Inner Gradient -->
+                            <div
+                                class="absolute inset-0 bg-gradient-to-b from-blue-500/10 to-transparent pointer-events-none"
+                            ></div>
+
+                            <!-- Label -->
+                            <div
+                                class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-bold text-blue-400 whitespace-nowrap bg-slate-800 px-2 py-1 rounded border border-blue-500/30 shadow-sm pointer-events-none select-none"
+                            >
+                                ${isLiveOnly
+                ? 'LIVE (Duration Only)'
+                : `${this._offset}s - ${this._offset + this._duration}s`}
+                            </div>
+
+                            <!-- Left Handle (Disabled for Live) -->
+                            ${!isLiveOnly
+                ? html`
+                                      <div
+                                          class="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-blue-500/50 transition-colors z-10"
+                                          @mousedown=${(e) =>
+                        this._onHandleMouseDown(
+                            e,
+                            'left'
+                        )}
+                                      ></div>
+                                  `
+                : ''}
+
+                            <!-- Right Handle -->
+                            <div
+                                class="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-blue-500/50 transition-colors z-10"
+                                @mousedown=${(e) =>
+                this._onHandleMouseDown(e, 'right')}
+                            ></div>
+                        </div>
+                    </div>
+
+                    <!-- Duration Input -->
+                    <div
+                        class="shrink-0 flex items-center gap-3 pl-4 border-l border-slate-700/30"
+                    >
+                        <div class="text-right">
+                            <div
+                                class="text-[9px] font-bold uppercase text-slate-400 tracking-wider"
+                            >
+                                Scan Duration
+                            </div>
+                            ${this._isEditingDuration
+                ? html`
+                                      <input
+                                          type="number"
+                                          class="w-16 bg-slate-800 text-slate-200 font-mono font-bold text-sm border border-blue-500 rounded px-1 py-0.5 focus:outline-none"
+                                          .value=${this._duration}
+                                          @blur=${(e) =>
+                        this._handleDurationInput(e)}
+                                          @keydown=${(e) => {
+                        if (e.key === 'Enter') {
+                            this._handleDurationInput(e);
+                        }
+                    }}
+                                      />
+                                  `
+                : html`
+                                      <div
+                                          class="font-mono font-bold text-slate-200 cursor-pointer hover:text-blue-400 transition-colors"
+                                          @click=${() => {
+                        this._isEditingDuration = true;
+                        this.render();
+                        setTimeout(
+                            () =>
+                                                      /** @type {HTMLElement} */(
+                                    this.querySelector(
+                                        'input[type="number"]'
+                                    )
+                                )?.focus(),
+                            0
+                        );
+                    }}
+                                          title="Click to edit"
+                                      >
+                                          ${this._duration}s
+                                      </div>
+                                  `}
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <button
+                                @click=${() => {
+                this._duration = Math.min(
+                    this._duration + 10,
+                    maxDuration
+                );
+                this.render();
+            }}
+                                class="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+                            >
+                                ${icons.chevronUp}
+                            </button>
+                            <button
+                                @click=${() => {
+                this._duration = Math.max(
+                    this._duration - 10,
+                    10
+                );
+                this.render();
+            }}
+                                class="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+                            >
+                                ${icons.chevronDown}
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Quick Jump (Disabled for Live) -->
+                    <div
+                        class="shrink-0 flex gap-1 ${isLiveOnly
+                ? 'opacity-50 pointer-events-none'
+                : ''}"
+                    >
+                        <button
+                            @click=${() => this.setPreset('start')}
+                            class="px-2 py-1 text-[10px] font-bold text-slate-400 hover:text-slate-200 bg-slate-800 hover:bg-slate-800/80 rounded transition-colors"
+                        >
+                            Start
+                        </button>
+                        <button
+                            @click=${() => this.setPreset('middle')}
+                            class="px-2 py-1 text-[10px] font-bold text-slate-400 hover:text-slate-200 bg-slate-800 hover:bg-slate-800/80 rounded transition-colors"
+                        >
+                            Mid
+                        </button>
+                        <button
+                            @click=${() => this.setPreset('end')}
+                            class="px-2 py-1 text-[10px] font-bold text-slate-400 hover:text-slate-200 bg-slate-800 hover:bg-slate-800/80 rounded transition-colors"
+                        >
+                            End
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Live Warning -->
+                ${isLiveOnly
+                ? html`
+                          <div
+                              class="absolute bottom-[calc(100%+8px)] left-1/2 -translate-x-1/2 bg-amber-500/10 border border-amber-500/20 text-amber-400 px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-2 shadow-lg backdrop-blur-sm animate-fadeIn"
+                          >
+                              ${icons.alertTriangle} Live streams selected:
+                              Start time forced to 0 (Duration only)
+                          </div>
+                      `
+                : ''}
+            </div>
+        `;
     }
 }
+
 customElements.define('qc-config', QcConfig);
-export const qcConfigTemplate = (data) =>
-    html`<qc-config .data=${data}></qc-config>`;
+
+export const qcConfigTemplate = (props) => {
+    return html`<qc-config .data=${props} @config-ui-update=${props.onConfigUpdate}></qc-config>`;
+};

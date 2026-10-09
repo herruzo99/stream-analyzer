@@ -43,6 +43,8 @@ export class WebCodecsVideoProvider {
             const state = stateMap.get(preferredTrackId);
             if (state && state.segments && state.segments.length > 0) {
                 targetState = state;
+                this.videoTrackId = Number(preferredTrackId);
+                if (isNaN(this.videoTrackId)) this.videoTrackId = preferredTrackId;
                 appLog(
                     'WebCodecsProvider',
                     'info',
@@ -59,7 +61,7 @@ export class WebCodecsVideoProvider {
 
         // 1. Try to find an explicit video track
         if (!targetState) {
-            for (const state of stateMap.values()) {
+            for (const [id, state] of stateMap.entries()) {
                 const isVideo =
                     state.mediaType === 'video' ||
                     (state.segments &&
@@ -68,6 +70,8 @@ export class WebCodecsVideoProvider {
 
                 if (isVideo && state.segments && state.segments.length > 0) {
                     targetState = state;
+                    this.videoTrackId = Number(id); // Capture ID
+                    if (isNaN(this.videoTrackId)) this.videoTrackId = id; // Keep as string if not a number
                     break;
                 }
             }
@@ -75,7 +79,7 @@ export class WebCodecsVideoProvider {
 
         // 2. Fallback: Find any track that is NOT audio
         if (!targetState) {
-            for (const state of stateMap.values()) {
+            for (const [id, state] of stateMap.entries()) {
                 const isAudio =
                     state.mediaType === 'audio' ||
                     (state.segments &&
@@ -84,6 +88,8 @@ export class WebCodecsVideoProvider {
 
                 if (!isAudio && state.segments && state.segments.length > 0) {
                     targetState = state;
+                    this.videoTrackId = Number(id);
+                    if (isNaN(this.videoTrackId)) this.videoTrackId = id;
                     break;
                 }
             }
@@ -91,9 +97,11 @@ export class WebCodecsVideoProvider {
 
         // 3. Last Resort: First track with segments
         if (!targetState) {
-            for (const state of stateMap.values()) {
+            for (const [id, state] of stateMap.entries()) {
                 if (state.segments && state.segments.length > 0) {
                     targetState = state;
+                    this.videoTrackId = Number(id);
+                    if (isNaN(this.videoTrackId)) this.videoTrackId = id;
                     break;
                 }
             }
@@ -356,6 +364,19 @@ export class WebCodecsVideoProvider {
         return this.frameQueue.shift();
     }
 
+    async skipFrames(count) {
+        if (count <= 0) return;
+        appLog('WebCodecsProvider', 'debug', `Skipping ${count} frames`);
+        for (let i = 0; i < count; i++) {
+            const frame = await this.getNextFrame();
+            if (frame) {
+                frame.close();
+            } else {
+                break; // End of stream
+            }
+        }
+    }
+
     async _loadCurrentSegment() {
         if (
             this.currentSegmentIndex < 0 ||
@@ -420,6 +441,7 @@ export class WebCodecsVideoProvider {
                     videoTrackId: this.videoTrackId,
                     audioTrackId: this.audioTrackId,
                     baseTimeOffset: this._getSegmentStartTime(segment),
+                    presentationTimeOffset: segment.presentationTimeOffset,
                 }
             );
             const {
@@ -453,7 +475,7 @@ export class WebCodecsVideoProvider {
                     this.decoderConfig.codedWidth !== config.codedWidth ||
                     this.decoderConfig.codedHeight !== config.codedHeight ||
                     this.decoderConfig.description?.byteLength !==
-                        config.description?.byteLength
+                    config.description?.byteLength
                 ) {
                     // Simple check for description change
 

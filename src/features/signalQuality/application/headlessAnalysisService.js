@@ -8,6 +8,7 @@ import { qualityActions } from '@/state/qualityStore';
 // import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 // import { EVENTS } from '@/types/events';
 import { SCAN_SPEEDS } from '../domain/analysis-config';
+import { SceneChangeDetector } from '../domain/sceneChangeDetector';
 import { WebCodecsVideoProvider } from './webCodecsVideoProvider';
 
 // const SYNC_TIMEOUT_MS = 8000;
@@ -174,6 +175,15 @@ class HeadlessJob {
             this.audioMetricsHistory.push(metric);
         });
 
+        // --- Scene Change Detector ---
+        this.sceneChangeDetector = new SceneChangeDetector({
+            threshold: 0.3,
+            fadeThreshold: 0.15,
+            minSceneGap: 0.5,
+            maxChanges: 500,
+            useHistogram: true,
+        });
+
         this.instanceId = Math.random().toString(36).substring(7);
         appLog(
             'HeadlessJob',
@@ -187,6 +197,7 @@ class HeadlessJob {
     }
 
     async _execute() {
+        this.startTime = performance.now();
         try {
             const stream = useAnalysisStore
                 .getState()
@@ -249,6 +260,15 @@ class HeadlessJob {
                         'info',
                         `Auto-selected audio track: ${this.trackConfig.audioTrackId}`
                     );
+                } else {
+                    // Fallback to muxed audio if no explicit tracks found (common in TS/MP4)
+                    this.trackConfig.audioTrackId = 'muxed-audio';
+                    this.audioProvider.trackId = 'muxed-audio'; // Update provider
+                    appLog(
+                        'HeadlessJob',
+                        'info',
+                        `No explicit audio tracks found. Defaulting to 'muxed-audio'.`
+                    );
                 }
             }
 
@@ -301,14 +321,20 @@ class HeadlessJob {
             let currentTime = scanStartOffset;
             let framesProcessed = 0;
             let targetFrameCount = totalSteps;
-            const LIVE_EDGE_SAFETY_BUFFER = 1.5;
+            // Default safety buffer if suggestedPresentationDelay is not present
+            const DEFAULT_LIVE_DELAY = 4.0;
+            const suggestedDelay = stream.manifest?.suggestedPresentationDelay;
+            const liveDelay =
+                suggestedDelay !== undefined && suggestedDelay !== null
+                    ? suggestedDelay
+                    : DEFAULT_LIVE_DELAY;
 
             if (isLive) {
                 const seekRange = this.videoProvider.getSeekRange();
                 const dvrWindow = seekRange.end - seekRange.start;
                 const effectiveDuration = Math.min(
                     scanDuration,
-                    dvrWindow - LIVE_EDGE_SAFETY_BUFFER
+                    dvrWindow - liveDelay
                 );
                 if (effectiveDuration < scanDuration) {
                     appLog(
@@ -318,15 +344,17 @@ class HeadlessJob {
                     );
                     targetFrameCount = Math.ceil(effectiveDuration / stepSize);
                 }
-                let targetStart =
-                    seekRange.end - effectiveDuration - LIVE_EDGE_SAFETY_BUFFER;
+                let targetStart = seekRange.end - effectiveDuration - liveDelay;
+
+                // Ensure we don't start before the beginning of the DVR window
                 if (targetStart < seekRange.start)
                     targetStart = seekRange.start + 1;
+
                 currentTime = targetStart;
                 appLog(
                     'HeadlessJob',
                     'info',
-                    `[Live] DVR: ${seekRange.start.toFixed(1)} - ${seekRange.end.toFixed(1)}. Starting at ${currentTime.toFixed(2)}s`
+                    `[Live] DVR: ${seekRange.start.toFixed(1)} - ${seekRange.end.toFixed(1)}. Starting at ${currentTime.toFixed(2)}s (Delay: ${liveDelay}s)`
                 );
             } else {
                 const seekRange = this.videoProvider.getSeekRange();
@@ -360,6 +388,10 @@ class HeadlessJob {
                     'info',
                     `Using stored initial timestamp: ${initialTimestamp}`
                 );
+                // Also ensure the UI store reflects this as the analysis start time
+                qualityActions.updateJobProgress(this.streamId, {
+                    mediaStartTime: initialTimestamp,
+                });
             }
 
             while (framesProcessed < targetFrameCount) {
@@ -402,7 +434,7 @@ class HeadlessJob {
                 const actualTimestamp = frame.timestamp / 1e6; // microseconds to seconds
 
                 // Capture initial timestamp if not set
-                if (initialTimestamp === null && isLive) {
+                if (initialTimestamp === null) {
                     initialTimestamp = actualTimestamp;
                     useAnalysisStore
                         .getState()
@@ -410,10 +442,16 @@ class HeadlessJob {
                             this.streamId,
                             initialTimestamp
                         );
+
+                    // Update UI store with the ACTUAL media start time to ensure seek alignment
+                    qualityActions.updateJobProgress(this.streamId, {
+                        mediaStartTime: initialTimestamp,
+                    });
+
                     appLog(
                         'HeadlessJob',
                         'info',
-                        `Captured initial timestamp for live stream: ${initialTimestamp}`
+                        `Captured initial timestamp: ${initialTimestamp}`
                     );
                 }
 
@@ -422,7 +460,7 @@ class HeadlessJob {
                 // User request specifically mentions "live have an issue where times are big".
                 // So let's apply this primarily for Live, or if initialTimestamp is set.
                 const relativeTimestamp =
-                    isLive && initialTimestamp !== null
+                    initialTimestamp !== null
                         ? actualTimestamp - initialTimestamp
                         : actualTimestamp;
 
@@ -523,15 +561,114 @@ class HeadlessJob {
                     }
                 }
 
-                // Create ImageBitmap from VideoFrame for worker
-                // const bmpStart = performance.now();
+                // Create ImageBitmap from VideoFrame
+                // This is more reliable than drawing VideoFrame directly to canvas in some environments
                 const frameBitmap = await createImageBitmap(frame);
-                // appLog('HeadlessJob', 'info', `createImageBitmap took ${(performance.now() - bmpStart).toFixed(2)}ms`);
-                frame.close(); // Important: close VideoFrame immediately
+                frame.close(); // Close VideoFrame immediately
+
+                let sceneDiffScore = 0;
+
+                // Scene Change Detection (if enabled)
+                if (activeLayers.has('scene_change')) {
+                    // Extract pixel data for scene change analysis
+                    // Use OffscreenCanvas if available for better performance/worker compatibility
+                    const width = frameBitmap.width;
+                    const height = frameBitmap.height;
+                    let tempCtx;
+
+                    if (typeof OffscreenCanvas !== 'undefined') {
+                        const offscreen = new OffscreenCanvas(width, height);
+                        tempCtx = offscreen.getContext('2d', {
+                            alpha: false,
+                            willReadFrequently: true,
+                        });
+                    } else {
+                        const tempCanvas = document.createElement('canvas');
+                        tempCanvas.width = width;
+                        tempCanvas.height = height;
+                        tempCtx = tempCanvas.getContext('2d', {
+                            alpha: false,
+                            willReadFrequently: true,
+                        });
+                    }
+
+                    // Draw bitmap to canvas
+                    tempCtx.drawImage(frameBitmap, 0, 0);
+
+                    const frameData = tempCtx.getImageData(
+                        0,
+                        0,
+                        width,
+                        height
+                    ).data;
+
+                    // Debug: Verify we have data
+                    if (
+                        frameData[0] === 0 &&
+                        frameData[1] === 0 &&
+                        frameData[2] === 0 &&
+                        frameData[3] === 0
+                    ) {
+                        // Check a few more pixels to be sure
+                        let hasData = false;
+                        for (let i = 0; i < 100; i += 4) {
+                            if (frameData[i + 3] !== 0) {
+                                hasData = true;
+                                break;
+                            }
+                        }
+                        if (!hasData) {
+                            appLog(
+                                'HeadlessJob',
+                                'warn',
+                                `[SceneDetector] Frame data is empty/transparent! Bitmap: ${width}x${height}`
+                            );
+                        }
+                    }
+
+                    // Create a clean ImageBitmap from the canvas for the detector
+                    // This fixes the corruption/stride issues for the thumbnails
+                    const cleanBitmap = await createImageBitmap(tempCtx.canvas);
+
+                    // Run scene change detection
+                    const sceneResult = await this.sceneChangeDetector.detect(
+                        cleanBitmap,
+                        frameData,
+                        relativeTimestamp
+                    );
+
+                    sceneDiffScore = sceneResult.diffScore || 0;
+
+                    if (sceneResult.isSceneChange) {
+                        appLog(
+                            'HeadlessJob',
+                            'info',
+                            `Scene change detected at ${relativeTimestamp.toFixed(3)}s (type: ${sceneResult.sceneData.type}, confidence: ${sceneResult.sceneData.confidence}%)`
+                        );
+
+                        // Add to store
+                        qualityActions.addSceneChanges(this.streamId, [
+                            sceneResult.sceneData,
+                        ]);
+                    }
+                }
 
                 // const workerStart = performance.now();
+
+                // Clone bitmap for worker to avoid neutering the one used by SceneChangeDetector
+                // Note: SceneChangeDetector no longer uses the bitmap, but we still need a clone for the worker
+                // because transferring it neuters it, and we might want to use it for other things (though currently we don't).
+                // Actually, if we don't use frameBitmap after this, we can just transfer it directly!
+                // BUT, we are inside a loop and logic might change. Safer to clone or just transfer if we are sure.
+                // The workerService.postTask with transfer list will neuter it.
+                // Let's create a bitmap for the worker.
+                const workerBitmap = await createImageBitmap(frameBitmap);
+
+                // We are done with the original frameBitmap now.
+                frameBitmap.close();
+
                 const task = workerService.postTask('analyze-frame-sequence', {
-                    frameBitmap,
+                    frameBitmap: workerBitmap, // Pass the clone
                     frameIndex: framesProcessed,
                     timestamp: relativeTimestamp, // Use relative timestamp for worker
                     isLast: framesProcessed === targetFrameCount - 1,
@@ -539,9 +676,9 @@ class HeadlessJob {
                     streamId: this.streamId,
                     metrics: audioMetric
                         ? {
-                              audioLevel: audioMetric.audioLevel,
-                              peakAudioLevel: audioMetric.peak,
-                          }
+                            audioLevel: audioMetric.audioLevel,
+                            peakAudioLevel: audioMetric.peak,
+                        }
                         : {},
                 });
                 this.currentWorkerTask = task;
@@ -553,6 +690,19 @@ class HeadlessJob {
                     analysisResult.metrics = analysisResult.metrics || {};
                     analysisResult.metrics.audioLevel = audioMetric.audioLevel;
                     // analysisResult.metrics.peakAudioLevel = audioMetric.peak; // If we want to chart peak too
+                }
+
+                // Add scene change score to metrics
+                if (activeLayers.has('scene_change')) {
+                    analysisResult.metrics = analysisResult.metrics || {};
+                    analysisResult.metrics.sceneChangeScore = sceneDiffScore;
+
+                    // Debug Log: Verify score propagation
+                    if (sceneDiffScore > 0.1 && Math.random() < 0.05) {
+                        console.debug(
+                            `[Headless] Scene Score: ${sceneDiffScore.toFixed(4)}`
+                        );
+                    }
                 }
 
                 this.profiler.ingestWorkerMetrics(
@@ -658,15 +808,6 @@ class HeadlessJob {
                             maxPeak = this.lastAudioState.maxPeak;
                     }
 
-                    // DEBUG: Log audio state
-                    if (this.instanceId && framesProcessed % 10 === 0) {
-                        appLog(
-                            'HeadlessJob',
-                            'debug',
-                            `[${this.instanceId}] Frame ${framesProcessed} @ ${actualTimestamp.toFixed(3)}s. Metrics: ${relevantMetrics.length}. Silence: ${silenceDetected}`
-                        );
-                    }
-
                     if (
                         relevantMetrics.length === 0 &&
                         needsAudio &&
@@ -769,7 +910,7 @@ class HeadlessJob {
                             number: currentSegmentNum,
                             relativeNumber:
                                 typeof currentSegmentNum === 'number' &&
-                                typeof initialSegmentNumber === 'number'
+                                    typeof initialSegmentNumber === 'number'
                                     ? currentSegmentNum - initialSegmentNumber
                                     : 0,
                             current: currentSegmentFrame,
@@ -835,6 +976,11 @@ class HeadlessJob {
                     this.pendingFrameMetrics = [];
                 }
 
+                // If scan speed interval > 1, skip frames to maintain correct cadence throughout the duration
+                if (speedConfig.interval > 1) {
+                    await this.videoProvider.skipFrames(speedConfig.interval - 1);
+                }
+
                 framesProcessed++;
 
                 // Advance time for audio provider or logging?
@@ -851,7 +997,27 @@ class HeadlessJob {
             }
 
             if (!this.isCancelled) {
-                this._finalizeResults();
+                // Calculate final stats
+                const endTime = performance.now();
+                const totalDuration = (endTime - this.startTime) / 1000;
+                const processingSpeed =
+                    totalDuration > 0
+                        ? (lastProcessedTimestamp - (initialTimestamp || 0)) /
+                        totalDuration
+                        : 0;
+
+                const debugStats = {
+                    analysisStartTime: new Date(
+                        this.startTime + performance.timeOrigin
+                    ).toISOString(),
+                    analysisDuration: totalDuration,
+                    processingSpeed: processingSpeed,
+                    initialVideoTimestamp: initialTimestamp,
+                    finalVideoTimestamp: lastProcessedTimestamp,
+                    framesProcessed: framesProcessed,
+                };
+
+                this._finalizeResults(debugStats);
             }
         } catch (e) {
             if (!this.isCancelled) {
@@ -979,7 +1145,7 @@ class HeadlessJob {
         return closed;
     }
 
-    _finalizeResults() {
+    _finalizeResults(debugStats) {
         const results = {};
 
         for (const key in this.metricValues) {
@@ -1047,7 +1213,7 @@ class HeadlessJob {
             val: Math.max(0, score),
         };
 
-        qualityActions.completeJob(this.streamId, results);
+        qualityActions.completeJob(this.streamId, results, debugStats);
     }
 
     _normalizeSpeed(speed) {
@@ -1109,7 +1275,8 @@ class HeadlessAnalysisService {
     async startBatchAnalysis(streams, config, trackSelections = new Map()) {
         for (const stream of streams) {
             this.stopAnalysis(stream.id);
-            const trackConfig = trackSelections.get(stream.id);
+            // Use String(stream.id) to match Map keys which are strings
+            const trackConfig = trackSelections.get(String(stream.id));
             const job = new HeadlessJob(stream.id, config, trackConfig);
             this.activeJobs.set(stream.id, job);
 

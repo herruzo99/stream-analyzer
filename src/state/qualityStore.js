@@ -59,6 +59,7 @@ export const useQualityStore = createStore((set, get) => ({
                 issues: [],
                 frameMetrics: [],
                 audioHistory: [], // High-resolution audio metrics
+                sceneChanges: [], // Scene change detections (ported: QC batch)
                 aggregateMetrics: null,
                 error: null,
                 startTime: Date.now(),
@@ -176,6 +177,20 @@ export const useQualityStore = createStore((set, get) => ({
                 ...job,
                 issues: Array.from(existingIssuesMap.values()).sort(
                     (a, b) => a.startTime - b.startTime
+                ),
+            });
+            return { jobs };
+        }),
+
+    addSceneChanges: (streamId, newSceneChanges) =>
+        set((state) => {
+            const jobs = new Map(state.jobs);
+            const job = jobs.get(streamId);
+            if (!job) return {};
+            jobs.set(streamId, {
+                ...job,
+                sceneChanges: [...job.sceneChanges, ...newSceneChanges].sort(
+                    (a, b) => a.timestamp - b.timestamp
                 ),
             });
             return { jobs };
