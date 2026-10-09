@@ -421,9 +421,11 @@ class DashTimingCalculator extends HTMLElement {
         // once as a light-DOM stylesheet (`:host` rewritten to the tag;
         // class names are unique to this file, verified by search).
         if (this.querySelector(':scope > style[data-calc-styles]')) return;
-        const cssText = String(
-            this.constructor.styles || ''
-        ).replace(/:host\b/g, 'dash-timing-calculator-modal');
+        const ctorStyles = /** @type {any} */ (this.constructor).styles;
+        const cssText = String(ctorStyles || '').replace(
+            /:host\b/g,
+            'dash-timing-calculator-modal'
+        );
         if (!cssText.trim()) return;
         const styleEl = document.createElement('style');
         styleEl.setAttribute('data-calc-styles', '');
