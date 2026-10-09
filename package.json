@@ -1,6 +1,6 @@
 {
     "name": "stream-analycer",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "main": "index.js",
     "type": "module",
     "scripts": {
@@ -33,8 +33,8 @@
         "zustand": "^5.0.9"
     },
     "devDependencies": {
-        "@tailwindcss/cli": "^4.1.17",
         "@eslint/js": "^9.39.1",
+        "@tailwindcss/cli": "^4.1.17",
         "@types/node": "^24.10.1",
         "esbuild": "^0.27.1",
         "eslint": "^9.39.1",
@@ -50,5 +50,14 @@
         "workerDirectory": [
             "public"
         ]
+    },
+    "overrides": {
+        "@eslint/eslintrc": {
+            "ajv": "^6.14.0"
+        },
+        "compression": "^1.8.2",
+        "eslint": {
+            "ajv": "^6.14.0"
+        }
     }
 }
