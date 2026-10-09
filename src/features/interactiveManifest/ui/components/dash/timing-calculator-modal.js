@@ -401,10 +401,24 @@ class DashTimingCalculator extends HTMLElement {
         }
     }
 
+    connectedCallback() {
+        // Port note: BaseComponent (never committed) bridged these; with
+        // plain HTMLElement the native callbacks do it. Without this, the
+        // `.data` setter skips its work while disconnected and the modal
+        // stays blank.
+        this.onMount();
+    }
+
+    disconnectedCallback() {
+        this.onUnmount();
+    }
+
     onMount() {
-        // this.render(); handled by BaseComponent
         if (this._isDynamicStream) this.startLoop();
         if (this._data && this._data.streamId) this.refreshData();
+        // Guarantee first paint (covers data set while disconnected and
+        // non-live streams with no loop running).
+        this.render();
         this._unsubscribe = eventBus.subscribe(
             EVENTS.LIVESTREAM.MANIFEST_UPDATED,
             ({ streamId }) => {
