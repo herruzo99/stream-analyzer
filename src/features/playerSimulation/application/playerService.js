@@ -21,7 +21,9 @@ class PlayerService {
         this.isInitialized = false;
         this._initPromise = null;
         this.tickerSubscription = null;
+        this.tickerSubscription = null;
         this.stallCalculator = new StallCalculator();
+        this.errorStartTime = null;
     }
 
     getActiveStreamIds() {
@@ -218,6 +220,68 @@ class PlayerService {
                 this.player.streamAnalyzerStreamId = null;
                 this.player.getNetworkingEngine().streamAnalyzerStreamId = null;
 
+                // --- Manifest Interception for Patched Streams ---
+                this.player
+                    .getNetworkingEngine()
+                    .registerResponseFilter((type, response) => {
+                        if (
+                            type !==
+                            shaka.net.NetworkingEngine.RequestType.MANIFEST
+                        )
+                            return;
+
+                        const streamId = this.player.streamAnalyzerStreamId;
+                        if (!streamId) return;
+
+                        const { streams } = useAnalysisStore.getState();
+                        const currentStream = streams.find(
+                            (s) => s.id === streamId
+                        );
+
+                        if (!currentStream || !currentStream.patchedRawManifest)
+                            return;
+
+                        // Normalize URIs
+                        const requestUri = response.uri.split('?')[0];
+                        const originalUri =
+                            currentStream.originalUrl.split('?')[0];
+                        const baseUri = currentStream.baseUrl
+                            ? currentStream.baseUrl.split('?')[0]
+                            : '';
+
+                        if (
+                            requestUri === originalUri ||
+                            (baseUri && requestUri === baseUri)
+                        ) {
+                            console.log(
+                                '[PlayerSimulation Interceptor] MATCH FOUND. Serving patched manifest.'
+                            );
+                            console.log(
+                                '[PlayerSimulation Interceptor] Request URI:',
+                                requestUri
+                            );
+                            console.log(
+                                '[PlayerSimulation Interceptor] Patched Manifest Length:',
+                                currentStream.patchedRawManifest.length
+                            );
+
+                            const encoder = new TextEncoder();
+                            const patchedData = encoder.encode(
+                                currentStream.patchedRawManifest
+                            );
+
+                            // Shaka expects ArrayBuffer
+                            response.data = patchedData.buffer;
+                        } else {
+                            console.log(
+                                '[PlayerSimulation Interceptor] No match. Request:',
+                                requestUri,
+                                'Original:',
+                                originalUri
+                            );
+                        }
+                    });
+
                 this.player.addEventListener(
                     'error',
                     this.onErrorEvent.bind(this)
@@ -268,11 +332,21 @@ class PlayerService {
                         playbackState: 'PLAYING',
                     })
                 );
-                videoElement.addEventListener('playing', () =>
+                videoElement.addEventListener('playing', () => {
+                    if (this.errorStartTime) {
+                        const downtime = Date.now() - this.errorStartTime;
+                        appLog(
+                            'PlayerService',
+                            'info',
+                            `Recovered from error. Downtime: ${downtime}ms`
+                        );
+                        playerActions.incrementDowntime(downtime);
+                        this.errorStartTime = null;
+                    }
                     playerActions.updatePlaybackInfo({
                         playbackState: 'PLAYING',
-                    })
-                );
+                    });
+                });
                 videoElement.addEventListener('pause', () =>
                     playerActions.updatePlaybackInfo({
                         playbackState: 'PAUSED',
@@ -404,6 +478,71 @@ class PlayerService {
             networkingEngine.streamAnalyzerStreamId = stream.id;
         }
         this.player.streamAnalyzerStreamId = stream.id;
+
+        // Ensure interceptor is registered (idempotent check)
+        if (!this.player._interceptorRegistered) {
+            console.log('[PlayerService] Registering interceptor in load()');
+            const shaka = await getShaka();
+            this.player
+                .getNetworkingEngine()
+                .registerResponseFilter((type, response) => {
+                    if (
+                        type !== shaka.net.NetworkingEngine.RequestType.MANIFEST
+                    )
+                        return;
+
+                    const streamId = this.player.streamAnalyzerStreamId;
+                    if (!streamId) return;
+
+                    const { streams } = useAnalysisStore.getState();
+                    const currentStream = streams.find(
+                        (s) => s.id === streamId
+                    );
+
+                    if (!currentStream || !currentStream.patchedRawManifest)
+                        return;
+
+                    // Normalize URIs
+                    const requestUri = response.uri.split('?')[0];
+                    const originalUri = currentStream.originalUrl.split('?')[0];
+                    const baseUri = currentStream.baseUrl
+                        ? currentStream.baseUrl.split('?')[0]
+                        : '';
+
+                    if (
+                        requestUri === originalUri ||
+                        (baseUri && requestUri === baseUri)
+                    ) {
+                        console.log(
+                            '[PlayerSimulation Interceptor] MATCH FOUND. Serving patched manifest.'
+                        );
+                        console.log(
+                            '[PlayerSimulation Interceptor] Request URI:',
+                            requestUri
+                        );
+                        console.log(
+                            '[PlayerSimulation Interceptor] Patched Manifest Length:',
+                            currentStream.patchedRawManifest.length
+                        );
+
+                        const encoder = new TextEncoder();
+                        const patchedData = encoder.encode(
+                            currentStream.patchedRawManifest
+                        );
+
+                        // Shaka expects ArrayBuffer
+                        response.data = patchedData.buffer;
+                    } else {
+                        console.log(
+                            '[PlayerSimulation Interceptor] No match. Request:',
+                            requestUri,
+                            'Original:',
+                            originalUri
+                        );
+                    }
+                });
+            this.player._interceptorRegistered = true;
+        }
 
         this.activeStreamIds.add(stream.id);
         eventBus.dispatch('player:active-streams-changed', {
@@ -570,7 +709,13 @@ class PlayerService {
         playerActions.setLoadedState(false);
         const originalMessage = parseShakaError(error);
 
-        const { isAutoResetEnabled, retryCount } = usePlayerStore.getState();
+        const { isAutoResetEnabled, retryCount, retryDelayMs } =
+            usePlayerStore.getState();
+
+        // Track when error started for downtime calculation
+        if (!this.errorStartTime) {
+            this.errorStartTime = Date.now();
+        }
 
         eventBus.dispatch('player:error', {
             message: originalMessage,
@@ -591,6 +736,13 @@ class PlayerService {
                 details: finalMessage,
             });
 
+            // Finalize downtime if we gave up
+            if (this.errorStartTime) {
+                const downtime = Date.now() - this.errorStartTime;
+                playerActions.incrementDowntime(downtime);
+                this.errorStartTime = null;
+            }
+
             const { streams, activeStreamId } = useAnalysisStore.getState();
             const stream = streams.find((s) => s.id === activeStreamId);
             eventBus.dispatch('notify:player-error', {
@@ -600,13 +752,28 @@ class PlayerService {
             return;
         }
 
-        const backoff =
-            INITIAL_RETRY_DELAY_MS *
-            Math.pow(2, retryCount) *
-            (1 + secureRandom() * JITTER_FACTOR);
-        const delay = Math.min(backoff, 30000);
+        // Intensive Mode Check: If delay <= 500ms, usage is 'intensive' monitoring.
+        // We skip jitter to ensure tight loops and fast retries.
+        const isIntensive = retryDelayMs <= 500;
+        let delay;
 
-        const delaySec = (delay / 1000).toFixed(1);
+        if (isIntensive) {
+            // Linear backoff or constant for intensive?
+            // "one of the options must be 0.5s or even less called something like intensive"
+            // We use the configured delay directly for intensive mode, maybe slight linear increase
+            delay = retryDelayMs;
+        } else {
+            // Standard exponential backoff
+            // Use retryDelayMs as the base instead of fixed constant
+            const baseDelay = retryDelayMs || INITIAL_RETRY_DELAY_MS;
+            const backoff =
+                baseDelay *
+                Math.pow(2, retryCount) *
+                (1 + secureRandom() * JITTER_FACTOR);
+            delay = Math.min(backoff, 30000);
+        }
+
+        const delaySec = (delay / 1000).toFixed(2);
         const retryMessage = `Auto-reset enabled. Retrying (${newRetryCount}/${MAX_RETRIES}) in ${delaySec}s...`;
 
         playerActions.setRetryCount(newRetryCount);

@@ -21,7 +21,7 @@ const statCard = ({
     title,
     value,
     unit = '',
-    colorClass = 'text-white',
+    colorClass = 'text-slate-100',
     tooltip,
 }) => {
     if (value === null || value === undefined) return '';
@@ -44,7 +44,9 @@ const statCard = ({
             </h5>
             <p class="text-xl lg:text-2xl font-bold font-mono ${colorClass}">
                 ${value}
-                <span class="text-base text-slate-400">${unit}</span>
+                <span class="text-base text-slate-400"
+                    >${unit}</span
+                >
             </p>
         </div>
     `;
@@ -53,7 +55,7 @@ const statCard = ({
 const statSection = (title, content) => html`
     <section>
         <h4
-            class="text-sm font-bold uppercase tracking-wider text-slate-500 mb-2"
+            class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2"
         >
             ${title}
         </h4>
@@ -63,7 +65,7 @@ const statSection = (title, content) => html`
 
 export const statsCardsTemplate = (stats) => {
     if (!stats) {
-        return html`<div class="text-sm text-slate-500">
+        return html`<div class="text-sm text-slate-400">
             Awaiting player statistics...
         </div>`;
     }
@@ -99,6 +101,20 @@ export const statsCardsTemplate = (stats) => {
                 text: 'Total Accumulated Buffering Time',
                 details:
                     'The total time the player has spent in a buffering state after playback has started. A key indicator of Quality of Experience (QoE).',
+            },
+        })}
+        ${statCard({
+            title: 'Total Downtime',
+            value: (playbackQuality.totalDowntime || 0) / 1000,
+            unit: 's',
+            colorClass:
+                playbackQuality.totalDowntime > 0
+                    ? 'text-red-400'
+                    : 'text-slate-100',
+            tooltip: {
+                text: 'Total Downtime Duration',
+                details:
+                    'The total cumulative time the player was in an error state before auto-recovering.',
             },
         })}
         ${statCard({
@@ -138,7 +154,7 @@ export const statsCardsTemplate = (stats) => {
             colorClass:
                 playbackQuality.corruptedFrames > 0
                     ? 'text-red-400'
-                    : 'text-white',
+                    : 'text-slate-100',
             tooltip: {
                 text: 'Frames That Failed to Decode',
                 details:
@@ -159,7 +175,9 @@ export const statsCardsTemplate = (stats) => {
             title: 'Stalls',
             value: playbackQuality.totalStalls,
             colorClass:
-                playbackQuality.totalStalls > 0 ? 'text-red-400' : 'text-white',
+                playbackQuality.totalStalls > 0
+                    ? 'text-red-400'
+                    : 'text-slate-100',
             tooltip: {
                 text: 'Total Rebuffering Events',
                 details:
@@ -173,7 +191,7 @@ export const statsCardsTemplate = (stats) => {
             colorClass:
                 playbackQuality.totalStallDuration > 0
                     ? 'text-red-400'
-                    : 'text-white',
+                    : 'text-slate-100',
             tooltip: {
                 text: 'Total Rebuffering Duration',
                 details:
@@ -227,14 +245,14 @@ export const statsCardsTemplate = (stats) => {
         buffer.forwardBuffer < 5
             ? 'text-red-400'
             : buffer.forwardBuffer < 15
-              ? 'text-yellow-400'
-              : 'text-green-400';
+              ? 'text-amber-400'
+              : 'text-emerald-400';
     const latencyColorClass =
         buffer.seconds < 5
             ? 'text-red-400'
             : buffer.seconds < 15
-              ? 'text-yellow-400'
-              : 'text-green-400';
+              ? 'text-amber-400'
+              : 'text-emerald-400';
 
     const bufferContent = html`
         ${isLive
@@ -264,7 +282,10 @@ export const statsCardsTemplate = (stats) => {
         ${statCard({
             title: 'Buffer Gaps',
             value: buffer.totalGaps,
-            colorClass: buffer.totalGaps > 0 ? 'text-yellow-400' : 'text-white',
+            colorClass:
+                buffer.totalGaps > 0
+                    ? 'text-amber-400'
+                    : 'text-slate-100',
             tooltip: {
                 text: 'Gaps Detected in Buffer',
                 details:

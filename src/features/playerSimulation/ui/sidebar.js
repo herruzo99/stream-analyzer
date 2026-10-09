@@ -1,8 +1,8 @@
 import { playerActions, usePlayerStore } from '@/state/playerStore';
 import { connectedTabBar } from '@/ui/components/tabs';
-import * as icons from '@/ui/icons';
+
 import { html, render } from 'lit-html';
-import { playerService } from '../application/playerService.js';
+// import { playerService } from '../application/playerService.js';
 import { eventLogTemplate } from './components/event-log.js';
 import { statsCardsTemplate } from './components/stats-cards.js';
 
@@ -22,14 +22,8 @@ export class PlayerSidebarComponent extends HTMLElement {
     }
 
     render() {
-        const {
-            activeTab,
-            currentStats,
-            eventLog,
-            hasUnreadLogs,
-            isLoaded,
-            isAutoResetEnabled,
-        } = usePlayerStore.getState();
+        const { activeTab, currentStats, eventLog, hasUnreadLogs } =
+            usePlayerStore.getState();
 
         const logTabLabel = html`
             <div class="relative">
@@ -39,7 +33,7 @@ export class PlayerSidebarComponent extends HTMLElement {
                           class="absolute -top-1 -right-2.5 flex h-2 w-2"
                       >
                           <span
-                              class="relative inline-flex rounded-full h-2 w-2 bg-blue-400"
+                              class="relative inline-flex rounded-full h-2 w-2 bg-blue-500"
                           ></span>
                       </span>`
                     : ''}
@@ -64,53 +58,6 @@ export class PlayerSidebarComponent extends HTMLElement {
                 break;
         }
 
-        const sessionControls = html`
-            <div
-                class="p-4 border-t border-slate-700 space-y-3 shrink-0 bg-slate-800 rounded-b-lg"
-            >
-                <h4
-                    class="font-bold text-slate-400 text-xs uppercase tracking-wider"
-                >
-                    Session Control
-                </h4>
-                <div class="flex items-center justify-between">
-                    <div>
-                        <label
-                            for="auto-reset-toggle"
-                            class="text-sm font-medium text-slate-300 block"
-                            >Auto-reset on failure</label
-                        >
-                        <p class="text-[10px] text-slate-500 mt-0.5">
-                            Retry with exponential backoff (max 5)
-                        </p>
-                    </div>
-
-                    <button
-                        @click=${() => playerActions.toggleAutoReset()}
-                        role="switch"
-                        aria-checked="${isAutoResetEnabled}"
-                        id="auto-reset-toggle"
-                        class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isAutoResetEnabled
-                            ? 'bg-blue-600'
-                            : 'bg-slate-600'}"
-                    >
-                        <span
-                            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isAutoResetEnabled
-                                ? 'translate-x-6'
-                                : 'translate-x-1'}"
-                        ></span>
-                    </button>
-                </div>
-                <button
-                    @click=${() => playerService.destroy()}
-                    ?disabled=${!isLoaded}
-                    class="w-full bg-red-800 hover:bg-red-700 text-red-100 font-bold py-2 px-3 rounded-md transition-colors flex items-center justify-center gap-2 disabled:bg-slate-600 disabled:opacity-50"
-                >
-                    ${icons.xCircle} Stop & Reset Player
-                </button>
-            </div>
-        `;
-
         const template = html`
             <div class="flex flex-col h-full">
                 <div class="shrink-0 px-2 pt-2">
@@ -121,11 +68,10 @@ export class PlayerSidebarComponent extends HTMLElement {
                     )}
                 </div>
                 <div
-                    class="grow overflow-y-auto bg-slate-900 rounded-b-lg min-h-0 p-4"
+                    class="grow overflow-y-auto bg-slate-800 rounded-b-lg min-h-0 p-4"
                 >
                     ${content}
                 </div>
-                ${sessionControls}
             </div>
         `;
         render(template, this);

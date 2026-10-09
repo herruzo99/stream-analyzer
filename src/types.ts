@@ -19,6 +19,8 @@ export interface PlayerState {
     playbackHistory: PlaybackHistoryEntry[];
     activeTab: 'controls' | 'stats' | 'log' | 'graphs';
     retryCount: number;
+    retryDelayMs: number;
+    totalDowntime: number;
     seekableRange: { start: number; end: number };
 }
 

@@ -5,6 +5,7 @@ const createInitialPlayerState = () => ({
     isLoaded: false,
     isAbrEnabled: true,
     isAutoResetEnabled: false,
+    retryDelayMs: 2000,
     isPictureInPicture: false,
     isPipUnmount: false,
     isMuted: true,
@@ -16,6 +17,7 @@ const createInitialPlayerState = () => ({
     activeAudioTrack: null,
     activeTextTrack: null,
     currentStats: null,
+    totalDowntime: 0,
     eventLog: [],
     hasUnreadLogs: false,
     abrHistory: [],
@@ -34,6 +36,11 @@ export const usePlayerStore = createStore((set, get) => ({
 
     toggleAutoReset: () =>
         set((state) => ({ isAutoResetEnabled: !state.isAutoResetEnabled })),
+
+    setRetryDelay: (delayMs) => set({ retryDelayMs: delayMs }),
+
+    incrementDowntime: (durationMs) =>
+        set((state) => ({ totalDowntime: state.totalDowntime + durationMs })),
 
     setPictureInPicture: (isInPiP) => set({ isPictureInPicture: isInPiP }),
 

@@ -5,10 +5,11 @@ import { html } from 'lit-html';
 
 const metricTile = (label, value, unit = '', status = 'neutral') => {
     const statusColors = {
-        neutral: 'bg-slate-800 border-slate-700 text-white',
-        good: 'bg-emerald-900/20 border-emerald-500/30 text-emerald-100',
-        warn: 'bg-amber-900/20 border-amber-500/30 text-amber-100',
-        bad: 'bg-red-900/20 border-red-500/30 text-red-100',
+        neutral:
+            'bg-slate-800 border-slate-800 text-slate-100',
+        good: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400',
+        warn: 'bg-amber-500/20 border-amber-500/30 text-amber-400',
+        bad: 'bg-red-500/20 border-red-500/30 text-red-400',
     };
 
     return html`
@@ -35,7 +36,9 @@ const metricTile = (label, value, unit = '', status = 'neutral') => {
 
 export const telemetryPanelTemplate = (stats) => {
     if (!stats)
-        return html`<div class="p-8 text-center text-slate-500 italic">
+        return html`<div
+            class="p-8 text-center text-slate-400 italic"
+        >
             Waiting for playback...
         </div>`;
 
@@ -76,7 +79,9 @@ export const telemetryPanelTemplate = (stats) => {
     return html`
         <div class="space-y-6">
             <section>
-                <div class="flex items-center gap-2 mb-3 text-slate-400">
+                <div
+                    class="flex items-center gap-2 mb-3 text-slate-400"
+                >
                     ${icons.activity}
                     <h4 class="text-xs font-bold uppercase tracking-wider">
                         Health & Timing
@@ -111,7 +116,9 @@ export const telemetryPanelTemplate = (stats) => {
             </section>
 
             <section>
-                <div class="flex items-center gap-2 mb-3 text-slate-400">
+                <div
+                    class="flex items-center gap-2 mb-3 text-slate-400"
+                >
                     ${icons.network}
                     <h4 class="text-xs font-bold uppercase tracking-wider">
                         Network & Adaptation
@@ -138,7 +145,9 @@ export const telemetryPanelTemplate = (stats) => {
             </section>
 
             <section>
-                <div class="flex items-center gap-2 mb-3 text-slate-400">
+                <div
+                    class="flex items-center gap-2 mb-3 text-slate-400"
+                >
                     ${icons.history}
                     <h4 class="text-xs font-bold uppercase tracking-wider">
                         Session Stats

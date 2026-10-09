@@ -1,16 +1,17 @@
 import { eventBus } from '@/application/event-bus';
+import { playerActions, usePlayerStore } from '@/state/playerStore';
 import { showToast } from '@/ui/components/toast';
 import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 
 const labelClass =
-    'text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 block';
+    'text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 block';
 
 const presetButton = (label, onClick) => html`
     <button
         type="button"
         @click=${onClick}
-        class="px-2 py-1 text-[10px] font-bold rounded bg-slate-700 hover:bg-slate-600 text-slate-300 uppercase tracking-wider transition-colors border border-slate-600"
+        class="px-2 py-1 text-[10px] font-bold rounded bg-slate-800 hover:bg-slate-800 text-slate-100 uppercase tracking-wider transition-colors border border-slate-800"
     >
         ${label}
     </button>
@@ -20,18 +21,18 @@ const sliderControl = (name, label, value, min, max, step, unit = '') => html`
     <div class="group">
         <div class="flex justify-between items-baseline mb-1">
             <label
-                class="${labelClass} group-hover:text-slate-300 transition-colors"
+                class="${labelClass} group-hover:text-slate-100 transition-colors"
                 >${label}</label
             >
-            <span class="font-mono text-xs text-cyan-400">${value}${unit}</span>
+            <span class="font-mono text-xs text-blue-400"
+                >${value}${unit}</span
+            >
         </div>
         <div class="relative h-4 flex items-center">
             <div
-                class="absolute left-0 right-0 h-1 bg-slate-700 rounded-full overflow-hidden"
+                class="absolute left-0 right-0 h-1 bg-slate-800 rounded-full overflow-hidden"
             >
-                <div
-                    class="h-full bg-gradient-to-r from-blue-600 to-cyan-400 opacity-50"
-                ></div>
+                <div class="h-full bg-blue-500 opacity-50"></div>
             </div>
             <input
                 type="range"
@@ -48,7 +49,8 @@ const sliderControl = (name, label, value, min, max, step, unit = '') => html`
 
 const toggleControl = (name, label, checked) => html`
     <label class="flex items-center justify-between cursor-pointer group">
-        <span class="${labelClass} group-hover:text-slate-300 transition-colors"
+        <span
+            class="${labelClass} group-hover:text-slate-100 transition-colors"
             >${label}</span
         >
         <div class="relative inline-flex items-center cursor-pointer">
@@ -59,7 +61,7 @@ const toggleControl = (name, label, checked) => html`
                 class="sr-only peer"
             />
             <div
-                class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"
+                class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"
             ></div>
         </div>
     </label>
@@ -158,18 +160,18 @@ export const latencyFormTemplate = (config) => {
     return html`
         <form
             @change=${handleLatencySubmit}
-            class="space-y-4 p-4 bg-slate-900/50 rounded-xl border border-slate-800"
+            class="space-y-4 p-4 bg-slate-800 rounded-xl border border-slate-800"
         >
             <div class="flex items-center justify-between mb-2">
                 <h4
-                    class="text-sm font-bold text-white flex items-center gap-2"
+                    class="text-sm font-bold text-slate-100 flex items-center gap-2"
                 >
                     ${icons.clock} Live Sync
                 </h4>
                 ${toggleControl('enabled', 'Active', enabled)}
             </div>
 
-            <div class="flex gap-2 pb-2 border-b border-white/5">
+            <div class="flex gap-2 pb-2 border-b border-slate-800">
                 ${presetButton('Low Latency', () => applyPreset('low'))}
                 ${presetButton('Standard', () => applyPreset('std'))}
                 ${presetButton('Safe', () => applyPreset('safe'))}
@@ -242,17 +244,17 @@ export const bufferFormTemplate = (config) => {
     return html`
         <form
             @change=${handleBufferSubmit}
-            class="space-y-4 p-4 bg-slate-900/50 rounded-xl border border-slate-800"
+            class="space-y-4 p-4 bg-slate-800 rounded-xl border border-slate-800"
         >
             <div class="flex items-center justify-between mb-2">
                 <h4
-                    class="text-sm font-bold text-white flex items-center gap-2"
+                    class="text-sm font-bold text-slate-100 flex items-center gap-2"
                 >
                     ${icons.layers} Buffer Control
                 </h4>
             </div>
 
-            <div class="flex gap-2 pb-2 border-b border-white/5">
+            <div class="flex gap-2 pb-2 border-b border-slate-800">
                 ${presetButton('Minimal', () => applyPreset('min'))}
                 ${presetButton('Standard', () => applyPreset('std'))}
                 ${presetButton('Large', () => applyPreset('huge'))}
@@ -320,17 +322,17 @@ export const abrFormTemplate = (config) => {
     return html`
         <form
             @change=${handleAbrSubmit}
-            class="space-y-4 p-4 bg-slate-900/50 rounded-xl border border-slate-800"
+            class="space-y-4 p-4 bg-slate-800 rounded-xl border border-slate-800"
         >
             <div class="flex items-center justify-between mb-2">
                 <h4
-                    class="text-sm font-bold text-white flex items-center gap-2"
+                    class="text-sm font-bold text-slate-100 flex items-center gap-2"
                 >
                     ${icons.trendingUp} ABR Tuning
                 </h4>
             </div>
 
-            <div class="flex gap-2 pb-2 border-b border-white/5">
+            <div class="flex gap-2 pb-2 border-b border-slate-800">
                 ${presetButton('Aggressive', () => applyPreset('aggressive'))}
                 ${presetButton('Balanced', () => applyPreset('balanced'))}
                 ${presetButton('Stable', () => applyPreset('stable'))}
@@ -355,5 +357,111 @@ export const abrFormTemplate = (config) => {
                 )}
             </div>
         </form>
+    `;
+};
+export const autoRestartFormTemplate = () => {
+    const { isAutoResetEnabled, retryDelayMs } = usePlayerStore.getState();
+
+    return html`
+        <div
+            class="space-y-4 p-4 bg-slate-800 rounded-xl border border-slate-800"
+        >
+            <div class="flex items-center justify-between mb-2">
+                <h4
+                    class="text-sm font-bold text-slate-100 flex items-center gap-2"
+                >
+                    ${icons.sync} Auto-Restart
+                </h4>
+                <label
+                    class="flex items-center justify-between cursor-pointer group"
+                >
+                    <span
+                        class="${labelClass} group-hover:text-slate-100 transition-colors mr-3"
+                        >Active</span
+                    >
+                    <div
+                        class="relative inline-flex items-center cursor-pointer"
+                    >
+                        <button
+                            @click=${() => playerActions.toggleAutoReset()}
+                            role="switch"
+                            aria-checked="${isAutoResetEnabled}"
+                            class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isAutoResetEnabled
+                                ? 'bg-blue-500'
+                                : 'bg-slate-800'}"
+                        >
+                            <span
+                                class="inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${isAutoResetEnabled
+                                    ? 'translate-x-5'
+                                    : 'translate-x-1'}"
+                            ></span>
+                        </button>
+                    </div>
+                </label>
+            </div>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="${labelClass}">Retry Strategy</label>
+                    <p
+                        class="text-[10px] text-slate-400 mb-2"
+                    >
+                        Determines wait time between retries
+                    </p>
+
+                    <div class="relative">
+                        <select
+                            @change=${(e) => {
+                                const val = parseInt(e.target.value, 10);
+                                playerActions.setRetryDelay(val);
+                            }}
+                            ?disabled=${!isAutoResetEnabled}
+                            class="w-full bg-slate-800 text-slate-100 text-xs rounded border border-slate-800 px-2 py-1.5 outline-none focus:border-blue-500 appearance-none disabled:opacity-50"
+                        >
+                            <option
+                                value="2000"
+                                ?selected=${retryDelayMs === 2000}
+                            >
+                                Standard (2s)
+                            </option>
+                            <option
+                                value="1000"
+                                ?selected=${retryDelayMs === 1000}
+                            >
+                                Fast (1s)
+                            </option>
+                            <option
+                                value="500"
+                                ?selected=${retryDelayMs === 500}
+                            >
+                                Intensive (0.5s)
+                            </option>
+                            <option
+                                value="250"
+                                ?selected=${retryDelayMs === 250}
+                            >
+                                Extreme (0.25s)
+                            </option>
+                        </select>
+                        <div
+                            class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400"
+                        >
+                            ${icons.chevronDown
+                                ? html`<span class="w-3 h-3"
+                                      >${icons.chevronDown}</span
+                                  >`
+                                : ''}
+                        </div>
+                    </div>
+                </div>
+                ${!isAutoResetEnabled
+                    ? html`<p
+                          class="text-[9px] text-amber-400 opacity-80"
+                      >
+                          Enable Auto-Restart to configure strategy
+                      </p>`
+                    : ''}
+            </div>
+        </div>
     `;
 };

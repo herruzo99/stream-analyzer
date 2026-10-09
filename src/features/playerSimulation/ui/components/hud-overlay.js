@@ -19,7 +19,7 @@ export const hudOverlayTemplate = (
         const retryMessage =
             isAutoResetEnabled && retryCount > 0
                 ? html`<div
-                      class="mt-4 text-xs text-yellow-400 font-mono animate-pulse flex items-center justify-center gap-2"
+                      class="mt-4 text-xs text-amber-400 font-mono animate-pulse flex items-center justify-center gap-2"
                   >
                       ${icons.refresh} Auto-Retrying (${retryCount}/5)...
                   </div>`
@@ -27,55 +27,57 @@ export const hudOverlayTemplate = (
 
         return html`
             <div
-                class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-md p-6 z-40 animate-fadeIn"
+                class="absolute inset-0 flex flex-col items-center justify-center bg-slate-800 backdrop-blur-md p-6 z-40 animate-fadeIn"
             >
                 <div
-                    class="bg-slate-900/80 border border-red-500/30 rounded-2xl p-6 max-w-md w-full shadow-2xl shadow-red-900/20 relative overflow-hidden"
+                    class="bg-slate-800 border border-red-500/30 rounded-2xl p-6 max-w-md w-full shadow-2xl shadow-red-500/20 relative overflow-hidden"
                 >
                     <div
                         class="absolute top-0 left-0 right-0 h-1 bg-red-500"
                     ></div>
                     <div class="flex items-center gap-3 mb-4">
                         <div
-                            class="p-2 bg-red-500/20 rounded-lg text-red-500 border border-red-500/20"
+                            class="p-2 bg-red-500/20 rounded-lg text-red-400 border border-red-500/20"
                         >
                             ${icons.alertTriangle}
                         </div>
                         <div class="flex-1 min-w-0">
                             <h3
-                                class="text-white font-bold text-lg truncate leading-tight"
+                                class="text-slate-100 font-bold text-lg truncate leading-tight"
                             >
                                 ${errInfo.title}
                             </h3>
                             <div class="flex gap-2 mt-1">
                                 <span
-                                    class="text-[10px] font-mono bg-black/40 text-slate-400 px-1.5 py-0.5 rounded border border-white/10"
+                                    class="text-[10px] font-mono bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-800"
                                 >
                                     ${errInfo.category}
                                 </span>
                                 <span
-                                    class="text-[10px] font-mono bg-red-900/30 text-red-300 px-1.5 py-0.5 rounded border border-red-500/30"
+                                    class="text-[10px] font-mono bg-red-500/30 text-red-400 px-1.5 py-0.5 rounded border border-red-500/30"
                                 >
                                     CODE: ${errInfo.code}
                                 </span>
                             </div>
                         </div>
                     </div>
-                    <p class="text-slate-300 text-sm leading-relaxed mb-4">
+                    <p
+                        class="text-slate-100 text-sm leading-relaxed mb-4"
+                    >
                         ${errInfo.description}
                     </p>
                     ${errInfo.details
                         ? html`
                               <div
-                                  class="bg-black/30 rounded-lg p-3 border border-white/5 mb-2"
+                                  class="bg-slate-800 rounded-lg p-3 border border-slate-800 mb-2"
                               >
                                   <div
-                                      class="text-[10px] font-bold text-slate-500 uppercase mb-1"
+                                      class="text-[10px] font-bold text-slate-400 uppercase mb-1"
                                   >
                                       Technical Details
                                   </div>
                                   <p
-                                      class="text-xs font-mono text-red-200 break-all leading-relaxed"
+                                      class="text-xs font-mono text-red-400 break-all leading-relaxed"
                                   >
                                       ${errInfo.details}
                                   </p>
@@ -115,20 +117,22 @@ export const hudOverlayTemplate = (
     if (bufferValue < 2) {
         // Critical (< 2s)
         bufferColorClass =
-            'bg-gradient-to-r from-red-600 to-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]';
+            'bg-gradient-to-r from-red-500 to-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]';
         bufferTextColor = 'text-red-400';
     } else if (bufferValue < 5) {
         // Warning (< 5s)
-        bufferColorClass = 'bg-gradient-to-r from-orange-600 to-orange-500';
-        bufferTextColor = 'text-orange-400';
+        bufferColorClass =
+            'bg-gradient-to-r from-amber-500 to-amber-500';
+        bufferTextColor = 'text-amber-400';
     } else if (bufferValue < 10) {
         // Low (< 10s)
-        bufferColorClass = 'bg-gradient-to-r from-yellow-500 to-yellow-400';
-        bufferTextColor = 'text-yellow-400';
+        bufferColorClass =
+            'bg-gradient-to-r from-amber-500 to-amber-500';
+        bufferTextColor = 'text-amber-400';
     } else {
         // Healthy
         bufferColorClass =
-            'bg-gradient-to-r from-emerald-600 to-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.3)]';
+            'bg-gradient-to-r from-emerald-500 to-emerald-500 shadow-[0_0_10px_rgba(52,211,153,0.3)]';
     }
 
     return html`
@@ -136,15 +140,15 @@ export const hudOverlayTemplate = (
             class="absolute top-4 left-4 z-20 pointer-events-none select-none animate-fadeIn min-w-[240px]"
         >
             <div
-                class="bg-slate-950/80 backdrop-blur-md border border-white/10 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden"
+                class="bg-slate-800 backdrop-blur-md border border-slate-800 rounded-xl shadow-2xl overflow-hidden"
             >
                 <!-- Header -->
                 <div
-                    class="flex justify-between items-start p-4 border-b border-white/5 bg-gradient-to-r from-white/[0.03] to-transparent"
+                    class="flex justify-between items-start p-4 border-b border-slate-800 bg-slate-800"
                 >
                     <div>
                         <div
-                            class="text-3xl font-black text-white leading-none tracking-tight font-mono drop-shadow-md"
+                            class="text-3xl font-black text-slate-100 leading-none tracking-tight font-mono drop-shadow-md"
                         >
                             ${playbackQuality.resolution || 'N/A'}
                         </div>
@@ -166,7 +170,7 @@ export const hudOverlayTemplate = (
                     <div class="flex flex-col items-end gap-1.5">
                         <div class="flex gap-1">
                             <span
-                                class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border bg-slate-800 text-slate-300 border-slate-600"
+                                class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border bg-slate-800 text-slate-100 border-slate-800"
                             >
                                 ${protocol}
                             </span>
@@ -179,7 +183,7 @@ export const hudOverlayTemplate = (
                             </span>
                         </div>
                         <span
-                            class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-black/40 text-slate-400 border border-white/5 font-mono"
+                            class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-slate-800 text-slate-400 border border-slate-800 font-mono"
                         >
                             ${codec}
                         </span>
@@ -196,8 +200,8 @@ export const hudOverlayTemplate = (
                             <span>Bitrate / Capacity</span>
                             <span
                                 class="${bandwidthUsage > 90
-                                    ? 'text-yellow-400'
-                                    : 'text-cyan-400'}"
+                                    ? 'text-amber-400'
+                                    : 'text-blue-400'}"
                             >
                                 ${formatBitrate(abr.currentVideoBitrate)}
                             </span>
@@ -208,17 +212,19 @@ export const hudOverlayTemplate = (
                             <div
                                 class="absolute top-0 left-0 bottom-0 rounded-full transition-all duration-500 ${bandwidthUsage >
                                 90
-                                    ? 'bg-gradient-to-r from-yellow-600 to-yellow-400'
-                                    : 'bg-gradient-to-r from-blue-600 to-cyan-400'}"
+                                    ? 'bg-gradient-to-r from-amber-500 to-amber-500'
+                                    : 'bg-gradient-to-r from-blue-500 to-blue-500'}"
                                 style="width: ${Math.min(bandwidthUsage, 100)}%"
                             ></div>
                         </div>
                         <div class="flex justify-between items-center">
-                            <span class="text-[9px] text-slate-500 font-mono"
+                            <span
+                                class="text-[9px] text-slate-400 font-mono"
                                 >Est:
                                 ${formatBitrate(abr.estimatedBandwidth)}</span
                             >
-                            <span class="text-[9px] text-slate-500 font-mono"
+                            <span
+                                class="text-[9px] text-slate-400 font-mono"
                                 >${bandwidthUsage.toFixed(0)}% Utilization</span
                             >
                         </div>
@@ -246,13 +252,13 @@ export const hudOverlayTemplate = (
 
                     <!-- Grid Stats -->
                     <div
-                        class="grid grid-cols-2 gap-3 pt-2 border-t border-white/5"
+                        class="grid grid-cols-2 gap-3 pt-2 border-t border-slate-800"
                     >
                         <div
-                            class="bg-slate-900/50 rounded-lg p-2 text-center border border-white/5"
+                            class="bg-slate-800 rounded-lg p-2 text-center border border-slate-800"
                         >
                             <div
-                                class="text-[9px] text-slate-500 font-bold uppercase mb-0.5"
+                                class="text-[9px] text-slate-400 font-bold uppercase mb-0.5"
                             >
                                 Stalls
                             </div>
@@ -260,24 +266,24 @@ export const hudOverlayTemplate = (
                                 class="text-base font-mono font-bold ${playbackQuality.totalStalls >
                                 0
                                     ? 'text-red-400'
-                                    : 'text-white'}"
+                                    : 'text-slate-100'}"
                             >
                                 ${playbackQuality.totalStalls}
                             </div>
                         </div>
                         <div
-                            class="bg-slate-900/50 rounded-lg p-2 text-center border border-white/5"
+                            class="bg-slate-800 rounded-lg p-2 text-center border border-slate-800"
                         >
                             <div
-                                class="text-[9px] text-slate-500 font-bold uppercase mb-0.5"
+                                class="text-[9px] text-slate-400 font-bold uppercase mb-0.5"
                             >
                                 Dropped
                             </div>
                             <div
                                 class="text-base font-mono font-bold ${playbackQuality.droppedFrames >
                                 0
-                                    ? 'text-yellow-400'
-                                    : 'text-white'}"
+                                    ? 'text-amber-400'
+                                    : 'text-slate-100'}"
                             >
                                 ${playbackQuality.droppedFrames}
                             </div>
