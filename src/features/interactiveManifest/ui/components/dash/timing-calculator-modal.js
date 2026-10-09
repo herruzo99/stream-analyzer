@@ -406,11 +406,29 @@ class DashTimingCalculator extends HTMLElement {
         // plain HTMLElement the native callbacks do it. Without this, the
         // `.data` setter skips its work while disconnected and the modal
         // stays blank.
+        this._ensureStyles();
         this.onMount();
     }
 
     disconnectedCallback() {
         this.onUnmount();
+    }
+
+    _ensureStyles() {
+        // Port note: `static get styles` is a LitElement convention that
+        // plain HTMLElement ignores, so without this the viz panel loses
+        // its height/overflow/clipping and the layout falls apart. Inject
+        // once as a light-DOM stylesheet (`:host` rewritten to the tag;
+        // class names are unique to this file, verified by search).
+        if (this.querySelector(':scope > style[data-calc-styles]')) return;
+        const cssText = String(
+            this.constructor.styles || ''
+        ).replace(/:host\b/g, 'dash-timing-calculator-modal');
+        if (!cssText.trim()) return;
+        const styleEl = document.createElement('style');
+        styleEl.setAttribute('data-calc-styles', '');
+        styleEl.textContent = cssText;
+        this.prepend(styleEl);
     }
 
     onMount() {

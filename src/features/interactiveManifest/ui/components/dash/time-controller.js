@@ -47,6 +47,10 @@ class TimeController extends HTMLElement {
     }
 
     connectedCallback() {
+        // Custom elements default to inline display, which breaks the
+        // block/flex layout of the controls row — force block + width.
+        this.style.display = 'block';
+        this.style.minWidth = '240px';
         this._lastWall = performance.now();
         this._syncLoop();
         this._render();
