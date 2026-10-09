@@ -53,11 +53,12 @@ const renderLine = (
     // --- Search Highlighting ---
     let rowBgClass = 'hover:bg-slate-800/30';
     if (index === activeMatchIndex) {
-        rowBgClass = 'bg-yellow-500/20 ring-1 ring-yellow-500/40';
+        rowBgClass =
+            'bg-slate-700 ring-1 ring-amber-500/40';
     } else if (matchIndices && matchIndices.has(index)) {
-        rowBgClass = 'bg-yellow-900/10';
+        rowBgClass = 'bg-slate-700';
     } else if (isModified) {
-        rowBgClass = 'bg-orange-500/10';
+        rowBgClass = 'bg-slate-700';
     }
 
     let lineContent;
@@ -66,21 +67,22 @@ const renderLine = (
     const baseClass = `block pl-4 whitespace-pre-wrap break-all leading-tight w-full max-w-full`;
 
     const selectClass = isSelected
-        ? 'bg-blue-900/50 ring-1 ring-blue-500 rounded px-1 inline decoration-clone'
+        ? 'bg-slate-700 ring-1 ring-blue-500 rounded px-1 inline decoration-clone'
         : 'hover:bg-slate-800 rounded px-1 transition-colors cursor-pointer inline decoration-clone';
 
     // prettier-ignore
     if (type === 'tag' || type === 'tag-value') {
+        const smartToken = value ? renderSmartToken(name, value) : null;
         lineContent = html`<div class="${baseClass}"><span
                 class="${selectClass}"
                 data-type="tag"
                 data-name=${name}
                 data-path=${path}
-                ><span class="text-slate-500 select-none">#</span
-                ><span class="text-purple-300 font-bold">${name}</span>${value
-                    ? html`<span class="text-slate-400 select-none">:</span
-                          ><span class="text-yellow-200/90">${value}</span>`
-                    : ''}</span
+                ><span class="text-slate-400 select-none">#</span
+                ><span class="text-cyan-300 font-bold">${name}</span>${value
+                ? html`<span class="text-slate-400 select-none">:</span
+                          ><span class="text-emerald-300/90">${value}</span>${smartToken}`
+                : ''}</span
             ></div>`;
     } else if (type === 'tag-attrs') {
         const attributesMap = attributes.reduce((acc, curr) => {
@@ -102,11 +104,11 @@ const renderLine = (
             /** @type {import('lit-html').TemplateResult | null} */
             let variantBadge = null;
             if (attr.key === 'URI' && uriBadgeMap) {
-                 const cleanUri = attr.value.replace(/^"|"$/g, ''); // Strip quotes
-                 const badgeData = uriBadgeMap.get(cleanUri);
-                 if (badgeData) {
-                      variantBadge = html`<span class="ml-1 px-1.5 py-0.5 rounded bg-purple-900/40 text-purple-300 border border-purple-500/30 text-[9px] font-bold uppercase tracking-wider select-none align-middle decoration-0 inline-block translate-y-[-1px]">${badgeData.label}</span>`;
-                 }
+                const cleanUri = attr.value.replace(/^"|"$/g, ''); // Strip quotes
+                const badgeData = uriBadgeMap.get(cleanUri);
+                if (badgeData) {
+                    variantBadge = html`<span class="ml-1 px-1.5 py-0.5 rounded bg-slate-700 text-blue-400 border border-blue-500/30 text-[9px] font-bold uppercase tracking-wider select-none align-middle decoration-0 inline-block translate-y-[-1px]">${badgeData.label}</span>`;
+                }
             }
 
             return html`<span
@@ -114,12 +116,13 @@ const renderLine = (
                 data-type="attribute"
                 data-name=${attrKey}
                 data-path=${attrPath}
-                ><span class="text-emerald-300/90 font-semibold"
+                data-value="${attr.value}"
+                ><span class="text-sky-300/90 font-semibold"
                     >${attr.key}</span
                 ><span class="text-slate-400 select-none">=</span
                 ><span class="text-amber-200/90">"${attr.value}"</span
                 >${smartToken}${variantBadge}${i < attributes.length - 1
-                    ? html`<span class="text-slate-600 select-none mr-1"
+                    ? html`<span class="text-slate-400 select-none mr-1"
                           >,</span
                       >`
                     : ''}</span
@@ -131,8 +134,8 @@ const renderLine = (
                 data-type="tag"
                 data-name=${name}
                 data-path=${path}
-                ><span class="text-slate-500 select-none">#</span
-                ><span class="text-purple-300 font-bold">${name}</span
+                ><span class="text-slate-400 select-none">#</span
+                ><span class="text-cyan-300 font-bold">${name}</span
                 ><span class="text-slate-400 select-none">:</span></span
             >${attrsHtml}</div>`;
     } else if (type === 'comment') {
@@ -140,11 +143,11 @@ const renderLine = (
     } else if (type === 'uri') {
         // --- Smart Variant Badge for Standalone URIs ---
         const badgeData = uriBadgeMap?.get(content.trim());
-        const badge = badgeData 
-            ? html`<span class="ml-3 px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-300 border border-blue-500/30 text-[9px] font-bold uppercase tracking-wider select-none align-middle decoration-0 inline-block translate-y-[-1px]">${badgeData.label}</span>` 
+        const badge = badgeData
+            ? html`<span class="ml-3 px-1.5 py-0.5 rounded bg-slate-700 text-purple-300 border border-purple-500/30 text-[9px] font-bold uppercase tracking-wider select-none align-middle decoration-0 inline-block translate-y-[-1px]">${badgeData.label}</span>`
             : '';
 
-        lineContent = html`<div class="${baseClass} text-cyan-300/90">${content}${badge}</div>`;
+        lineContent = html`<div class="${baseClass} text-amber-200/90">${content}${badge}</div>`;
     } else {
         lineContent = html`<div class="${baseClass}">&nbsp;</div>`;
     }
@@ -154,7 +157,7 @@ const renderLine = (
             class="flex w-full items-start transition-colors font-mono text-sm py-0.5 group ${rowBgClass}"
         >
             <div
-                class="w-12 shrink-0 text-right pr-2 text-slate-600 select-none text-xs border-r border-slate-800/50 bg-slate-900 pt-0.5 sticky left-0 z-10 h-full"
+                class="w-12 shrink-0 text-right pr-2 text-slate-400 select-none text-xs border-r border-slate-700/50 bg-slate-800 pt-0.5 sticky left-0 z-10 h-full"
             >
                 ${item.lineNumber}
             </div>
@@ -174,7 +177,9 @@ export const hlsManifestTemplate = (
     matchIndices = new Set()
 ) => {
     if (!manifestString)
-        return html`<div class="p-8 text-center text-slate-500">
+        return html`<div
+            class="p-8 text-center text-slate-400"
+        >
             No content.
         </div>`;
 
@@ -237,7 +242,12 @@ export const hlsManifestTemplate = (
 
     // Force overflow-x hidden to mandate wrapping at container level
     return html`
-        <div class="bg-slate-900 h-full flex flex-col w-full">
+        <div
+            class="bg-slate-900 h-full flex flex-col w-full relative"
+        >
+            <div
+                class="absolute left-0 top-0 bottom-0 w-12 bg-slate-800 border-r border-slate-700/50 z-0 pointer-events-none"
+            ></div>
             <virtualized-list
                 id="manifest-virtual-list"
                 .items=${allLines}

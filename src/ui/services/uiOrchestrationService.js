@@ -2,7 +2,6 @@ import { eventBus } from '@/application/event-bus';
 import {
     findChildrenRecursive,
     getAttr,
-    getInheritedElement,
 } from '@/infrastructure/parsing/utils/recursive-parser';
 import { getParsedSegment } from '@/infrastructure/segments/segmentService';
 import { parseDuration } from '@/shared/utils/time';
@@ -12,46 +11,7 @@ import { EVENTS } from '@/types/events';
 import { hideLoader, showLoader } from '@/ui/components/loader';
 import { showToast } from '@/ui/components/toast';
 import { openModalWithContent } from '@/ui/services/modalService';
-
-/**
- * Extracts timing configuration from a Representation context.
- */
-function extractTimingConfig(rep, as, period) {
-    const hierarchy = [rep, as, period];
-    const template = getInheritedElement('SegmentTemplate', hierarchy);
-
-    if (!template) return null;
-
-    let duration = parseFloat(getAttr(template, 'duration'));
-    let timeline = null;
-
-    const timelineEl = findChildrenRecursive(template, 'SegmentTimeline')[0];
-    if (timelineEl) {
-        timeline = findChildrenRecursive(timelineEl, 'S').map((s) => ({
-            t: getAttr(s, 't') ? parseInt(getAttr(s, 't'), 10) : undefined,
-            d: parseInt(getAttr(s, 'd'), 10),
-            r: getAttr(s, 'r') ? parseInt(getAttr(s, 'r'), 10) : 0,
-        }));
-    }
-
-    // Heuristic for missing duration when timeline exists
-    if (isNaN(duration) && timeline) {
-        // Calculate max duration from timeline for estimation
-        duration = timeline.reduce((max, entry) => Math.max(max, entry.d), 0);
-    }
-
-    return {
-        id: getAttr(rep, 'id'),
-        bandwidth: parseInt(getAttr(rep, 'bandwidth') || '0', 10),
-        contentType: getAttr(as, 'contentType') || 'unknown',
-        timescale: parseFloat(getAttr(template, 'timescale') || '1'),
-        duration: duration,
-        startNumber: parseInt(getAttr(template, 'startNumber') || '1'),
-        pto: parseFloat(getAttr(template, 'presentationTimeOffset') || '0'),
-        mediaTemplate: getAttr(template, 'media'),
-        timeline: timeline,
-    };
-}
+import { extractTimingConfig } from '@/features/interactiveManifest/domain/dash-timing.js';
 
 export function initializeUiOrchestration() {
     // --- Memory Management Modal ---
@@ -222,67 +182,56 @@ export function initializeUiOrchestration() {
             if (!stream || stream.protocol !== 'dash') return;
 
             const manifest = stream.manifest.serializedManifest;
-            let targetPeriod;
 
-            // 1. Determine Target Period
-            if (representationId) {
-                // Scan to find which period owns this rep
-                const periods = findChildrenRecursive(manifest, 'Period');
-                for (const period of periods) {
-                    const reps = findChildrenRecursive(
-                        period,
-                        'Representation'
-                    );
-                    if (
-                        reps.some((r) => getAttr(r, 'id') === representationId)
-                    ) {
-                        targetPeriod = period;
-                        break;
-                    }
-                }
-            }
-
-            if (!targetPeriod) {
-                targetPeriod = findChildrenRecursive(manifest, 'Period')[0];
-            }
-
-            if (!targetPeriod) {
+            // 1. Extract All Periods
+            const periodElements = findChildrenRecursive(manifest, 'Period');
+            if (periodElements.length === 0) {
                 showToast({ message: 'No Periods found.', type: 'fail' });
                 return;
             }
 
-            // 2. Extract All Valid Tracks in Period
-            const tracks = [];
-            const adaptationSets = findChildrenRecursive(
-                targetPeriod,
-                'AdaptationSet'
-            );
+            const periods = periodElements.map((period) => {
+                const start = parseDuration(getAttr(period, 'start')) || 0;
+                const duration = parseDuration(getAttr(period, 'duration'));
+                // Note: Duration might need to be calculated from next period's start if missing
 
-            for (const as of adaptationSets) {
-                const representations = findChildrenRecursive(
-                    as,
-                    'Representation'
+                const tracks = [];
+                const adaptationSets = findChildrenRecursive(
+                    period,
+                    'AdaptationSet'
                 );
-                for (const rep of representations) {
-                    const config = extractTimingConfig(rep, as, targetPeriod);
-                    if (config) {
-                        tracks.push(config);
+                for (const as of adaptationSets) {
+                    const representations = findChildrenRecursive(
+                        as,
+                        'Representation'
+                    );
+                    for (const rep of representations) {
+                        const config = extractTimingConfig(rep, as, period);
+                        if (config) {
+                            tracks.push(config);
+                        }
                     }
                 }
-            }
+                return {
+                    id: getAttr(period, 'id'),
+                    start: start,
+                    duration: duration, // duration is already in seconds or null
+                    tracks: tracks,
+                };
+            });
 
-            if (tracks.length === 0) {
-                showToast({
-                    message: 'No valid SegmentTemplates found in Period.',
-                    type: 'warn',
-                });
-                return;
-            }
+            // Calculate absolute start times and durations if needed
+            // (Simplified for now, assuming 'start' is present or calculable)
 
             // 3. Determine Initial Selection
+            // Use the first period to determine available Representations
             let initialRepId = representationId;
-            if (!initialRepId || !tracks.some((t) => t.id === initialRepId)) {
-                initialRepId = tracks[0].id;
+            const firstPeriodTracks = periods[0].tracks;
+            if (
+                !initialRepId ||
+                !firstPeriodTracks.some((t) => t.id === initialRepId)
+            ) {
+                initialRepId = firstPeriodTracks[0]?.id;
             }
 
             const data = {
@@ -290,9 +239,15 @@ export function initializeUiOrchestration() {
                 ast: new Date(
                     getAttr(manifest, 'availabilityStartTime') || 0
                 ).getTime(),
-                periodStart: parseDuration(getAttr(targetPeriod, 'start')) || 0,
-                tracks: tracks,
+                periods: periods, // Pass all periods
                 initialRepId: initialRepId,
+                streamId: streamId,
+                spd: parseDuration(
+                    getAttr(manifest, 'suggestedPresentationDelay')
+                ),
+                timeShiftBufferDepth: parseDuration(
+                    getAttr(manifest, 'timeShiftBufferDepth')
+                ),
             };
 
             openModalWithContent({
@@ -302,6 +257,7 @@ export function initializeUiOrchestration() {
                     type: 'dashCalculator',
                     data,
                 },
+                isFullWidth: true,
             });
         }
     );

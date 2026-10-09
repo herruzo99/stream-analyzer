@@ -22,14 +22,14 @@ function determineUpdateType(update, prevUpdate) {
                 type: 'error',
                 label: `${errors} New Error${errors > 1 ? 's' : ''}`,
                 icon: 'alertTriangle',
-                color: 'text-red-500',
+                status: 'error',
             };
         if (warns > 0)
             return {
                 type: 'warn',
                 label: `${warns} New Warning${warns > 1 ? 's' : ''}`,
                 icon: 'alertTriangle',
-                color: 'text-amber-500',
+                status: 'warning',
             };
     }
 
@@ -42,7 +42,7 @@ function determineUpdateType(update, prevUpdate) {
             type: 'idle',
             label: 'No Changes',
             icon: 'moon',
-            color: 'text-slate-600',
+            status: 'neutral',
         };
     }
 
@@ -55,7 +55,7 @@ function determineUpdateType(update, prevUpdate) {
             type: 'ad',
             label: 'SCTE-35 Signal',
             icon: 'advertising',
-            color: 'text-purple-400',
+            status: 'info',
         };
     }
 
@@ -64,14 +64,14 @@ function determineUpdateType(update, prevUpdate) {
             type: 'major',
             label: 'Major Update',
             icon: 'gitMerge',
-            color: 'text-blue-400',
+            status: 'primary',
         };
 
     return {
         type: 'update',
         label: `Refreshed`,
         icon: 'refresh',
-        color: 'text-slate-400',
+        status: 'secondary',
     };
 }
 

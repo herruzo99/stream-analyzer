@@ -323,7 +323,7 @@ class ManifestPatcher extends HTMLElement {
                     endSequenceNumber: null,
                 },
                 this.protocol,
-                { showControls: false }
+                { showControls: false, showHideDeletedControl: false }
             );
         } else {
             const contentToRender = diff.patchedContent;

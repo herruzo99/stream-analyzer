@@ -95,6 +95,7 @@ export const manifestDiffTemplate = (
             >
                 ${diffViewerTemplate(syntheticUpdate, protocol, {
                     showControls: true,
+                    showHideDeletedControl: true,
                 })}
             </div>
         </div>

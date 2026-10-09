@@ -2,17 +2,27 @@ import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 
 const sparkline = (data, colorClass, height = 24, width = 100) => {
-    if (data.length < 2) return '';
-    const max = Math.max(...data);
-    const min = Math.min(...data);
-    const range = max - min || 1;
+    // Ensure data is array of numbers and filter out potential non-finite values
+    const safeData = data.filter(n => Number.isFinite(n));
+    if (safeData.length < 2) return '';
 
-    const points = data
+    const max = Math.max(...safeData);
+    const min = Math.min(...safeData);
+    let range = max - min;
+
+    // Prevent division by zero if flat line
+    if (range === 0) range = 1;
+
+    const points = safeData
         .map((val, i) => {
-            const x = (i / (data.length - 1)) * width;
+            const x = (i / (safeData.length - 1)) * width;
+            // Ensure val is number before math
             const y = height - ((val - min) / range) * height;
+            // Final safety check
+            if (!Number.isFinite(x) || !Number.isFinite(y)) return '';
             return `${x},${y}`;
         })
+        .filter(p => p !== '') // Remove any failed points
         .join(' ');
 
     return html`
@@ -36,36 +46,38 @@ const sparkline = (data, colorClass, height = 24, width = 100) => {
 
 const statusCard = (label, value, subtext, chartData, chartColor) => html`
     <div
-        class="flex flex-col justify-between bg-slate-800/40 rounded-xl border border-slate-700/50 p-4 min-w-[160px] relative overflow-hidden hover:bg-slate-800/60 transition-colors group"
+        class="flex flex-col justify-between bg-slate-800 rounded-xl border border-slate-800 p-4 min-w-[160px] relative overflow-hidden hover:bg-slate-800 transition-colors group"
     >
         <div class="flex justify-between items-start z-10">
             <div>
                 <div
-                    class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 group-hover:text-slate-400 transition-colors"
+                    class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 group-hover:text-slate-100 transition-colors"
                 >
                     ${label}
                 </div>
                 <div
-                    class="text-2xl font-mono font-bold text-slate-200 tracking-tight"
+                    class="text-2xl font-mono font-bold text-slate-100 tracking-tight"
                 >
                     ${value}
                 </div>
                 ${subtext
-                    ? html`<div class="text-xs text-slate-400 mt-1 font-medium">
+        ? html`<div
+                          class="text-xs text-slate-400 mt-1 font-medium"
+                      >
                           ${subtext}
                       </div>`
-                    : ''}
+        : ''}
             </div>
         </div>
         ${chartData
-            ? html`
+        ? html`
                   <div
                       class="absolute bottom-3 right-3 z-0 scale-110 origin-bottom-right"
                   >
                       ${sparkline(chartData, chartColor)}
                   </div>
               `
-            : ''}
+        : ''}
     </div>
 `;
 
@@ -83,29 +95,31 @@ export const metricsHeaderTemplate = (vm) => {
 
     return html`
         <div
-            class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-slate-900 border-b border-slate-800 shrink-0 shadow-sm z-20"
+            class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-transparent shrink-0 z-20 w-full"
         >
             <!-- Pulse Status -->
             <div
-                class="flex items-center gap-5 bg-slate-950/50 rounded-xl border border-slate-800 p-4"
+                class="flex items-center gap-5 bg-slate-800 rounded-xl border border-slate-800 p-4"
             >
                 <div
                     class="w-12 h-12 rounded-full bg-slate-900 flex items-center justify-center border border-slate-700 shadow-inner relative"
                 >
                     <span
                         class="${isLive
-                            ? 'text-blue-400 animate-pulse scale-110'
-                            : 'text-slate-500'}"
+            ? 'text-blue-400 animate-pulse scale-110'
+            : 'text-slate-400'}"
                         >${icons.activity}</span
                     >
                     ${isLive
-                        ? html`<span
+            ? html`<span
                               class="absolute top-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-slate-900 rounded-full shadow-lg shadow-emerald-500/50"
                           ></span>`
-                        : ''}
+            : ''}
                 </div>
                 <div>
-                    <div class="text-base font-bold text-white mb-0.5">
+                    <div
+                        class="text-base font-bold text-slate-100 mb-0.5"
+                    >
                         Stream Pulse
                     </div>
                     <div
@@ -113,8 +127,8 @@ export const metricsHeaderTemplate = (vm) => {
                     >
                         <span
                             class="w-2 h-2 rounded-full ${isLive
-                                ? 'bg-emerald-500'
-                                : 'bg-slate-600'}"
+            ? 'bg-emerald-500'
+            : 'bg-slate-400'}"
                         ></span>
                         ${statusLabel}
                     </div>
@@ -126,14 +140,14 @@ export const metricsHeaderTemplate = (vm) => {
                 `${(stats.avgInterval / 1000).toFixed(1)}s`,
                 'Avg Interval',
                 intervalTrend,
-                'text-blue-500'
+                'text-blue-400'
             )}
             ${statusCard(
                 'Volatility',
                 changeTrend[changeTrend.length - 1] || 0,
                 'Latest Changes',
                 changeTrend,
-                'text-amber-500'
+                'text-amber-400'
             )}
             ${statusCard(
                 'Last Sync',

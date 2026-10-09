@@ -6,14 +6,14 @@
 export const hlsTooltipData = {
     // --- Basic Tags (Media or Multivariant) ---
     EXTM3U: {
-        text: 'The mandatory file header. It identifies the file as an Extended M3U playlist. It MUST be the very first line of every HLS playlist file. Without this tag, most players will refuse to parse the file.',
+        text: 'The mandatory file signature that identifies this as an Extended M3U playlist. It must be the first line of the file, verifying to the parser that the content follows the HLS protocol. Without this signature, most parsers will reject the file as invalid or plain text.',
         category: 'Basic',
-        isoRef: 'HLS 2nd Ed: 4.4.1.1',
+        isoRef: 'RFC 8216bis: 4.4.1.1',
     },
     'EXT-X-VERSION': {
-        text: 'Specifies the protocol compatibility version. If the playlist uses features introduced in later HLS versions (like floating-point durations or specific encryption methods), this tag MUST indicate a version number high enough to support them. Clients compliant only with lower versions may refuse to play the stream.',
+        text: 'Declares the HLS protocol version required to parse this playlist. This functions like a major version number; if the playlist utilizes features from newer protocol versions (such as floating-point durations or specific encryption schemes), this tag must be set high enough to ensure legacy clients do not attempt to play a stream they cannot handle.',
         category: 'Basic',
-        isoRef: 'HLS 2nd Ed: 4.4.1.2',
+        isoRef: 'RFC 8216bis: 4.4.1.2',
     },
 
     // --- Media or Multivariant Playlist Tags ---
@@ -65,34 +65,34 @@ export const hlsTooltipData = {
 
     // --- Media Playlist Tags ---
     'EXT-X-TARGETDURATION': {
-        text: 'Specifies the maximum duration (in seconds) of any single Media Segment in the playlist. This value is critical because it defines the timing needed for the client to determine when to reload the playlist in live streaming scenarios. The server MUST NOT produce segments longer than this target.',
+        text: 'Specifies the maximum allowable duration (in seconds) for any single segment in the playlist. This is a critical constraint for the player\'s memory allocation and buffering logic. The server must strictly enforce this limit; if a segment exceeds this target, it can cause buffer underruns or playback stalls.',
         category: 'Media Playlist',
-        isoRef: 'HLS 2nd Ed: 4.4.3.1',
+        isoRef: 'RFC 8216bis: 4.4.3.1',
     },
     'EXT-X-MEDIA-SEQUENCE': {
-        text: 'The sequence number of the first segment currently appearing in the playlist file. In live streams where segments are removed from the top, this number increments, allowing the client to track continuity and maintain the correct playback order across playlist reloads.',
+        text: 'Indicates the sequence number of the first segment URL in this playlist file. In live streams where segments are removed from the beginning of the moving window, this number increments. It allows the player to correctly map the sliding window of segments to the continuous stream history, ensuring no segments are skipped or repeated during updates.',
         category: 'Media Playlist',
-        isoRef: 'HLS 2nd Ed: 4.4.3.2',
+        isoRef: 'RFC 8216bis: 4.4.3.2',
     },
     'EXT-X-DISCONTINUITY-SEQUENCE': {
-        text: 'A counter that allows synchronization of timestamps across different Variant Streams. It increments for every `EXT-X-DISCONTINUITY` tag encountered. This ensures that if a client switches bitrates during an ad break, it maps the segments correctly even if the timestamps reset.',
+        text: 'A counter used to synchronize timestamps across different Variant Streams (e.g., audio and video tracks). It tracks the number of `EXT-X-DISCONTINUITY` tags encountered in the stream so far. This ensures that when switching between bitrates or tracks, the player can match segments that belong to the same "chapter" of content, even if their internal timestamps differ.',
         category: 'Media Playlist',
-        isoRef: 'HLS 2nd Ed: 4.4.3.3',
+        isoRef: 'RFC 8216bis: 4.4.3.3',
     },
     'EXT-X-ENDLIST': {
-        text: 'Marks the end of the presentation. It indicates that no further media segments will be appended to the playlist. If present, the client stops reloading the playlist. Used for VOD or completed live events.',
+        text: 'Marks the end of the presentation. This tag indicates that no further media segments will be appended to the playlist file. It effectively transitions the playlist state from "Live" (waiting for more) to "VOD" (complete).',
         category: 'Media Playlist',
-        isoRef: 'HLS 2nd Ed: 4.4.3.4',
+        isoRef: 'RFC 8216bis: 4.4.3.4',
     },
     'EXT-X-PLAYLIST-TYPE': {
-        text: 'Defines the mutability of the playlist. `VOD` implies the playlist will never change. `EVENT` implies segments are only appended (growing file), allowing the user to seek back to the start of the event.',
+        text: 'Declares the mutability capability of the playlist. `VOD` indicates the playlist is immutable and can be aggressively cached. `EVENT` indicates that segments will only be appended (never removed), typical for live DVR scenarios where the user can seek back to the beginning of the event.',
         category: 'Media Playlist',
-        isoRef: 'HLS 2nd Ed: 4.4.3.5',
+        isoRef: 'RFC 8216bis: 4.4.3.5',
     },
     'EXT-X-I-FRAMES-ONLY': {
-        text: 'Used in I-Frame Media Playlists. It indicates that the segments referred to in this playlist contain only I-frames (key frames). These playlists are used for "scrubbing" or high-speed seeking (trick play) operations.',
+        text: 'Indicates that the playlist contains only I-frames (key frames), effectively forming a slide show of the video. This is primarily used for scrubbing/seeking operations ("trick play"), allowing the player to rapidly display thumbnails while the user fast-forwards without decoding full video segments.',
         category: 'Media Playlist',
-        isoRef: 'HLS 2nd Ed: 4.4.3.6',
+        isoRef: 'RFC 8216bis: 4.4.3.6',
     },
     'EXT-X-PART-INF': {
         text: 'Required when using Low-Latency HLS (LL-HLS). It acts as a global header declaring that this playlist contains Partial Segments and defines their expected duration.',
@@ -137,24 +137,24 @@ export const hlsTooltipData = {
 
     // --- Media Segment Tags ---
     EXTINF: {
-        text: 'Specifies the duration of the immediately following media segment. This is a mandatory tag for every segment. For version 3+ playlists, this should be a floating-point number to ensure accurate synchronization and prevent timing drift.',
+        text: 'Specifies the explicit duration (in seconds) of the media segment immediately following this tag. In HLS versions 3 and above, this should be a floating-point number. The player accumulates these durations to calculate the current playback position; inaccuracies here will lead to drift between the playlist time and the actual media decoding time.',
         category: 'Media Segment',
-        isoRef: 'HLS 2nd Ed: 4.4.4.1',
+        isoRef: 'RFC 8216bis: 4.4.4.1',
     },
     'EXT-X-BYTERANGE': {
-        text: 'Indicates that the segment is a specific sub-range of the resource identified by its URI. Format: `length@offset`. This allows multiple logical segments to be packed into a single physical file, reducing HTTP request overhead.',
+        text: 'Defines a specific byte range (`length@offset`) of the resource identified by the following URI. This enables using a single "monolithic" media file to serve multiple segments via HTTP Range requests, reducing the overhead of managing thousands of small files on the server.',
         category: 'Media Segment',
-        isoRef: 'HLS 2nd Ed: 4.4.4.2',
+        isoRef: 'RFC 8216bis: 4.4.4.2',
     },
     'EXT-X-DISCONTINUITY': {
-        text: 'Signals a significant change in the media stream properties (e.g., timestamp reset, file format change, encoding parameters). The player must reset its decoder state. Commonly found at the boundaries of inserted ads.',
+        text: 'Signals a discontinuity in the media stream, such as a change in timestamp, encoding parameters, or file format. This instructs the player to reset its decoder state and clear any internal buffers to prepare for new media properties. Typically seen at ad insertion points or period boundaries.',
         category: 'Media Segment',
-        isoRef: 'HLS 2nd Ed: 4.4.4.3',
+        isoRef: 'RFC 8216bis: 4.4.4.3',
     },
     'EXT-X-KEY': {
-        text: 'Defines encryption parameters for the media segments that follow. It remains in effect until a new EXT-X-KEY tag is encountered. HLS allows restarting the encryption chain or changing keys mid-stream.',
+        text: 'Specifies the encryption method and keys required to decrypt the subsequent media segments. The client MUST stop playback if it cannot obtain the key defined here. This state persists until a new `EXT-X-KEY` tag is encountered, allowing for key rotation during a live presentation.',
         category: 'Encryption',
-        isoRef: 'HLS 2nd Ed: 4.4.4.4',
+        isoRef: 'RFC 8216bis: 4.4.4.4',
     },
     'EXT-X-KEY@METHOD': {
         text: 'The encryption algorithm used. Common values: `AES-128` (Whole Segment), `SAMPLE-AES` (Sample level), `NONE`. Defines how the client should decrypt the payload.',
@@ -187,14 +187,14 @@ export const hlsTooltipData = {
         isoRef: 'Vendor Specific',
     },
     'EXT-X-MAP': {
-        text: 'Defines the Media Initialization Section (e.g., the "moov" box in fMP4). This must be loaded and processed before any segments that follow can be decoded. Required for Fragmented MPEG-4.',
+        text: 'Identifies the Media Initialization Section required to parse the following segments. This is mandatory for fragmented MP4 (fMP4) streams, as it points to the `moov` box containing codec setup and track definitions. Without this, the raw media data in the segments cannot be decoded.',
         category: 'Media Segment',
-        isoRef: 'HLS 2nd Ed: 4.4.4.5',
+        isoRef: 'RFC 8216bis: 4.4.4.5',
     },
     'EXT-X-MAP@URI': {
-        text: 'The URI of the resource containing the initialization data.',
+        text: 'The location of the initialization resource.',
         category: 'Media Segment',
-        isoRef: 'HLS 2nd Ed: 4.4.4.5',
+        isoRef: 'RFC 8216bis: 4.4.4.5',
     },
     'EXT-X-MAP@BYTERANGE': {
         text: 'If the map is part of a larger file, this specifies the byte range `length@offset` for the initialization section.',
@@ -202,19 +202,19 @@ export const hlsTooltipData = {
         isoRef: 'HLS 2nd Ed: 4.4.4.5',
     },
     'EXT-X-PROGRAM-DATE-TIME': {
-        text: 'Maps the beginning of the segment to an absolute wall-clock time (ISO 8601). This allows the client to display the time of day, support "seek to live" functionality, and synchronize playback with external events (like SCTE-35 ad breaks).',
+        text: 'Associates the beginning of a segment with an absolute wall-clock date and time (ISO 8601). This provides the mapping between the relative playlist timeline and real-world time, enabling features like "seek-to-live" or displaying the broadcast time in the UI.',
         category: 'Media Segment',
-        isoRef: 'HLS 2nd Ed: 4.4.4.6',
+        isoRef: 'RFC 8216bis: 4.4.4.6',
     },
     'EXT-X-GAP': {
-        text: 'Indicates that the segment defined by the URI is missing or otherwise unavailable. The client should skip this duration without stalling. Useful in live archives where a segment failed to upload.',
+        text: 'Indicates that the segment resource is missing or unavailable on the server foundationally. This instructs the client to skip this duration in the timeline without stalling or reporting an error, preserving playback continuity in the event of missing source material.',
         category: 'Media Segment',
-        isoRef: 'HLS 2nd Ed: 4.4.4.7',
+        isoRef: 'RFC 8216bis: 4.4.4.7',
     },
     'EXT-X-BITRATE': {
-        text: 'Specifies the approximate bitrate (in kilobits per second) for the segments that follow. This optional tag helps the client make better ABR decisions when only a portion of the playlist has been analyzed.',
+        text: 'Specifies the approximate bitrate of the following media segments in kilobits per second. This optional tag acts as a hint to the Adaptive Bitrate (ABR) algorithm, allowing it to anticipate bitrate variance and adjust switching logic before downloading the actual content.',
         category: 'Media Segment',
-        isoRef: 'HLS 2nd Ed: 4.4.4.8',
+        isoRef: 'RFC 8216bis: 4.4.4.8',
     },
     'EXT-X-PART': {
         text: 'Defines a Partial Segment (a small chunk of a full segment). Used in Low-Latency HLS to publish media to the client as soon as it is encoded, rather than waiting for the full segment to finish.',
@@ -249,9 +249,9 @@ export const hlsTooltipData = {
 
     // --- Media Metadata Tags ---
     'EXT-X-DATERANGE': {
-        text: 'A versatile metadata tag used to define time-bound events, such as SCTE-35 ad breaks, program boundaries, or ID3 tags. It maps wall-clock time to specific metadata attributes.',
+        text: 'Associates a specific time range in the stream definition with a set of attribute/value metadata pairs. This is the standard mechanism for signaling timed metadata such as SCTE-35 ad breaks, program boundaries, or ID3 tags. The player uses this to trigger events or change behavior at specific wall-clock times.',
         category: 'Ad Insertion / Metadata',
-        isoRef: 'HLS 2nd Ed: 4.4.5.1',
+        isoRef: 'RFC 8216bis: 4.4.5.1',
     },
     'EXT-X-DATERANGE@ID': {
         text: 'A required, unique string identifier for this date range. Used to track the event across playlist updates.',
@@ -381,9 +381,9 @@ export const hlsTooltipData = {
 
     // --- Multivariant (Master) Playlist Tags ---
     'EXT-X-MEDIA': {
-        text: 'Defines an alternative rendition (Audio, Video, Subtitles, Closed Captions) that can be associated with a Variant Stream. This is how HLS handles multi-language audio tracks or different camera angles.',
+        text: 'Defines an alternative rendition of media content (e.g., Audio, Video, Subtitles) that can be referenced by variant streams. This allows defining a pool of media components (like multiple language tracks) that are selectively bound to variance streams via GROUP-ID, enabling modular playlist construction.',
         category: 'Multivariant Playlist',
-        isoRef: 'HLS 2nd Ed: 4.4.6.1',
+        isoRef: 'RFC 8216bis: 4.4.6.1',
     },
     'EXT-X-MEDIA@TYPE': {
         text: 'The type of media. Valid values: `AUDIO`, `VIDEO`, `SUBTITLES`, `CLOSED-CAPTIONS`.',
@@ -461,9 +461,9 @@ export const hlsTooltipData = {
         isoRef: 'HLS 2nd Ed: 4.4.6.1',
     },
     'EXT-X-STREAM-INF': {
-        text: 'Defines a Variant Stream—a version of the content at a specific quality level/bitrate. The line following this tag MUST be the URI of the Media Playlist for this variant.',
+        text: 'Defines a specific Variant Stream and its properties (bandwidth, resolution, codecs) within a Multivariant Playlist. The client\'s Adaptive Bitrate (ABR) logic evaluates these tags to select the optimal stream/rendition for current network conditions. The URI following this tag points to the Media Playlist for this variant.',
         category: 'Multivariant Playlist',
-        isoRef: 'HLS 2nd Ed: 4.4.6.2',
+        isoRef: 'RFC 8216bis: 4.4.6.2',
     },
     'EXT-X-STREAM-INF@BANDWIDTH': {
         text: 'The peak segment bitrate of the stream in bits per second. This is the primary metric used by the Adaptive Bitrate (ABR) algorithm to decide which stream to play based on available network speed.',
@@ -601,9 +601,9 @@ export const hlsTooltipData = {
         isoRef: 'HLS 2nd Ed: 4.4.6.3',
     },
     'EXT-X-SESSION-DATA': {
-        text: 'Carries arbitrary session data in the Multivariant Playlist. Used for metadata, analytics IDs, or HLS feature extensions like "Localization Dictionaries".',
+        text: 'Allows arbitrary session-level metadata to be carried in the Multivariant Playlist. This is often used to pass global configuration, analytics identifiers (e.g., Session ID), or custom feature flags that apply to the entire playback session rather than specific segments.',
         category: 'Multivariant Playlist',
-        isoRef: 'HLS 2nd Ed: 4.4.6.4',
+        isoRef: 'RFC 8216bis: 4.4.6.4',
     },
     'EXT-X-SESSION-DATA@DATA-ID': {
         text: 'A unique identifier for the data (e.g., "com.example.movie.title").',
@@ -621,8 +621,8 @@ export const hlsTooltipData = {
         isoRef: 'HLS 2nd Ed: 4.4.6.5',
     },
     'EXT-X-CONTENT-STEERING': {
-        text: 'Enables Content Steering. Points to an external "Steering Manifest" JSON that the client polls to determine which CDN pathway to use. Allows real-time traffic shifting by the content provider.',
+        text: 'Enables Content Steering, allowing the provider to dynamically shift client traffic between different CDNs or pathways. The tag points to an external Steering Manifest (JSON) which the client polls; the response updates the synchronization pathway priorities in real-time.',
         category: 'Client Control',
-        isoRef: 'HLS 2nd Ed: 4.4.6.6',
+        isoRef: 'RFC 8216bis: 4.4.6.6',
     },
 };

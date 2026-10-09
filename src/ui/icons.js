@@ -171,3 +171,4 @@ export const copy = icon('copy');
 export const trash = icon('trash');
 export const save = icon('save');
 export const broadcast = icon('radio');
+export const book = icon('book'); // ported: used by the manifest inspector sidebar

@@ -3,6 +3,9 @@ import { disposeChart, renderChart } from '@/ui/shared/charts/chart-renderer';
 import { html } from 'lit-html';
 
 export class HlsDeltaVisualizer extends HTMLElement {
+    // Port note: was `extends BaseChartComponent` (never committed). The
+    // base contributed only lifecycle shells; chart I/O already uses the
+    // 1.2.0 `renderChart`/`disposeChart` helpers directly.
     constructor() {
         super();
         this.chartContainer = document.createElement('div');
@@ -13,20 +16,21 @@ export class HlsDeltaVisualizer extends HTMLElement {
     }
 
     set data(val) {
+        if (JSON.stringify(val) === JSON.stringify(this._data)) return;
         this._data = val;
-        this.renderChart();
+        this.render();
     }
 
     connectedCallback() {
         this.appendChild(this.chartContainer);
-        this.renderChart();
+        this.render();
     }
 
     disconnectedCallback() {
         if (this.chartContainer) disposeChart(this.chartContainer);
     }
 
-    renderChart() {
+    render() {
         if (!this._data || !this.chartContainer) return;
 
         const { update } = this._data;
@@ -44,6 +48,19 @@ export class HlsDeltaVisualizer extends HTMLElement {
         const mediaSequence = manifest.mediaSequence || 0;
         const currentStartSeq = mediaSequence + skippedCount;
 
+        const getCssVar = (name) => {
+            return getComputedStyle(document.documentElement)
+                .getPropertyValue(name)
+                .trim();
+        };
+
+        const colorWarning = getCssVar('--color-warning');
+        const colorPrimary = getCssVar('--primary-accent');
+        const bgPanel = getCssVar('--bg-surface-B-panel');
+        const borderMain = getCssVar('--border-on-A');
+        const textMain = getCssVar('--text-on-B-primary');
+        const textMuted = getCssVar('--text-on-B-secondary');
+
         // Prepare Data
         // 1. Skipped Block (Ghost)
         const skippedData = [];
@@ -51,9 +68,9 @@ export class HlsDeltaVisualizer extends HTMLElement {
             skippedData.push({
                 value: skippedCount,
                 itemStyle: {
-                    color: 'rgba(251, 191, 36, 0.2)', // Amber-500 low opacity
+                    color: colorWarning + '33', // 20% opacity
                     borderType: 'dashed',
-                    borderColor: '#fbbf24',
+                    borderColor: colorWarning,
                     borderWidth: 2,
                 },
                 name: 'Skipped',
@@ -65,7 +82,7 @@ export class HlsDeltaVisualizer extends HTMLElement {
             value: seg.duration,
             name: `Seg #${currentStartSeq + idx}`,
             itemStyle: {
-                color: '#2563eb', // Blue-600
+                color: colorPrimary,
             },
         }));
 
@@ -73,9 +90,9 @@ export class HlsDeltaVisualizer extends HTMLElement {
             backgroundColor: 'transparent',
             tooltip: {
                 trigger: 'axis',
-                backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                borderColor: '#334155',
-                textStyle: { color: '#f8fafc' },
+                backgroundColor: bgPanel,
+                borderColor: borderMain,
+                textStyle: { color: textMain },
                 formatter: (params) => {
                     const item = params[0];
                     if (!item) return '';
@@ -92,7 +109,7 @@ export class HlsDeltaVisualizer extends HTMLElement {
                     ...(skippedCount > 0 ? ['Skipped Range'] : []),
                     ...activeData.map((_, i) => `#${currentStartSeq + i}`),
                 ],
-                axisLine: { lineStyle: { color: '#4b5563' } },
+                axisLine: { lineStyle: { color: borderMain } },
                 axisLabel: { show: false }, // Hide labels to save vertical space
                 axisTick: { show: false },
             },
@@ -100,8 +117,8 @@ export class HlsDeltaVisualizer extends HTMLElement {
                 type: 'value',
                 name: 'Duration (s)',
                 nameLocation: 'end',
-                nameTextStyle: { padding: [0, 0, 0, 10], color: '#64748b' },
-                splitLine: { lineStyle: { color: '#1e293b' } },
+                nameTextStyle: { padding: [0, 0, 0, 10], color: textMuted },
+                splitLine: { lineStyle: { color: borderMain, opacity: 0.2 } },
                 axisLabel: { show: false }, // Hide Y labels for cleanliness in small view
             },
             series: [
@@ -141,29 +158,30 @@ export const hlsDeltaVisualizerTemplate = (update) => {
 
     return html`
         <div
-            class="h-full flex flex-col bg-slate-900 border-l border-slate-800/50"
+            class="h-full flex flex-col bg-slate-800 w-full min-w-0"
+            style="border-radius: 0.75rem; overflow: hidden; backdrop-filter: blur(12px); box-shadow: 0 8px 30px rgb(0 0 0 / 0.35);"
         >
             <div
-                class="p-2 border-b border-slate-800 flex items-center justify-between bg-slate-950/30"
+                class="p-2 border-b border-slate-800 flex items-center justify-between bg-slate-800 shrink-0"
             >
                 <div class="flex items-center gap-2">
                     <span class="text-amber-400 scale-75"
                         >${icons.history}</span
                     >
                     <h4
-                        class="text-[10px] font-bold text-slate-300 uppercase tracking-wider"
+                        class="text-[10px] font-bold text-slate-400 uppercase tracking-wider"
                     >
                         Sliding Window
                     </h4>
                 </div>
                 ${hasSkip
-                    ? html`<span
-                          class="px-1.5 py-0.5 rounded bg-amber-900/20 text-amber-400 border border-amber-500/30 text-[9px] font-bold"
+            ? html`<span
+                          class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[9px] font-bold"
                           >Delta Update</span
                       >`
-                    : ''}
+            : ''}
             </div>
-            <div class="grow relative p-2">
+            <div class="grow relative p-2 min-h-0">
                 <hls-delta-visualizer
                     .data=${{ update }}
                 ></hls-delta-visualizer>

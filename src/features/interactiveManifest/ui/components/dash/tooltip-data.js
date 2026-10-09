@@ -8,7 +8,7 @@ export const dashTooltipData = {
     // MPD Level
     // ==========================================================================================
     MPD: {
-        text: "The root XML element representing the Media Presentation Description. It acts as the entry point and comprehensive index for the streaming service, defining the temporal and structural relationships of all media components. It governs the client's state machine, buffer logic, and adaptive switching behavior.",
+        text: "The root XML element representing the Media Presentation Description. It serves as the comprehensive index for the stream, defining the temporal alignment, available media components (Adaptation Sets), and the adaptive switching constraints required for the client to construct the playback session.",
         isoRef: 'Clause 5.3.1.2, Table 3',
     },
     'MPD@schemaLocation': {
@@ -20,15 +20,15 @@ export const dashTooltipData = {
         isoRef: 'Clause 5.3.1.2, Table 3',
     },
     'MPD@profiles': {
-        text: 'A mandatory, comma-separated list of URNs that identify the specific DASH profiles (e.g., ISO-BMFF Live, On-Demand, CMAF). This acts as a capability handshake; the client must verify it supports at least one listed profile to guarantee it can successfully parse the manifest and decode the content.',
+        text: 'A mandatory list of URNs indicating the specific DASH profiles (e.g., ISO-BMFF Live, CMAF) to which this manifest conforms. This acts as a capability handshake; the client checks this list to ensure it supports the required feature set before attempting to parse the rest of the document.',
         isoRef: 'Clause 8.1 & 5.3.1.2, Table 3',
     },
     'MPD@type': {
-        text: 'Defines the temporal nature of the presentation. "static" denotes Video on Demand (VOD) where the timeline is fixed and finite. "dynamic" denotes a live or linear stream where the timeline (and the MPD itself) evolves, requiring periodic manifest updates.',
+        text: 'Specifies whether the Media Presentation is `static` (finite duration, VOD) or `dynamic` (continually evolving, Live). This determines the client\'s update logic: dynamic profiles require periodic refreshing of the MPD to discover new segments.',
         isoRef: 'Clause 5.3.1.2, Table 3',
     },
     'MPD@availabilityStartTime': {
-        text: 'The "Zero Time" anchor (UTC) for the presentation. In dynamic (live) streams, all segment availability windows are calculated as offsets from this timestamp. It is the reference point for aligning the internal media timeline with wall-clock time.',
+        text: 'Defines the zero point (epoch) on the wall-clock timeline for the Media Presentation. In dynamic profiles, all segment availability times are calculated as offsets relative to this timestamp, anchoring the stream to real-world time.',
         isoRef: 'Clause 5.3.1.2, Table 3',
     },
     'MPD@availabilityEndTime': {
@@ -48,11 +48,11 @@ export const dashTooltipData = {
         isoRef: 'Clause 5.3.1.2, Table 3',
     },
     'MPD@minBufferTime': {
-        text: "A signaling parameter for the client's initial buffering logic. It represents the amount of data the client should buffer to ensure smooth playback under the assumption of a constant bandwidth channel matching the Representation's bandwidth.",
+        text: 'Specifies the minimum amount of data the client should buffer before starting playback. This value serves as a contract for the initial buffering logic to ensure continuous playback under ideal network conditions.',
         isoRef: 'Clause 5.3.1.2, Table 3',
     },
     'MPD@timeShiftBufferDepth': {
-        text: 'Defines the "DVR window" or "Seek Window" for live streams. It indicates the duration of time behind the "live edge" that is still available on the server. The client uses this to calculate the earliest seekable point.',
+        text: 'Defines the duration of the time shifting window (DVR window) available for the presentation. In dynamic streams, this value indicates how far back from the live edge the content is available on the server; segments older than this window are implicitly deleted.',
         isoRef: 'Clause 5.3.1.2, Table 3',
     },
     'MPD@suggestedPresentationDelay': {
@@ -96,11 +96,11 @@ export const dashTooltipData = {
     // BaseURL & Locations
     // ==========================================================================================
     BaseURL: {
-        text: 'A logical root URL used to resolve relative paths for Segments or other resources. BaseURLs can be nested (MPD > Period > AdaptationSet); the client resolves them hierarchically to form the absolute URL.',
+        text: 'Defines a base URL that is prepended to relative URLs for segments and resources. BaseURLs can be defined at multiple levels (MPD, Period, AdaptationSet) and are resolved hierarchically to construct the absolute URI.',
         isoRef: 'Clause 5.6',
     },
     'BaseURL@serviceLocation': {
-        text: 'A string identifier grouping BaseURLs that resolve to the same physical service (e.g., "CDN-A", "CDN-B"). This enables the client to implement Client-Side Load Balancing and failover logic by switching service locations upon failure.',
+        text: 'A string identifier that groups BaseURLs resolving to the same physical service or CDN. This enables client-side load balancing/failover; if a request fails, the client should switch to a BaseURL with a different `serviceLocation`.',
         isoRef: 'Clause 5.6.2, Table 30',
     },
     'BaseURL@priority': {
@@ -160,19 +160,19 @@ export const dashTooltipData = {
     // Period Level
     // ==========================================================================================
     Period: {
-        text: 'A self-contained interval of time on the presentation timeline. Periods are used to splice content (e.g., Main Content > Ad Break > Main Content). A Period boundary acts as a "hard reset" for decoder configuration and timeline synchronization.',
+        text: 'A self-contained time interval within the Media Presentation. Periods partition the timeline, allowing for changes in the set of available Adaptation Sets (e.g., switching from main content to an ad break). Key properties like the base timeline often reset at Period boundaries.',
         isoRef: 'Clause 5.3.2',
     },
     'Period@id': {
-        text: 'A unique identifier for the Period. Mandatory in dynamic profiles. It allows the client to identify which Periods have been removed or added during a manifest update.',
+        text: 'A unique identifier for the Period. In dynamic profiles, this is mandatory and is used to track Period identity across manifest updates, allowing the client to detect if a Period has been removed or if new ones have been added.',
         isoRef: 'Clause 5.3.2.2, Table 4',
     },
     'Period@start': {
-        text: 'The anchor time for the Period relative to the MPD AvailabilityStartTime. It establishes the "Period 0" point for all media timestamps within this Period.',
+        text: 'Specifies the start time of the Period relative to the MPD `availabilityStartTime`. This anchors the Period\'s internal timeline to the presentation time.',
         isoRef: 'Clause 5.3.2.2, Table 4',
     },
     'Period@duration': {
-        text: 'The duration of the Period. In dynamic streams, if this is missing, the Period is considered the "Live Edge" period and is expected to grow until a duration is added in a future MPD update.',
+        text: 'The duration of the Period. If not present in a dynamic presentation, the Period is considered open-ended (the "Live Edge") and continues until a new MPD update signals its end or a new Period start.',
         isoRef: 'Clause 5.3.2.2, Table 4',
     },
     'Period@bitstreamSwitching': {
@@ -180,11 +180,19 @@ export const dashTooltipData = {
         isoRef: 'Clause 5.3.2.2, Table 4',
     },
     'Period@xlink:href': {
-        text: 'Enables "Remote Periods". The DASH client must resolve this URL to fetch the XML definition of the Period. Heavily used in Server-Guided Ad Insertion (SGAI) to inject ads dynamically.',
+        text: 'Indicates that the content of the Period is defined in an external resource (Remote Period). The client must resolve this XLink reference to fetch the actual Period definition. This is commonly used for server-side ad insertions where ad breaks are essentially external "pointer" periods.',
         isoRef: 'Clause 5.5',
     },
     AssetIdentifier: {
         text: 'A descriptor used to identify the logical content "Asset" (e.g., a specific movie ID). If a Period is interrupted by ads, the subsequent Period resuming the content will share the same AssetIdentifier, telling the client it is the same content.',
+        isoRef: 'Clause 5.8.4.10',
+    },
+    'AssetIdentifier@schemeIdUri': {
+        text: 'Identifies the scheme used for the asset identifier (e.g., "urn:eidr").',
+        isoRef: 'Clause 5.8.4.10',
+    },
+    'AssetIdentifier@value': {
+        text: 'The value of the asset identifier.',
         isoRef: 'Clause 5.8.4.10',
     },
 
@@ -192,7 +200,7 @@ export const dashTooltipData = {
     // AdaptationSet Level
     // ==========================================================================================
     AdaptationSet: {
-        text: 'Encapsulates a set of interchangeable versions (Representations) of a specific media component (e.g., "Video", "English Audio"). The client\'s ABR algorithm switches between Representations within a single AdaptationSet.',
+        text: 'Encapsulates a set of interchangeable Representations that describe the same content component (e.g., all video tracks of different qualities). The client\'s switching logic operates primarily within an Adaptation Set to adapt to changing network conditions.',
         isoRef: 'Clause 5.3.3',
     },
     'AdaptationSet@id': {
@@ -200,23 +208,23 @@ export const dashTooltipData = {
         isoRef: 'Clause 5.3.3.2, Table 5',
     },
     'AdaptationSet@group': {
-        text: 'A grouping index. The client is expected to select exactly one AdaptationSet per non-zero group ID to render simultaneously (e.g., select one Video, one Audio, one Subtitle).',
+        text: 'An identifier used to group Adaptation Sets that can be rendered simultaneously. The client is expected to select one Adaptation Set from each distinct group (e.g., one from the "Video" group and one from the "Audio" group) to form the presentation.',
         isoRef: 'Clause 5.3.3.2, Table 5',
     },
     'AdaptationSet@contentType': {
-        text: 'Declares the media type contained in this set (e.g., "video", "audio", "text"). Used by the client to filter sets based on hardware capabilities or user preference.',
+        text: 'Explicitly declares the media type contained in the set (e.g., "video", "audio", "text"). This helps the client filter and select tracks based on capabilities or user intent without needing to inspect deep codec strings.',
         isoRef: 'Clause 5.3.3.2, Table 5',
     },
     'AdaptationSet@lang': {
-        text: 'The language of the media content (RFC 5646). Essential for the client to offer correct audio/subtitle language selection menus to the user.',
+        text: 'Specifies the language of the content using RFC 5646 codes. This is critical for the client to expose correct audio/subtitle selection options to the user.',
         isoRef: 'Clause 5.3.3.2, Table 5',
     },
     'AdaptationSet@mimeType': {
-        text: 'The MIME type (e.g., "video/mp4") shared by all Representations in this set. Essential for the client to determine if it has the necessary demuxers/decoders.',
+        text: 'Describes the MIME type (container format) for the Representations in this set (e.g., "video/mp4", "audio/webm"). The client uses this to determine if it has the necessary demuxer components to process the stream.',
         isoRef: 'Clause 5.3.7.2, Table 14',
     },
     'AdaptationSet@codecs': {
-        text: 'The codec string (RFC 6381) shared by all Representations (e.g., "avc1.4d401e"). The client parses this to check for hardware decoding support via MediaSource Extensions (MSE).',
+        text: 'Defines the codecs present in the media stream (RFC 6381). This string allows the client to query the underlying hardware or decoder to verify support for the specific profile and level (e.g., HEVC Main10) before attempting playback.',
         isoRef: 'Clause 5.3.7.2, Table 14',
     },
     'AdaptationSet@width': {
@@ -284,7 +292,7 @@ export const dashTooltipData = {
         isoRef: 'Clause 5.3.7.2, Table 14',
     },
     'AdaptationSet@segmentAlignment': {
-        text: 'A boolean flag. If "true", it guarantees that segment start times are identical across all Representations. This allows the ABR algorithm to switch tracks seamlessly at any segment boundary without overlap or gaps.',
+        text: 'If set to "true", this guarantees that segment boundaries are time-aligned across all Representations in the Adaptation Set. This alignment is a prerequisite for seamless bitrate switching, ensuring that a switch at segment N does not result in a time gap or overlap.',
         isoRef: 'Clause 5.3.3.2, Table 5',
     },
     'AdaptationSet@subsegmentAlignment': {
@@ -328,19 +336,19 @@ export const dashTooltipData = {
     // Representation Level
     // ==========================================================================================
     Representation: {
-        text: 'A single, encoded version of the content at a specific quality level (bitrate/resolution). The DASH Client downloads segments from one Representation at a time, switching to others in the same AdaptationSet as network conditions change.',
+        text: 'A single encoded version of the content with specific properties (bandwidth, resolution, codec). The client selects one Representation at a time to play, dynamically switching to others in the same Adaptation Set to optimize quality against network constraints.',
         isoRef: 'Clause 5.3.5',
     },
     'Representation@id': {
-        text: 'A mandatory unique ID for the Representation. This ID is used in template construction ($RepresentationID$) and for dependency referencing.',
+        text: 'A mandatory unique identifier for the Representation. This ID is often used as a substitution variable (`$RepresentationID$`) in `SegmentTemplate` patterns to generate unique URLs for segments belonging to this track.',
         isoRef: 'Clause 5.3.5.2, Table 9',
     },
     'Representation@bandwidth': {
-        text: 'The nominal bitrate of the stream in bits per second. The ABR algorithm uses this to determine if the current network throughput is sufficient to sustain this Representation.',
+        text: 'Specifies the nominal bitrate of the Representation in bits per second. This is the primary metric used by the Adaptive Bitrate (ABR) algorithm to determine if the network throughput is sufficient to support this quality level.',
         isoRef: 'Clause 5.3.5.2, Table 9',
     },
     'Representation@qualityRanking': {
-        text: 'An integer explicitly ordering Representations by quality (lower is better). Useful when bandwidth alone is not a good proxy for quality (e.g., different codecs like AVC vs HEVC at similar bitrates).',
+        text: 'An optional integer indicating the subjective quality ranking of the Representation (lower value means higher quality). This assists the client in choosing between Representations that might have similar bitrates but different visual quality (e.g., efficient AV1 vs legacy H.264).',
         isoRef: 'Clause 5.3.5.2, Table 9',
     },
     'Representation@dependencyId': {
@@ -456,11 +464,11 @@ export const dashTooltipData = {
         isoRef: 'Clause 5.3.9.3.2, Table 19',
     },
     SegmentTemplate: {
-        text: 'A mechanism to construct segment URLs mathematically using a template string (e.g., "video_$Number$.m4s"). It is the standard for live streaming as it allows the client to predict future segment names without a manifest update.',
+        text: 'Provides a mechanism to construct Segment URLs using substitution parameters (`$Number$`, `$Time$`) rather than an explicit list. This significantly reduces manifest size for long-duration or live content by algorithmically defining the segment structure.',
         isoRef: 'Clause 5.3.9.4',
     },
     'SegmentTemplate@timescale': {
-        text: 'The time base for the template duration calculations.',
+        text: 'Defines the time scale (ticks per second) for all timestamp and duration values within this template. For instance, a timescale of 90,000 means that a duration of 180,000 ticks equals 2 seconds. High precision timescales avoid rounding errors inherent in floating-point representations.',
         isoRef: 'Clause 5.3.9.2.2, Table 16',
     },
     'SegmentTemplate@presentationTimeOffset': {
@@ -468,11 +476,11 @@ export const dashTooltipData = {
         isoRef: 'Clause 5.3.9.2.2, Table 16',
     },
     'SegmentTemplate@initialization': {
-        text: 'The URL template for the init segment. Supports identifiers like $RepresentationID$.',
+        text: 'Usage template for the Initialization Segment. Typically contains the `$RepresentationID$` identifier to fetch the specific header file required to initialize the decoder for that track.',
         isoRef: 'Clause 5.3.9.4.2, Table 20',
     },
     'SegmentTemplate@media': {
-        text: 'The URL template for media segments. Supports $Number$ (index) or $Time$ (timestamp) identifiers.',
+        text: 'Usage template for Media Segments. Contains identifiers like `$Number$` or `$Time$` which the client replaces to generate the URL for a specific point in the timeline.',
         isoRef: 'Clause 5.3.9.4.2, Table 20',
     },
     'SegmentTemplate@duration': {
@@ -496,23 +504,23 @@ export const dashTooltipData = {
         isoRef: 'Clause 5.3.9.2.2, Table 16',
     },
     SegmentTimeline: {
-        text: 'Used when segment durations vary (e.g., to align with video GOPs perfectly). It lists specific durations for specific time ranges. Required when using the `$Time$` identifier in templates.',
+        text: 'Explicitly lists the duration of segments when they cannot be calculated via a constant global duration. This is essential for streams with variable segment lengths (e.g., to align with variable GOP structures) or to handle discontinuities.',
         isoRef: 'Clause 5.3.9.6',
     },
     S: {
-        text: 'A "Segment" entry within the timeline. It describes a specific duration.',
+        text: 'A "Segment Run" element describing one or more contiguous segments with the same duration. The `S` element allows for compact representation of the timeline by using the repeat count attribute.',
         isoRef: 'Clause 5.3.9.6.2, Table 22',
     },
     'S@t': {
-        text: "The absolute start timestamp of this segment run. If omitted, it is calculated by adding the previous segment's duration to the previous start time.",
+        text: 'Specifies the absolute start time (in timescale ticks) of the segment run. This is typically only required for the first segment in a timeline or after a discontinuity to re-anchor the relative calculations.',
         isoRef: 'Clause 5.3.9.6.2, Table 22',
     },
     'S@d': {
-        text: 'The duration of the segment(s) in this entry.',
+        text: 'The duration of the segment(s) in this run, expressed in timescale ticks. This value is added to the start time to calculate the start of the subsequent segment.',
         isoRef: 'Clause 5.3.9.6.2, Table 22',
     },
     'S@r': {
-        text: 'The repeat count. "r=5" means the segment defined by @d repeats 5 *additional* times (6 segments total). "r=-1" means it repeats until the next S element or the end of the Period.',
+        text: 'The repeat count. Specifies how many *additional* contiguous segments share the same duration `@d`. For example, `r="5"` means the segment duration repeats 5 more times (6 segments total), compressing the XML size.',
         isoRef: 'Clause 5.3.9.6.2, Table 22',
     },
     'S@n': {
@@ -547,6 +555,10 @@ export const dashTooltipData = {
         text: 'A URI identifying the scheme of the events contained in this stream (e.g., "urn:scte:scte35:2013:xml" for ad markers).',
         isoRef: 'Clause 5.10.2.2, Table 38',
     },
+    'EventStream@value': {
+        text: 'Specifies the value for the Event Stream, often used for additional configuration or identification depending on the scheme.',
+        isoRef: 'Clause 5.10.2.2, Table 38',
+    },
     Event: {
         text: 'A wrapper for the specific event message. Contains the payload (like SCTE-35 XML) or message data.',
         isoRef: 'Clause 5.10.2.2, Table 39',
@@ -554,6 +566,22 @@ export const dashTooltipData = {
     'Event@duration': {
         text: 'Specifies the presentation duration of the event. If not present, the duration is unknown or implicit.',
         isoRef: 'Clause 5.10.2.2, Table 39',
+    },
+    'Event@presentationTime': {
+        text: 'The presentation time of the event, relative to the Period start (or EventStream@presentationTimeOffset).',
+        isoRef: 'Clause 5.10.2.2, Table 39',
+    },
+    'Event@id': {
+        text: 'A unique identifier for this specific event instance.',
+        isoRef: 'Clause 5.10.2.2, Table 39',
+    },
+    Signal: {
+        text: 'Container for SCTE-35 signal messages (e.g., splice commands) when embedded in DASH Events.',
+        isoRef: 'SCTE 35 / SCTE 214',
+    },
+    Binary: {
+        text: 'Base64 encoded binary payload of the signal or event message.',
+        isoRef: 'SCTE 35 / SCTE 214',
     },
     InbandEventStream: {
         text: 'Signals that events are embedded inside the media segments (e.g., `emsg` boxes in MP4). This ensures frame-accurate synchronization of metadata (like ID3 tags or ad markers) with the video.',
