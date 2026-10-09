@@ -6,18 +6,19 @@ import {
 } from '@/infrastructure/persistence/streamStorage';
 import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
 import { uiActions, useUiStore } from '@/state/uiStore';
+import { EVENTS } from '@/types/events';
 import * as icons from '@/ui/icons';
 import { openModalWithContent } from '@/ui/services/modalService';
 import { urlStateManager } from '@/application/url-state-manager';
 import { showToast } from '@/ui/components/toast.js';
-import { html } from 'lit-html';
+import { html, render } from 'lit-html';
 import { classMap } from 'lit-html/directives/class-map.js';
 import { inspectorPanelTemplate } from './inspector-panel.js';
 import './smart-input.js';
 
 const badge = (text, colorClasses, icon = null) => html`
     <span
-        class="text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider flex items-center gap-1 ${colorClasses}"
+        class="text-[9px] font-black px-1.5 py-0.5 rounded-[4px] uppercase tracking-widest flex items-center gap-1 shadow-sm ${colorClasses}"
     >
         ${icon ? html`<span class="scale-75">${icon}</span>` : ''} ${text}
     </span>
@@ -26,6 +27,8 @@ const badge = (text, colorClasses, icon = null) => html`
 const streamListItem = (streamInput, isActive) => {
     const { tier0, isTier0AnalysisLoading } = streamInput;
     const hasAuth = streamInput.auth?.headers?.length > 0;
+    // Port: no themes in 1.2.0; solid styling throughout.
+    const isSolid = true;
 
     const handleDelete = (e) => {
         e.stopPropagation();
@@ -41,22 +44,22 @@ const streamListItem = (streamInput, isActive) => {
 
     if (isTier0AnalysisLoading) {
         statusBadge = badge(
-            'Analyzing...',
-            'text-blue-400 bg-blue-400/10 border-blue-400/20',
+            'SCANNING',
+            'text-blue-400 bg-blue-500/10 border border-blue-500/20',
             html`<span class="animate-spin">${icons.spinner}</span>`
         );
     } else if (tier0) {
         // Status
         if (tier0.status >= 400 || tier0.status === 0) {
             statusBadge = badge(
-                tier0.status === 0 ? 'NET ERR' : `HTTP ${tier0.status}`,
-                'text-red-400 bg-red-400/10 border-red-400/20',
+                tier0.status === 0 ? 'ERR' : `${tier0.status}`,
+                'text-red-400 bg-red-500/10',
                 icons.alertTriangle
             );
         } else {
             statusBadge = badge(
-                '200 OK',
-                'text-emerald-400 bg-emerald-400/10 border-emerald-400/20'
+                'OK',
+                'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
             );
         }
 
@@ -65,8 +68,8 @@ const streamListItem = (streamInput, isActive) => {
             protocolBadge = badge(
                 tier0.protocol,
                 tier0.protocol === 'HLS'
-                    ? 'text-purple-400 bg-purple-400/10 border-purple-400/20'
-                    : 'text-blue-400 bg-blue-400/10 border-blue-400/20'
+                    ? 'text-purple-300 bg-purple-500/10'
+                    : 'text-blue-400 bg-blue-500/10'
             );
         }
 
@@ -75,8 +78,8 @@ const streamListItem = (streamInput, isActive) => {
             typeBadge = badge(
                 tier0.type,
                 tier0.type === 'LIVE'
-                    ? 'text-red-400 bg-red-400/10 border-red-400/20'
-                    : 'text-slate-400 bg-slate-400/10 border-slate-400/20',
+                    ? 'text-red-400 bg-red-500/10'
+                    : 'text-slate-400 bg-white/5',
                 tier0.type === 'LIVE' ? icons.broadcast : null
             );
         }
@@ -85,7 +88,7 @@ const streamListItem = (streamInput, isActive) => {
         if (tier0.isEncrypted) {
             drmBadge = badge(
                 'DRM',
-                'text-amber-400 bg-amber-400/10 border-amber-400/20',
+                'text-amber-400 bg-amber-500/10 border border-amber-500/20',
                 icons.lockClosed
             );
         }
@@ -94,25 +97,53 @@ const streamListItem = (streamInput, isActive) => {
         if (tier0.isLowLatency) {
             llBadge = badge(
                 'LL',
-                'text-cyan-400 bg-cyan-400/10 border-cyan-400/20',
+                'text-[#f43f5e] bg-rose-500/10 border border-rose-500/20',
                 icons.zap
             );
         }
+    } else {
+        // Fallback Logic (Smart Badges from URL)
+        const urlLower = (streamInput.url || '').toLowerCase();
+        if (urlLower.includes('.m3u8')) {
+            protocolBadge = badge(
+                'HLS',
+                'text-purple-300 bg-purple-500/10'
+            );
+        } else if (urlLower.includes('.mpd')) {
+            protocolBadge = badge(
+                'DASH',
+                'text-blue-400 bg-blue-500/10'
+            );
+        } else if (urlLower.includes('.ism')) {
+            protocolBadge = badge(
+                'MSS',
+                'text-teal-300 bg-teal-500/10'
+            );
+        }
+
+        statusBadge = badge(
+            'PENDING',
+            'text-slate-400 bg-slate-800'
+        );
     }
 
+    // CAPSULE DESIGN
     return html`
         <div
             @click=${() =>
-                analysisActions.setActiveStreamInputId(streamInput.id)}
-            class="group relative flex flex-col gap-2 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${isActive
-                ? 'bg-slate-800 border-blue-600 shadow-md'
-                : 'bg-slate-900 border-transparent hover:bg-slate-800 hover:border-slate-700'}"
+            analysisActions.setActiveStreamInputId(streamInput.id)}
+            class="group relative flex flex-col gap-2 p-3 rounded-2xl transition-all duration-300 cursor-pointer overflow-hidden ${isActive
+            ? 'bg-blue-500/10 shadow-[0_0_30px_rgba(59, 130, 246,0.2)]'
+            : 'bg-slate-800 hover:bg-slate-800 hover:shadow-[0_0_20px_rgba(59, 130, 246,0.1)]'} ${isSolid ? 'border border-slate-800' : 'border border-transparent'}"
         >
-            <div class="flex items-center gap-3">
-                <div
-                    class="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${isActive
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-800 text-slate-500 border border-slate-700'}"
+            <!-- Active Indicator Bar -->
+            ${isActive ? html`<div class="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 shadow-[0_0_10px_#3b82f6]"></div>` : ''}
+
+            <div class="flex items-center gap-3 relative z-10 pl-2">
+                 <div
+                    class="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-colors ${isActive
+            ? 'bg-blue-500 text-white shadow-[0_0_15px_#3b82f6]'
+            : 'bg-slate-900/20 text-slate-400 group-hover:text-slate-100'}"
                 >
                     ${streamInput.id + 1}
                 </div>
@@ -120,30 +151,30 @@ const streamListItem = (streamInput, isActive) => {
                 <div class="grow min-w-0">
                     <div class="flex items-center justify-between">
                         <span
-                            class="font-bold text-sm truncate ${isActive
-                                ? 'text-white'
-                                : 'text-slate-300'}"
+                            class="font-bold text-sm truncate transition-colors ${isActive
+            ? 'text-white'
+            : 'text-slate-100 group-hover:text-[#60a5fa]'}"
                         >
                             ${streamInput.name || 'Untitled Stream'}
                         </span>
                         ${hasAuth
-                            ? html`<span
-                                  class="text-purple-400 scale-75"
+            ? html`<span
+                                  class="text-purple-300 scale-75"
                                   title="Auth Headers"
                                   >${icons.key}</span
                               >`
-                            : ''}
+            : ''}
                     </div>
                     <div
-                        class="text-[10px] font-mono text-slate-500 truncate opacity-70"
+                        class="text-[10px] font-mono text-slate-400 truncate opacity-60 group-hover:opacity-100 transition-opacity"
                     >
-                        ${new URL(streamInput.url).hostname}
+                        ${streamInput.url ? (() => { try { return new URL(streamInput.url).hostname; } catch { return 'Invalid URL'; } })() : 'No URL Set'}
                     </div>
                 </div>
 
                 <button
                     @click=${handleDelete}
-                    class="opacity-0 group-hover:opacity-100 p-1.5 text-slate-500 hover:text-red-400 transition-opacity"
+                    class="opacity-0 group-hover:opacity-100 p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-900/20 rounded-full transition-all"
                     title="Remove"
                 >
                     ${icons.xCircle}
@@ -151,16 +182,10 @@ const streamListItem = (streamInput, isActive) => {
             </div>
 
             <!-- Tier 0 Badges Row -->
-            <div class="flex flex-wrap gap-2 pl-11">
+            <div class="flex flex-wrap gap-2 pl-12 relative z-10 mt-1">
                 ${statusBadge} ${protocolBadge} ${typeBadge} ${drmBadge}
                 ${llBadge}
             </div>
-
-            ${isActive
-                ? html`<div
-                      class="absolute -right-[2px] top-1/2 -translate-y-1/2 w-1 h-8 bg-blue-500 rounded-l-full"
-                  ></div>`
-                : ''}
         </div>
     `;
 };
@@ -193,24 +218,24 @@ const quickAddStreamRow = () => {
 
     return html`
         <div
-            class="group relative flex items-center gap-3 p-3 rounded-xl border-2 border-dashed border-slate-800 hover:border-slate-700 bg-slate-900/30 transition-all duration-200"
+            class="group relative flex items-center gap-3 p-3 rounded-2xl bg-slate-800 transition-all duration-300"
         >
             <div
-                class="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 group-hover:text-slate-500 transition-colors bg-slate-800/50"
+                class="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-slate-400 group-hover:text-blue-400 transition-colors bg-slate-900/20"
             >
                 ${icons.plusCircle}
             </div>
             <div class="grow min-w-0">
                 <input
                     type="text"
-                    placeholder="Paste URL (Enter to add)..."
-                    class="w-full bg-transparent border-none p-0 text-sm text-slate-300 placeholder-slate-600 focus:ring-0 focus:outline-none font-mono"
+                    placeholder="Quick add URL..."
+                    class="w-full bg-transparent border-none p-0 text-xs text-slate-100 placeholder-slate-400 focus:ring-0 focus:outline-none font-mono"
                     @keydown=${handleKeyDown}
                 />
             </div>
             <button
                 @click=${openLibrary}
-                class="p-1.5 text-slate-600 hover:text-blue-400 hover:bg-blue-400/10 rounded-lg transition-all"
+                class="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all"
                 title="Open Library"
             >
                 ${icons.library}
@@ -267,23 +292,17 @@ const sessionControlDeck = (loadedWorkspaceName, streamInputs) => {
         return html`
             <div class="px-3 pb-3 shrink-0">
                 <div
-                    class="rounded-xl bg-slate-900 border border-teal-900/50 relative overflow-hidden shadow-sm group"
+                    class="rounded-2xl p-4 bg-blue-500/10 relative overflow-hidden shadow-lg shadow-blue-500/5 group"
                 >
-                    <div
-                        class="absolute inset-0 bg-gradient-to-br from-teal-900/10 to-transparent pointer-events-none"
-                    ></div>
-                    <div
-                        class="absolute left-0 top-0 bottom-0 w-1 bg-teal-600"
-                    ></div>
-                    <div class="relative p-3">
-                        <div class="flex justify-between items-start mb-3">
+                    <div class="relative z-10 flex flex-col gap-3">
+                        <div class="flex justify-between items-start">
                             <div class="flex flex-col min-w-0">
                                 <span
-                                    class="text-[9px] font-bold uppercase tracking-widest text-teal-500 mb-0.5"
+                                    class="text-[9px] font-black uppercase tracking-widest text-blue-400 mb-1"
                                     >Active Workspace</span
                                 >
                                 <div
-                                    class="flex items-center gap-2 text-teal-100 font-bold text-sm truncate"
+                                    class="flex items-center gap-2 text-white font-bold text-sm truncate"
                                 >
                                     ${icons.folder}
                                     <span
@@ -295,7 +314,7 @@ const sessionControlDeck = (loadedWorkspaceName, streamInputs) => {
                             </div>
                             <button
                                 @click=${handleShare}
-                                class="p-1.5 text-teal-400 hover:text-teal-200 hover:bg-teal-900/30 rounded-lg transition-colors"
+                                class="p-1.5 text-blue-400 hover:text-white hover:bg-blue-500 rounded-lg transition-all"
                                 title="Share State"
                             >
                                 ${icons.share}
@@ -304,13 +323,13 @@ const sessionControlDeck = (loadedWorkspaceName, streamInputs) => {
                         <div class="flex gap-2">
                             <button
                                 @click=${handleSave}
-                                class="flex-1 flex items-center justify-center gap-2 py-1.5 px-3 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-lg shadow-lg shadow-teal-900/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                class="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-blue-500 hover:bg-[#60a5fa] text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
                             >
-                                ${icons.save} Update
+                                ${icons.save} UPDATE
                             </button>
                             <button
                                 @click=${handleClose}
-                                class="shrink-0 p-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 hover:text-red-300 rounded-lg transition-colors"
+                                class="shrink-0 p-2 bg-white/5 hover:bg-white/10 text-white/50 hover:text-red-400 rounded-xl transition-colors"
                             >
                                 ${icons.power}
                             </button>
@@ -324,35 +343,25 @@ const sessionControlDeck = (loadedWorkspaceName, streamInputs) => {
     return html`
         <div class="p-3 shrink-0">
             <div
-                class="p-3 bg-slate-800/30 border border-slate-700/50 rounded-xl flex items-center justify-between gap-3"
+                class="p-4 bg-white/5 rounded-2xl flex flex-col gap-3"
             >
-                <div class="flex items-center gap-2 text-slate-500 select-none">
-                    <div
-                        class="p-1.5 bg-slate-800 rounded-lg border border-slate-700 shadow-sm"
-                    >
-                        ${icons.layout}
-                    </div>
-                    <span class="text-xs font-medium">Draft Session</span>
+                <div
+                    class="flex items-center gap-2 text-slate-400 select-none"
+                >
+                    <div class="text-blue-400">${icons.layout}</div>
+                    <span class="text-xs font-bold uppercase tracking-wider">Draft Session</span>
                 </div>
                 <div class="flex gap-2">
                     <button
-                        @click=${handleShare}
-                        ?disabled=${!hasItems}
-                        class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-xs font-bold rounded-lg transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Share State"
-                    >
-                        ${icons.share}
-                    </button>
-                    <button
                         @click=${handleLoad}
-                        class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-xs font-bold rounded-lg transition-all shadow-sm"
+                        class="flex-1 py-1.5 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white text-xs font-bold rounded-lg transition-all"
                     >
                         Load
                     </button>
                     <button
                         @click=${handleSave}
                         ?disabled=${!hasItems}
-                        class="px-3 py-1.5 bg-slate-800 hover:bg-blue-600 border border-slate-700 hover:border-blue-500 text-slate-300 hover:text-white text-xs font-bold rounded-lg transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-slate-800 disabled:hover:border-slate-700"
+                        class="flex-1 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:text-white text-xs font-bold rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                         Save
                     </button>
@@ -362,36 +371,35 @@ const sessionControlDeck = (loadedWorkspaceName, streamInputs) => {
     `;
 };
 
-// ... (Rest of file: quickLibraryCard, addStreamDashboard, stagingViewTemplate remain unchanged but use the updated streamListItem function)
-
 const quickLibraryCard = (item, type) => {
     const isPreset = type === 'preset';
     const icon = isPreset ? icons.star : icons.history;
-    const color = isPreset ? 'text-yellow-400' : 'text-blue-400';
 
     return html`
         <button
             @click=${() => analysisActions.addStreamInputFromPreset(item)}
-            class="flex items-center gap-3 p-3 rounded-xl bg-slate-800/40 hover:bg-slate-800 border border-slate-700/50 hover:border-slate-600 transition-all group text-left w-full"
+            class="flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all group text-left w-full"
         >
             <div
-                class="shrink-0 p-2 rounded-lg bg-slate-900 border border-slate-800 ${color}"
+                class="shrink-0 w-8 h-8 rounded-lg bg-black/20 flex items-center justify-center text-white/50 group-hover:text-white"
             >
                 ${icon}
             </div>
             <div class="grow min-w-0">
                 <div
-                    class="text-xs font-bold text-slate-300 group-hover:text-white truncate"
+                    class="text-xs font-bold text-white/80 group-hover:text-white truncate"
                 >
                     ${item.name}
                 </div>
                 <div
-                    class="text-[10px] font-mono text-slate-500 truncate opacity-60"
+                    class="text-[10px] font-mono text-white/40 truncate"
                 >
                     ${new URL(item.url).hostname}
                 </div>
             </div>
-            <div class="text-slate-600 group-hover:text-slate-400">
+            <div
+                class="text-white/20 group-hover:text-blue-400"
+            >
                 ${icons.plusCircle}
             </div>
         </button>
@@ -406,65 +414,83 @@ const addStreamDashboard = () => {
         uiActions.setLibraryModalOpen(true);
     };
 
+    // Digital Horizon Background
+    const horizonStyle = html`
+        <style>
+            .digital-horizon {
+                background: 
+                    linear-gradient(to bottom, transparent 50%, rgba(59, 130, 246, 0.03) 100%),
+                    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px),
+                    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px);
+                background-size: 100% 100%, 40px 40px, 40px 40px;
+                perspective: 1000px;
+                transform-style: preserve-3d;
+                animation: panGrid 60s linear infinite;
+            }
+            @keyframes panGrid {
+                from { background-position: 0 0, 0 0, 0 0; }
+                to { background-position: 0 0, 0 1000px, 0 1000px; }
+            }
+        </style>
+    `;
+
     return html`
+        ${horizonStyle}
         <div
-            class="h-full flex flex-col items-center justify-center bg-slate-950 relative p-8 overflow-y-auto custom-scrollbar"
+            class="h-full flex flex-col items-center justify-center relative p-8 overflow-y-auto custom-scrollbar digital-horizon"
         >
-            <div
-                class="absolute inset-0 bg-[url('/assets/grid.svg')] opacity-[0.02] pointer-events-none"
-            ></div>
             <div
                 class="max-w-2xl w-full flex flex-col items-center relative z-10"
             >
-                <div class="w-full mb-12">
-                    <div class="text-center mb-6">
+                <div class="w-full mb-16">
+                    <div class="text-center mb-10">
                         <div
-                            class="inline-flex p-3 bg-blue-600/10 text-blue-500 rounded-2xl mb-3 shadow-inner border border-blue-500/20"
+                            class="inline-flex p-5 bg-gradient-to-br from-slate-700 to-transparent text-blue-400 rounded-3xl mb-6 shadow-[0_0_40px_rgba(59, 130, 246,0.2)] animate-bounce"
                         >
-                            ${icons.plusCircle}
+                            <span class="scale-150 drop-shadow-[0_0_15px_#3b82f6]">${icons.plusCircle}</span>
                         </div>
-                        <h2 class="text-2xl font-bold text-white mb-2">
-                            Add Stream Source
+                        <h2
+                            class="text-5xl font-black mb-4 text-transparent bg-clip-text bg-gradient-to-b from-white to-white/50 drop-shadow-sm tracking-tighter"
+                        >
+                            Add Source
                         </h2>
-                        <p class="text-slate-400 text-sm">
-                            Paste URL, drop file, or select from library.
+                        <p class="text-slate-400 text-base font-medium tracking-wide max-w-md mx-auto">
+                            Ingest manifest URLs or media files for deep inspection.
                         </p>
                     </div>
-                    <div class="animate-scaleIn">
+                    
+                    <div class="transform hover:scale-[1.02] transition-transform duration-500 rounded-full shadow-2xl">
                         <smart-input-component
                             mode="add"
                             variant="hero"
                         ></smart-input-component>
                     </div>
                 </div>
+
                 <div
-                    class="w-full border-t border-slate-800/50 pt-8 animate-fadeIn"
+                    class="w-full pt-8 animate-fadeIn"
                     style="animation-delay: 100ms;"
                 >
-                    <div class="flex justify-between items-center mb-4 px-1">
+                    <div class="flex justify-between items-center mb-6 px-1">
                         <h3
-                            class="text-xs font-bold text-slate-500 uppercase tracking-widest"
+                            class="text-xs font-black text-white/30 uppercase tracking-widest"
                         >
                             Quick Import
                         </h3>
                         <button
                             @click=${openLibrary}
-                            class="text-xs font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors"
+                            class="text-xs font-bold text-blue-400 hover:text-white flex items-center gap-2 transition-colors"
                         >
-                            ${icons.library} Open Full Library
+                            ${icons.library} FULL LIBRARY
                         </button>
                     </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         ${history.length > 0
-                            ? history.map((h) => quickLibraryCard(h, 'history'))
-                            : html`<div
-                                  class="col-span-2 text-center text-slate-600 text-xs italic py-4"
-                              >
-                                  No recent history.
-                              </div>`}
+            ? history.map((h) => quickLibraryCard(h, 'history'))
+            : html`<div class="col-span-2 text-center text-white/20 italic text-xs py-4">No recent history.</div>`}
                         ${presets.length > 0
-                            ? presets.map((p) => quickLibraryCard(p, 'preset'))
-                            : ''}
+            ? presets.map((p) => quickLibraryCard(p, 'preset'))
+            : ''}
                     </div>
                 </div>
             </div>
@@ -472,195 +498,245 @@ const addStreamDashboard = () => {
     `;
 };
 
-export const stagingViewTemplate = () => {
-    const { streamInputs, activeStreamInputId } = useAnalysisStore.getState();
-    const { loadedWorkspaceName } = useUiStore.getState();
+// --- Web Component Definition ---
 
-    const handleAnalyze = () => {
-        eventBus.dispatch('ui:stream-analysis-requested', {
-            inputs: streamInputs,
-        });
-    };
+class StagingViewComponent extends HTMLElement {
+    constructor() {
+        super();
+        this.unsubs = [];
+    }
 
-    const handleAddStream = () => {
-        const isMobile = window.innerWidth < 768;
-        if (isMobile) {
-            openModalWithContent({
-                title: 'Add Stream',
-                url: '',
-                content: { type: 'addStream', data: {} },
-                isFullWidth: true,
+    connectedCallback() {
+        this._render();
+
+        // Subscribe to stores
+        this.unsubs.push(useAnalysisStore.subscribe(() => this._render()));
+        this.unsubs.push(useUiStore.subscribe(() => this._render()));
+    }
+
+    disconnectedCallback() {
+        this.unsubs.forEach((unsub) => unsub());
+        this.unsubs = [];
+    }
+
+    _render() {
+        const { streamInputs, activeStreamInputId } = useAnalysisStore.getState();
+        const { loadedWorkspaceName } = useUiStore.getState();
+
+        const handleAnalyze = () => {
+            eventBus.dispatch(EVENTS.UI.STREAM_ANALYSIS_REQUESTED, {
+                inputs: streamInputs,
             });
-        } else {
+        };
+
+        const handleAddStream = () => {
+            const isMobile = window.innerWidth < 768;
+            if (isMobile) {
+                openModalWithContent({
+                    title: 'Add Stream',
+                    url: '',
+                    content: { type: 'addStream', data: {} },
+                    isFullWidth: true,
+                });
+            } else {
+                analysisActions.setActiveStreamInputId(null);
+            }
+        };
+
+        const handleClearAll = () => {
+            if (confirm('Are you sure you want to remove all streams from the staging queue?')) {
+                analysisActions.clearAllStreamInputs();
+            }
+        };
+
+        const handleBackToList = () => {
             analysisActions.setActiveStreamInputId(null);
-        }
-    };
+        };
 
-    const handleClearAll = () => {
-        if (
-            confirm(
-                'Are you sure you want to remove all streams from the staging queue?'
-            )
-        ) {
-            analysisActions.clearAllStreamInputs();
-        }
-    };
+        const isStreamSelected =
+            activeStreamInputId !== null &&
+            streamInputs.some((s) => s.id === activeStreamInputId);
+        const showInspector = isStreamSelected;
 
-    const handleBackToList = () => {
-        analysisActions.setActiveStreamInputId(null);
-    };
+        const sidebarClasses = classMap({
+            'staging-sidebar': true,
+            'w-full md:w-80 lg:w-[420px]': true, // Significantly wider for comfort
+            flex: true,
+            'flex-col': true,
+            'shrink-0': true,
+            'z-30': true,
+            'shadow-2xl': true,
+            'hidden': isStreamSelected,
+            'md:flex': true,
+        });
 
-    const isStreamSelected =
-        activeStreamInputId !== null &&
-        streamInputs.some((s) => s.id === activeStreamInputId);
-    const showInspector = isStreamSelected;
+        const mainClasses = classMap({
+            grow: true,
+            'min-w-0': true,
+            relative: true,
+            'z-0': true,
+            flex: true,
+            'flex-col': true,
+            'h-full': true,
+            'min-h-0': true,
+            'overflow-hidden': true,
+            hidden: !isStreamSelected,
+            'md:flex': true,
+        });
 
-    const sidebarClasses = classMap({
-        'w-full md:w-80 lg:w-140': true,
-        flex: true,
-        'flex-col': true,
-        'border-r': true,
-        'border-slate-800': true,
-        'bg-slate-950/50': true,
-        'shrink-0': true,
-        'z-30': true,
-        'shadow-2xl': true,
-        'h-full': true,
-        'min-h-0': true,
-        hidden: isStreamSelected,
-        'md:flex': true,
-    });
+        const template = html`
+            <style>
+                
+                :host {
+                    display: block;
+                    width: 100%;
+                    height: 100%;
+                }
 
-    const mainClasses = classMap({
-        grow: true,
-        'min-w-0': true,
-        'bg-slate-950': true,
-        relative: true,
-        'z-0': true,
-        flex: true,
-        'flex-col': true,
-        'h-full': true,
-        'min-h-0': true,
-        'overflow-hidden': true,
-        hidden: !isStreamSelected,
-        'md:flex': true,
-    });
+                /* Sidebar Layout */
+                .staging-sidebar {
+                    background: #1e293b;
+                    backdrop-filter: blur(20px);
+                    
+                    display: flex;
+                    flex-direction: column;
+                    height: 100%;
+                    min-height: 0;
+                    width: 100%;
+                    transition: all 0.3s ease;
+                }
 
-    return html`
-        <div
-            class="h-full flex flex-col md:flex-row bg-slate-950 overflow-hidden"
-        >
-            <!-- LEFT SIDEBAR (Queue) -->
-            <div class="${sidebarClasses}">
-                <div
-                    class="p-4 flex justify-between items-center gap-4 bg-slate-900/90 backdrop-blur border-b border-slate-800 shrink-0"
-                >
-                    <h2
-                        class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2"
+                /* Mobile-specific adjustments are handled via media queries or tailwind classes */
+            </style>
+            
+            <div
+                class="h-full flex flex-col md:flex-row overflow-hidden relative"
+            >
+                <!-- LEFT SIDEBAR (Queue) -->
+                <div class="${sidebarClasses} staging-sidebar" style="">
+                    <div
+                        class="layout-header p-5 flex justify-between items-center gap-4 shrink-0"
                     >
-                        ${icons.list} Queue
-                        <span
-                            class="bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full text-[10px] border border-slate-700 font-mono"
-                            >${streamInputs.length}</span
+                        <h2
+                            class="text-xs font-black text-slate-100 uppercase tracking-widest flex items-center gap-3"
                         >
-                    </h2>
-                    <button
-                        @click=${handleAddStream}
-                        class="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold uppercase tracking-wide rounded-lg transition-all shadow-lg shadow-blue-900/20 hover:scale-105 active:scale-95"
-                        title="Add New Stream"
+                            ${icons.list} Stream Queue
+                            <span
+                                class="bg-blue-500 text-white px-2 py-0.5 rounded-full text-[10px] font-bold shadow-[0_0_10px_#3b82f6]"
+                                >${streamInputs.length}</span
+                            >
+                        </h2>
+                        <button
+                            @click=${handleAddStream}
+                            class="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-[10px] font-bold uppercase tracking-wide rounded-lg transition-all shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
+                            title="Add New Stream"
+                        >
+                            ${icons.plusCircle} Add
+                        </button>
+                    </div>
+                    
+                    ${sessionControlDeck(loadedWorkspaceName, streamInputs)}
+                    
+                    <div
+                        class="layout-body grow overflow-y-auto px-4 py-4 space-y-3 custom-scrollbar min-h-0"
                     >
-                        ${icons.plusCircle} Add
-                    </button>
-                </div>
-                ${sessionControlDeck(loadedWorkspaceName, streamInputs)}
-                <div
-                    class="grow overflow-y-auto px-2 py-2 space-y-2 custom-scrollbar bg-slate-950/30 border-t border-slate-800/50 min-h-0"
-                >
-                    ${streamInputs.map((input) =>
-                        streamListItem(input, input.id === activeStreamInputId)
-                    )}
-                    ${streamInputs.length === 0
-                        ? html`
-                              <div
-                                  class="h-32 flex flex-col items-center justify-center text-center border-2 border-dashed border-slate-800/50 rounded-xl m-2 bg-slate-900/20 opacity-60"
-                              >
-                                  <div class="text-slate-500 mb-2 scale-110">
-                                      ${icons.layers}
-                                  </div>
-                                  <p
-                                      class="text-[10px] text-slate-500 font-bold uppercase tracking-wide"
+                        ${streamInputs.map((input) =>
+            streamListItem(input, input.id === activeStreamInputId)
+        )}
+                        ${streamInputs.length === 0
+                ? html`
+                                  <div
+                                      class="h-40 flex flex-col items-center justify-center text-center rounded-3xl m-2 bg-slate-800"
                                   >
-                                      Queue Empty
-                                  </p>
+                                      <div
+                                          class="text-slate-400 mb-3 scale-125 opacity-50"
+                                      >
+                                          ${icons.layers}
+                                      </div>
+                                      <p
+                                          class="text-[10px] text-slate-400 font-bold uppercase tracking-widest"
+                                      >
+                                          Queue Empty
+                                      </p>
+                                  </div>
+                              `
+                : ''}
+                        ${quickAddStreamRow()}
+                    </div>
+                    
+                    <div
+                        class="p-5 bg-slate-800 space-y-3 backdrop-blur-xl z-10 shrink-0"
+                    >
+                        <button
+                            @click=${handleAnalyze}
+                            class="w-full py-3.5 bg-gradient-to-r from-teal-500 to-blue-500 text-black font-black uppercase tracking-widest rounded-xl shadow-lg hover:shadow-xl flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
+                            ?disabled=${streamInputs.length === 0}
+                        >
+                            ${icons.play}
+                            <span>Start Analysis</span>
+                        </button>
+
+                        <button
+                            @click=${handleClearAll}
+                            class="w-full flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-wider text-red-400 hover:text-white hover:bg-red-500 px-3 py-3 rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                            ?disabled=${streamInputs.length === 0}
+                        >
+                            ${icons.trash} Clear Queue
+                        </button>
+                    </div>
+                </div>
+
+                <!-- RIGHT MAIN AREA -->
+                <div class="${mainClasses}">
+                    <!-- Mobile-Only Navigation Header -->
+                    ${isStreamSelected
+                ? html`
+                              <div
+                                  class="md:hidden shrink-0 p-3 bg-slate-800/90 backdrop-blur-md flex items-center gap-3 shadow-sm z-20 relative"
+                              >
+                                  <button
+                                      @click=${handleBackToList}
+                                      class="p-2 -ml-2 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1"
+                                  >
+                                      ${icons.arrowLeft}
+                                      <span class="text-xs font-bold">Back</span>
+                                  </button>
+                                  <div
+                                      class="h-4 w-px bg-white/10"
+                                  ></div>
+                                  <span
+                                      class="text-sm font-bold text-slate-100 truncate"
+                                      >Stream Settings</span
+                                  >
                               </div>
                           `
-                        : ''}
-                    ${quickAddStreamRow()}
-                </div>
-                <div
-                    class="p-4 border-t border-slate-800 bg-slate-900/95 space-y-3 backdrop-blur z-10 shrink-0"
-                >
-                    <button
-                        @click=${handleAnalyze}
-                        class="w-full py-3.5 bg-green-600 hover:bg-green-500 text-white font-bold rounded-xl shadow-lg shadow-green-900/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-none group"
-                        ?disabled=${streamInputs.length === 0}
-                    >
-                        ${icons.play}
-                        <span class="text-sm">Start Analysis</span>
-                        <span
-                            class="opacity-0 group-hover:opacity-100 transition-opacity -ml-1 group-hover:translate-x-1 transform duration-200"
-                            >→</span
-                        >
-                    </button>
+                : ''}
 
-                    <button
-                        @click=${handleClearAll}
-                        class="w-full flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-wider text-red-400 hover:text-red-200 bg-red-900/5 hover:bg-red-900/20 border border-red-900/10 hover:border-red-900/30 px-3 py-2 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                        ?disabled=${streamInputs.length === 0}
+                    <div
+                        class="grow min-h-0 flex flex-col overflow-hidden relative z-10"
                     >
-                        ${icons.trash} Clear Queue
-                    </button>
+                        ${showInspector
+                ? html`<div
+                                  class="h-full flex flex-col min-h-0 overflow-hidden"
+                              >
+                                  ${inspectorPanelTemplate()}
+                              </div>`
+                : html`<div
+                                  class="h-full hidden md:flex flex-col min-h-0 overflow-hidden"
+                              >
+                                  ${addStreamDashboard()}
+                              </div>`}
+                    </div>
                 </div>
             </div>
+        `;
+        render(template, this);
+    }
+}
 
-            <!-- RIGHT MAIN AREA -->
-            <div class="${mainClasses}">
-                <!-- Mobile-Only Navigation Header -->
-                ${isStreamSelected
-                    ? html`
-                          <div
-                              class="md:hidden shrink-0 p-3 border-b border-slate-800 bg-slate-900 flex items-center gap-3 shadow-sm z-20 relative"
-                          >
-                              <button
-                                  @click=${handleBackToList}
-                                  class="p-2 -ml-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1"
-                              >
-                                  ${icons.arrowLeft}
-                                  <span class="text-xs font-bold">Back</span>
-                              </button>
-                              <div class="h-4 w-px bg-slate-800"></div>
-                              <span
-                                  class="text-sm font-bold text-slate-200 truncate"
-                                  >Stream Settings</span
-                              >
-                          </div>
-                      `
-                    : ''}
+if (!customElements.get('staging-view-component')) {
+    customElements.define('staging-view-component', StagingViewComponent);
+}
 
-                <div class="grow min-h-0 flex flex-col overflow-hidden">
-                    ${showInspector
-                        ? html`<div
-                              class="h-full flex flex-col min-h-0 overflow-hidden"
-                          >
-                              ${inspectorPanelTemplate()}
-                          </div>`
-                        : html`<div
-                              class="h-full hidden md:flex flex-col min-h-0 overflow-hidden"
-                          >
-                              ${addStreamDashboard()}
-                          </div>`}
-                </div>
-            </div>
-        </div>
-    `;
-};
+// Export for compatibility if needed, though mostly usage will be via tag
+export const stagingViewTemplate = () => html`<staging-view-component></staging-view-component>`;

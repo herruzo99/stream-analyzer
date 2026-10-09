@@ -235,10 +235,10 @@ export class SmartInputComponent extends HTMLElement {
     renderBatchEditor() {
         return html`
             <div
-                class="w-full bg-slate-900 rounded-xl border border-slate-700 shadow-2xl overflow-hidden animate-scaleIn"
+                class="w-full bg-slate-800 rounded-xl shadow-2xl overflow-hidden animate-scaleIn"
             >
                 <div
-                    class="p-3 border-b border-slate-800 flex justify-between items-center bg-slate-800/50"
+                    class="p-3 flex justify-between items-center bg-slate-800"
                 >
                     <div
                         class="flex items-center gap-2 text-blue-400 font-bold text-xs uppercase tracking-wider"
@@ -248,48 +248,48 @@ export class SmartInputComponent extends HTMLElement {
                     </div>
                     <button
                         @click=${() =>
-                            this.setState({
-                                viewMode: 'single',
-                                batchList: [],
-                            })}
-                        class="text-slate-500 hover:text-white transition-colors"
+                this.setState({
+                    viewMode: 'single',
+                    batchList: [],
+                })}
+                        class="text-slate-400 hover:text-slate-100 transition-colors"
                     >
                         ${icons.xCircle}
                     </button>
                 </div>
                 <div
-                    class="max-h-48 overflow-y-auto custom-scrollbar p-2 space-y-1 bg-slate-950/50"
+                    class="max-h-48 overflow-y-auto custom-scrollbar p-2 space-y-1 bg-slate-900"
                 >
                     ${this.state.batchList.map(
-                        (url, i) => html`
+                    (url, i) => html`
                             <div
-                                class="flex items-center gap-3 px-3 py-2 rounded bg-slate-900/50 border border-slate-800/50 text-xs text-slate-300 font-mono truncate"
+                                class="flex items-center gap-3 px-3 py-2 rounded bg-slate-800 text-xs text-slate-100 font-mono truncate"
                             >
                                 <span
-                                    class="text-slate-600 w-4 text-right select-none"
+                                    class="text-slate-400 w-4 text-right select-none"
                                     >${i + 1}.</span
                                 >
                                 <span class="truncate">${url}</span>
                             </div>
                         `
-                    )}
+                )}
                 </div>
                 <div
-                    class="p-3 bg-slate-800/50 border-t border-slate-800 flex gap-3"
+                    class="p-3 bg-slate-800 flex gap-3"
                 >
                     <button
                         @click=${() =>
-                            this.setState({
-                                viewMode: 'single',
-                                batchList: [],
-                            })}
-                        class="flex-1 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+                this.setState({
+                    viewMode: 'single',
+                    batchList: [],
+                })}
+                        class="flex-1 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors"
                     >
                         Cancel
                     </button>
                     <button
                         @click=${() => this.submit()}
-                        class="flex-[2] py-2 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20 transition-all"
+                        class="flex-[2] py-2 rounded-lg text-xs font-bold bg-[#60a5fa] text-slate-100 hover:bg-blue-500 shadow-lg shadow-blue-500/20 transition-all"
                     >
                         Import All
                     </button>
@@ -300,14 +300,26 @@ export class SmartInputComponent extends HTMLElement {
 
     renderSingleInput() {
         const { value, protocol, isDragActive, isFocused } = this.state;
-        const containerClass = `relative w-full transition-all duration-300 ${isDragActive || isFocused ? 'scale-[1.02]' : ''}`;
-        const wrapperClass = `flex items-center gap-0 bg-slate-900/90 backdrop-blur-xl border rounded-2xl overflow-hidden shadow-2xl transition-all duration-300 ${isFocused || isDragActive ? 'border-blue-500 shadow-blue-900/20 ring-2 ring-blue-500/20' : 'border-slate-700 hover:border-slate-600'} ${this.variant === 'hero' ? 'h-14' : 'h-11'}`;
+        const containerClass = `relative w-full transition-all duration-500 ${isDragActive || isFocused ? 'scale-[1.02]' : ''}`;
+
+        // --- Neo-Glass Pill Styles ---
+        const isHero = this.variant === 'hero';
+        const wrapperClass = `
+            flex items-center gap-0 
+            ${isHero ? 'rounded-full h-16' : 'rounded-xl h-12'} 
+            bg-slate-800 backdrop-blur-2xl 
+            transition-all duration-300 overflow-hidden
+            shadow-[0_10px_40px_rgba(0,0,0,0.3)]
+            ${isFocused || isDragActive
+                ? 'shadow-[0_0_30px_#3b82f6] ring-2 ring-[#3b82f6]'
+                : 'hover:ring-1 hover:ring-[#60a5fa]'}
+        `;
         const badgeColor =
             protocol === 'HLS'
-                ? 'text-purple-400 bg-purple-500/10 border-purple-400/20'
+                ? 'text-purple-300 bg-slate-700 shadow-[0_0_10px_#a855f7]'
                 : protocol === 'DASH'
-                  ? 'text-blue-400 bg-blue-500/10 border-blue-400/20'
-                  : 'text-slate-500';
+                    ? 'text-blue-400 bg-slate-700 shadow-[0_0_10px_#3b82f6]'
+                    : 'text-slate-400';
 
         return html`
             <div
@@ -317,34 +329,37 @@ export class SmartInputComponent extends HTMLElement {
                 @dragleave=${this.handleDragLeave}
                 @drop=${this.handleDrop}
             >
+                <!-- Drag Overlay -->
                 <div
-                    class="absolute inset-0 z-50 rounded-2xl border-2 border-dashed border-blue-500 bg-slate-900/95 flex flex-col items-center justify-center text-blue-400 font-bold transition-opacity duration-200 ${isDragActive
-                        ? 'opacity-100 pointer-events-auto'
-                        : 'opacity-0 pointer-events-none'}"
+                    class="absolute inset-0 z-50 rounded-2xl border-2 border-dashed border-blue-500 bg-slate-800 backdrop-blur-xl flex flex-col items-center justify-center text-blue-400 font-bold transition-all duration-300 ${isDragActive
+                ? 'opacity-100 pointer-events-auto scale-100'
+                : 'opacity-0 pointer-events-none scale-95'}"
                 >
-                    <div class="scale-150 mb-2 animate-bounce">
+                    <div
+                        class="scale-150 mb-3 animate-bounce drop-shadow-[0_0_10px_#3b82f6]"
+                    >
                         ${icons.upload}
                     </div>
-                    <span>Drop Manifest or Media File</span>
+                    <span class="text-lg">Drop Manifest or Media File</span>
                 </div>
 
                 <div class="${wrapperClass}">
                     <div
-                        class="pl-3 pr-2 shrink-0 flex justify-center min-w-[3rem]"
+                        class="pl-4 pr-3 shrink-0 flex justify-center min-w-[3.5rem]"
                     >
                         ${protocol
-                            ? html`<span
-                                  class="text-[10px] font-black px-1.5 py-0.5 rounded border uppercase tracking-wider animate-scaleIn ${badgeColor}"
+                ? html`<span
+                                  class="text-[10px] font-black px-2 py-1 rounded-md uppercase tracking-wider animate-scaleIn ${badgeColor}"
                                   >${protocol}</span
                               >`
-                            : html`<span
-                                  class="text-slate-600 transition-colors group-hover:text-slate-500"
+                : html`<span
+                                  class="text-slate-400 transition-colors group-hover:text-slate-400"
                                   >${icons.link}</span
                               >`}
                     </div>
                     <input
                         type="text"
-                        class="flex-1 bg-transparent border-none text-white placeholder-slate-600 focus:ring-0 h-full w-full min-w-0 px-0 text-sm font-medium font-mono"
+                        class="flex-1 bg-transparent border-none text-slate-200 placeholder-slate-300 focus:ring-0 h-full w-full min-w-0 px-0 text-base font-medium font-mono"
                         placeholder="Paste URL, drop file (.mpd, .m3u8, .mp4), or paste list..."
                         .value=${value}
                         @input=${this.handleInput}
@@ -357,27 +372,27 @@ export class SmartInputComponent extends HTMLElement {
                     />
 
                     <div
-                        class="flex items-center h-full border-l border-slate-800 bg-slate-900/50 pr-1 pl-1"
+                        class="flex items-center h-full bg-slate-200/5 pl-2"
                     >
                         <button
                             @click=${this.openFileDialog}
-                            class="p-2 text-slate-500 hover:text-slate-300 hover:bg-white/5 rounded-lg transition-colors"
+                            class="p-2.5 text-slate-400 hover:text-slate-100 hover:bg-slate-100/10 rounded-xl transition-colors"
                             title="Upload Local File"
                         >
                             ${icons.folder}
                         </button>
                         <button
                             @click=${() => this.submit()}
-                            class="ml-1 px-4 h-8 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-lg shadow-blue-900/20 transition-all flex items-center gap-2 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100"
+                            class="${isHero ? 'rounded-full px-8 mr-1.5' : 'rounded-lg px-6 mr-1'} h-[85%] bg-gradient-to-r from-blue-500 to-[#60a5fa] hover:to-purple-500 text-slate-100 text-xs font-bold uppercase tracking-wider shadow-[0_0_20px_#3b82f6] hover:shadow-[0_0_30px_#3b82f6] transition-all flex items-center gap-2 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 disabled:shadow-none disabled:grayscale"
                             ?disabled=${!value.trim()}
                         >
                             ${this.mode === 'add'
-                                ? icons.plusCircle
-                                : icons.searchCode}
+                ? icons.plusCircle
+                : icons.searchCode}
                             <span class="hidden sm:inline"
                                 >${this.mode === 'add'
-                                    ? 'Add'
-                                    : 'Analyze'}</span
+                ? 'Add'
+                : 'Analyze'}</span
                             >
                         </button>
                     </div>
@@ -392,15 +407,15 @@ export class SmartInputComponent extends HTMLElement {
             ${this.variant === 'hero'
                 ? html`
                       <div
-                          class="mt-4 flex justify-center gap-6 text-[10px] font-bold uppercase tracking-widest text-slate-600 select-none animate-fadeIn delay-100"
+                          class="mt-4 pb-2 flex justify-center gap-8 text-[10px] font-bold uppercase tracking-widest text-slate-400 select-none animate-fadeIn delay-100"
                       >
                           <span
-                              class="flex items-center gap-1.5 cursor-help hover:text-slate-400 transition-colors"
+                              class="flex items-center gap-2 cursor-help hover:text-blue-400 transition-colors"
                               title="Paste multiple URLs separated by newlines"
                               >${icons.layers} Batch Paste</span
                           >
                           <span
-                              class="flex items-center gap-1.5 cursor-help hover:text-slate-400 transition-colors"
+                              class="flex items-center gap-2 cursor-help hover:text-blue-400 transition-colors"
                               title="Drop .mpd, .m3u8, .mp4 files"
                               >${icons.fileScan} Drag & Drop</span
                           >

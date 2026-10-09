@@ -1,98 +1,83 @@
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useUiStore } from '@/state/uiStore';
-import * as icons from '@/ui/icons';
-import { openModalWithContent } from '@/ui/services/modalService';
 import { html, render } from 'lit-html';
 import { landingViewTemplate } from './components/landing-view.js';
 import './components/library-modal.js';
-import { stagingViewTemplate } from './components/staging-view.js';
+import './components/staging-sidebar.js'; // Ensure registered
+import './components/staging-main.js';    // Ensure registered
 
-let container = null;
-let unsubAnalysis = null;
-let unsubUi = null;
+// --- Landing View Controller (Non-Shell) ---
+let landingContainer = null;
+let landingUnsubAnalysis = null;
+let landingUnsubUi = null;
 
-function renderInputView() {
-    if (!container) return;
+function renderLanding() {
+    if (!landingContainer) return;
 
-    const { streamInputs } = useAnalysisStore.getState();
-    const hasInputs = streamInputs.length > 0;
-
-    const aboutClickHandler = (e) => {
-        e.preventDefault();
-        openModalWithContent({
-            title: '',
-            url: '',
-            content: { type: 'about', data: {} },
-        });
-    };
-
-    const header = html`
-        <div
-            class="absolute top-0 left-0 right-0 p-6 flex justify-between items-start z-50 pointer-events-none"
-        >
-            <div class="pointer-events-auto flex items-center gap-3">
-                <img
-                    src="/icon.png"
-                    class="w-10 h-10 object-contain drop-shadow-md"
-                    alt="Stream Analyzer"
-                />
-                <span class="font-bold text-2xl text-white tracking-tight"
-                    >Stream Analyzer</span
-                >
-            </div>
-            <div class="flex gap-4 pointer-events-auto">
-                <button
-                    @click=${aboutClickHandler}
-                    class="text-slate-400 hover:text-white transition-colors bg-slate-900/20 backdrop-blur-md px-4 py-2 rounded-full border border-white/5 text-xs font-bold flex items-center gap-2 hover:bg-white/5"
-                >
-                    ${icons.info} About
-                </button>
-                <a
-                    href="https://github.com/herruzo99/stream-analyzer"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="text-slate-400 hover:text-white transition-colors bg-slate-900/20 backdrop-blur-md px-4 py-2 rounded-full border border-white/5 text-xs font-bold flex items-center gap-2 hover:bg-white/5"
-                >
-                    ${icons.github} GitHub
-                </a>
-            </div>
-        </div>
-    `;
-
-    // Use keying to force re-render if swapping between major views to ensure animations trigger
-    const content = hasInputs ? stagingViewTemplate() : landingViewTemplate();
+    // Only render if we have no inputs? 
+    // Actually mainRenderer controls when this is mounted.
+    // But we might want to be reactive to store changes if needed.
 
     const template = html`
         <div
-            class="h-full w-full bg-slate-950 text-slate-200 font-sans relative overflow-hidden selection:bg-blue-500/30"
+            class="h-full w-full text-slate-200 font-sans relative overflow-hidden selection:bg-blue-500/30 pointer-events-auto"
         >
-            <!-- Grid Background Layer -->
-            <div
-                class="absolute inset-0 bg-[url('/assets/grid.svg')] opacity-[0.03] pointer-events-none"
-            ></div>
-
-            ${!hasInputs ? header : ''} ${content}
-
+            ${landingViewTemplate()}
             <library-modal-component></library-modal-component>
         </div>
     `;
 
-    render(template, container);
+    render(template, landingContainer);
 }
 
-export const inputView = {
+export const landingView = {
     mount(containerElement) {
-        container = containerElement;
-        unsubAnalysis = useAnalysisStore.subscribe(renderInputView);
-        unsubUi = useUiStore.subscribe(renderInputView);
-        renderInputView();
+        landingContainer = containerElement;
+        // Subscriptions might be needed for library modal or other updates
+        landingUnsubAnalysis = useAnalysisStore.subscribe(renderLanding);
+        landingUnsubUi = useUiStore.subscribe(renderLanding);
+        renderLanding();
     },
     unmount() {
-        if (unsubAnalysis) unsubAnalysis();
-        if (unsubUi) unsubUi();
-        unsubAnalysis = null;
-        unsubUi = null;
-        if (container) render(html``, container);
-        container = null;
+        if (landingUnsubAnalysis) landingUnsubAnalysis();
+        if (landingUnsubUi) landingUnsubUi();
+        landingUnsubAnalysis = null;
+        landingUnsubUi = null;
+        if (landingContainer) render(html``, landingContainer);
+        landingContainer = null;
     },
 };
+
+// --- Staging View Controller (Independent Layout) ---
+let stagingContainer = null;
+
+export const stagingView = {
+    mount(container) {
+        stagingContainer = container;
+        render(html`
+            <div class="flex h-full w-full overflow-hidden" style="gap: 0.75rem; padding: 0.75rem;">
+                <!-- Staging Sidebar -->
+                <aside class="w-[320px] md:w-[380px] xl:w-[420px] shrink-0 flex flex-col relative z-30 transition-all duration-300 pointer-events-auto">
+                    <staging-sidebar class="h-full w-full"></staging-sidebar>
+                </aside>
+                
+                <!-- Main Content -->
+                <main class="grow min-w-0 h-full relative flex flex-col overflow-hidden transition-all duration-300 pointer-events-auto">
+                    <staging-main class="h-full w-full"></staging-main>
+                </main>
+            </div>
+            <!-- Modal placed outside overflow container -->
+            <library-modal-component class="pointer-events-auto"></library-modal-component>
+        `, container);
+    },
+
+    unmount() {
+        if (stagingContainer) {
+            render(html``, stagingContainer);
+            stagingContainer = null;
+        }
+    }
+};
+
+// Backward compatibility (if needed temporarily)
+export const inputView = landingView;
