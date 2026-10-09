@@ -60,9 +60,9 @@ class EventLogComponent extends HTMLElement {
             <button
                 @click=${() => this.setFilter(type)}
                 class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded transition-colors border ${this
-                    .filter === type
-                    ? 'bg-blue-600 text-white border-blue-500'
-                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600'}"
+                .filter === type
+                ? 'bg-blue-500 text-white border-blue-500'
+                : 'bg-slate-800 border-slate-800 text-slate-400 hover:text-slate-100 hover:border-slate-100'}"
             >
                 ${label}
             </button>
@@ -70,31 +70,33 @@ class EventLogComponent extends HTMLElement {
 
         const severityConfig = {
             critical: {
-                bg: 'bg-red-900/20',
-                text: 'text-red-300',
+                bg: 'bg-red-500/20',
+                text: 'text-red-400',
                 border: 'border-red-500/30',
                 icon: icons.alertTriangle,
             },
             warning: {
-                bg: 'bg-amber-900/20',
-                text: 'text-amber-300',
+                bg: 'bg-amber-500/20',
+                text: 'text-amber-400',
                 border: 'border-amber-500/30',
                 icon: icons.info,
             },
             info: {
-                bg: 'bg-slate-800/30',
+                bg: 'bg-slate-800',
                 text: 'text-slate-400',
-                border: 'border-slate-700/30',
+                border: 'border-slate-800',
                 icon: icons.activity,
             },
         };
 
         // Removed fixed max-h calculation. Uses h-full to fill parent.
         const template = html`
-            <div class="flex flex-col h-full w-full bg-slate-900">
+            <div
+                class="flex flex-col h-full w-full bg-slate-800 backdrop-blur-xl"
+            >
                 <!-- Filter Toolbar -->
                 <div
-                    class="p-3 flex flex-wrap items-center gap-2 border-b border-slate-800 bg-slate-900/95 backdrop-blur z-10 shrink-0"
+                    class="p-3 flex flex-wrap items-center gap-2 border-b border-slate-800 bg-slate-800 backdrop-blur z-10 shrink-0"
                 >
                     ${filterButton('All', 'all')}
                     ${filterButton('Critical', 'critical')}
@@ -105,20 +107,20 @@ class EventLogComponent extends HTMLElement {
                     <div class="relative">
                         <select
                             @change=${(e) =>
-                                this.setStreamFilter(e.target.value)}
+                this.setStreamFilter(e.target.value)}
                             .value=${this.streamIdFilter}
-                            class="bg-slate-800 text-slate-300 rounded border border-slate-700 py-1 pl-2 pr-6 text-xs font-medium appearance-none cursor-pointer hover:bg-slate-700 hover:border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            class="bg-slate-800 text-slate-100 rounded border border-slate-800 py-1 pl-2 pr-6 text-xs font-medium appearance-none cursor-pointer hover:bg-slate-800 hover:border-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         >
                             <option value="all">All Streams</option>
                             ${Array.from(players.values()).map(
-                                (p) =>
-                                    html`<option value=${p.streamId}>
+                    (p) =>
+                        html`<option value=${p.streamId}>
                                         ${p.streamName}
                                     </option>`
-                            )}
+                )}
                         </select>
                         <div
-                            class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 scale-75"
+                            class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 scale-75"
                         >
                             ${icons.chevronDown}
                         </div>
@@ -128,9 +130,9 @@ class EventLogComponent extends HTMLElement {
                 <!-- Log List -->
                 <div class="grow overflow-y-auto custom-scrollbar">
                     ${filteredLog.length === 0
-                        ? html`
+                ? html`
                               <div
-                                  class="flex flex-col items-center justify-center h-full text-slate-500 gap-3 opacity-60"
+                                  class="flex flex-col items-center justify-center h-full text-slate-400 gap-3 opacity-60"
                               >
                                   <div class="scale-150">${icons.inbox}</div>
                                   <p
@@ -140,16 +142,16 @@ class EventLogComponent extends HTMLElement {
                                   </p>
                               </div>
                           `
-                        : html`
-                              <div class="divide-y divide-slate-800/50">
+                : html`
+                              <div class="divide-y divide-slate-800">
                                   ${filteredLog.map((event) => {
-                                      const style =
-                                          severityConfig[event.severity] ||
-                                          severityConfig.info;
+                    const style =
+                        severityConfig[event.severity] ||
+                        severityConfig.info;
 
-                                      return html`
+                    return html`
                                           <div
-                                              class="p-3 hover:bg-white/[0.02] transition-colors group"
+                                              class="p-3 hover:bg-slate-800 transition-colors group"
                                           >
                                               <div
                                                   class="flex justify-between items-start mb-1.5"
@@ -158,7 +160,7 @@ class EventLogComponent extends HTMLElement {
                                                       class="flex items-center gap-2 min-w-0"
                                                   >
                                                       <span
-                                                          class="font-bold text-xs text-white truncate max-w-[180px]"
+                                                          class="font-bold text-xs text-slate-100 truncate max-w-[180px]"
                                                           title="${event.streamName}"
                                                       >
                                                           ${event.streamName}
@@ -170,7 +172,7 @@ class EventLogComponent extends HTMLElement {
                                                       </span>
                                                   </div>
                                                   <span
-                                                      class="font-mono text-[10px] text-slate-500 whitespace-nowrap ml-2"
+                                                      class="font-mono text-[10px] text-slate-400 whitespace-nowrap ml-2"
                                                   >
                                                       ${event.timestamp.toLocaleTimeString()}
                                                   </span>
@@ -190,7 +192,7 @@ class EventLogComponent extends HTMLElement {
                                               </div>
                                           </div>
                                       `;
-                                  })}
+                })}
                               </div>
                           `}
                 </div>

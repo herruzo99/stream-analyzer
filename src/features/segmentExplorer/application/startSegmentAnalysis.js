@@ -41,11 +41,8 @@ export async function startSegmentAnalysisUseCase({ files }) {
                 }
             ).promise;
 
-            const uniqueId = `local-segment-${index}-${
-                initialParsedData.data?.boxes?.[0]?.offset ||
-                initialParsedData.data?.packets?.[0]?.offset ||
-                index
-            }`;
+            // FIX: Use file name as uniqueId to ensure consistency with other inspection paths
+            const uniqueId = file.name;
 
             // ARCHITECTURAL FIX: Cache the raw data and parsed structure immediately.
             setInCache(uniqueId, {

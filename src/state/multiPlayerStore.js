@@ -45,6 +45,7 @@ const createInitialState = () => ({
     globalMaxHeight: Infinity,
     globalBandwidthCap: Infinity,
     globalBufferingGoal: 10,
+    globalRetryDelayMs: 2000,
 });
 
 export const useMultiPlayerStore = createStore((set, get) => ({
@@ -257,6 +258,27 @@ export const useMultiPlayerStore = createStore((set, get) => ({
     setGlobalAbrEnabled: (enabled) => set({ globalAbrEnabled: enabled }),
     setGlobalMaxHeight: (height) => set({ globalMaxHeight: height }),
     setGlobalBandwidthCap: (bps) => set({ globalBandwidthCap: bps }),
+    setGlobalRetryDelay: (ms) => set({ globalRetryDelayMs: ms }),
+
+    incrementDowntime: (streamId, durationMs) =>
+        set((state) => {
+            const newPlayers = new Map(state.players);
+            const player = newPlayers.get(streamId);
+            if (player) {
+                const currentStats = player.stats || defaultStats;
+                const newStats = {
+                    ...currentStats,
+                    playbackQuality: {
+                        ...currentStats.playbackQuality,
+                        totalDowntime:
+                            (currentStats.playbackQuality.totalDowntime || 0) +
+                            durationMs,
+                    },
+                };
+                newPlayers.set(streamId, { ...player, stats: newStats });
+            }
+            return { players: newPlayers };
+        }),
 
     duplicateStream: (sourceStreamId, initialState = null) => {
         const state = get();
@@ -283,6 +305,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
                 seekableRange: { start: 0, end: 0 },
                 normalizedPlayheadTime: 0,
                 retryCount: 0,
+                retryDelayOverride: null,
                 isHudVisible: true,
                 isBasePlayer: false,
             }),

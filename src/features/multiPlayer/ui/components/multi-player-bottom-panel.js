@@ -1,461 +1,352 @@
 import { eventBus } from '@/application/event-bus';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
+import { useUiStore, uiActions } from '@/state/uiStore';
+import { EVENTS } from '@/types/events';
 import * as icons from '@/ui/icons';
-import { toggleDropdown } from '@/ui/services/dropdownService';
 import { html, render } from 'lit-html';
 import { multiPlayerService } from '../../application/multiPlayerService';
-import './event-log.js';
-import { virtualTrackDropdownTemplate } from './virtual-track-dropdown.js';
 
 class MultiPlayerBottomPanel extends HTMLElement {
     constructor() {
         super();
         this.unsubscribe = null;
-        this.showLog = false;
+        this.unsubscribeUi = null;
+
+        // Local state for dropdowns
+        this.activeDropdown = null; // 'grid', 'actions', 'config' | null
+        this._handleClickOutside = this._handleClickOutside.bind(this);
     }
 
     connectedCallback() {
-        this.render();
         this.unsubscribe = useMultiPlayerStore.subscribe(() => this.render());
+        this.unsubscribeUi = useUiStore.subscribe(() => this.render());
+        document.addEventListener('click', this._handleClickOutside);
+        this.render();
     }
 
     disconnectedCallback() {
         if (this.unsubscribe) this.unsubscribe();
+        if (this.unsubscribeUi) this.unsubscribeUi();
+        document.removeEventListener('click', this._handleClickOutside);
     }
 
-    toggleLog() {
-        this.showLog = !this.showLog;
+    _handleClickOutside(event) {
+        if (this.activeDropdown && !this.contains(event.target)) {
+            this.activeDropdown = null;
+            this.render();
+        }
+    }
+
+    toggleDropdown(name, event) {
+        event.stopPropagation();
+        this.activeDropdown = this.activeDropdown === name ? null : name;
         this.render();
     }
 
-    render() {
-        const state = useMultiPlayerStore.getState();
-        const {
-            players,
-            isMutedAll,
-            globalAbrEnabled,
-            showGlobalHud,
-            gridColumns,
-            isAutoResetEnabled,
-        } = state;
+    toggleLog() {
+        const { activeSidebar } = useUiStore.getState();
+        if (activeSidebar === 'contextual') {
+            uiActions.setActiveSidebar(null);
+        } else {
+            uiActions.setActiveSidebar('contextual');
+        }
+    }
 
-        const playersList = Array.from(players.values());
-        const selectedPlayers = playersList.filter((p) => p.selectedForAction);
-        const selectedCount = selectedPlayers.length;
-        const hasSelection = selectedCount > 0;
-        const hasPlayers = players.size > 0;
+    renderDropdownMenu(items, positionClass = 'bottom-full mb-2 left-0') {
+        const glassMenuStyle = `
+            position: absolute;
+            background: #1e293b;
+            backdrop-filter: blur(20px);
+            
+            border-radius: 0.75rem;
+            box-shadow: 0 8px 30px rgb(0 0 0 / 0.35);
+            padding: 0.5rem;
+            min-width: 200px;
+            z-index: 50;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            animation: fadeIn 0.15s ease-out;
+        `;
 
-        const removablePlayers = selectedPlayers.filter((p) => !p.isBasePlayer);
-        const hasRemovableSelection = removablePlayers.length > 0;
-
-        const isAllPlaying = selectedPlayers.every(
-            (p) => p.state === 'playing' || p.state === 'buffering'
-        );
-
-        // --- Actions ---
-        const handlePlayPause = () => {
-            if (isAllPlaying) {
-                multiPlayerService.applyActionToSelected({ type: 'pause' });
-            } else {
-                multiPlayerService.applyActionToSelected({ type: 'play' });
-            }
-        };
-
-        const handleSeek = (delta) => {
-            multiPlayerService.applyActionToSelected({
-                type: 'seekRelative',
-                value: delta,
-            });
-        };
-
-        const handleSelectionToggle = () => {
-            if (selectedCount === playersList.length) {
-                useMultiPlayerStore.getState().deselectAllStreams();
-            } else {
-                useMultiPlayerStore.getState().selectAllStreams();
-            }
-        };
-
-        const handleResetAll = () => {
-            eventBus.dispatch('ui:multi-player:reset-all');
-        };
-
-        const handleResetSelected = () => {
-            eventBus.dispatch('ui:multi-player:reset-selected');
-        };
-
-        // --- Quick Settings Dropdown ---
-        const quickSettingsTemplate = () => {
-            const gridOptions = [
-                { label: 'Auto Fit', value: 'auto' },
-                { label: '1 Column', value: 1 },
-                { label: '2 Columns', value: 2 },
-                { label: '3 Columns', value: 3 },
-                { label: '4 Columns', value: 4 },
-                { label: '5 Columns', value: 5 },
-            ];
-
-            const handleGridSelect = (val) => {
-                eventBus.dispatch('ui:multi-player:set-grid-columns', {
-                    columns: val,
-                });
-            };
-
-            return html`
-                <div
-                    class="dropdown-panel bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl w-64 p-3 ring-1 ring-black/50"
-                >
-                    <!-- Auto Reset Toggle -->
-                    <div
-                        class="flex items-center justify-between p-2 rounded hover:bg-white/5 mb-2 cursor-pointer"
+        return html`
+            <div class="${positionClass}" style="${glassMenuStyle}">
+                ${items.map(item => html`
+                    <button
                         @click=${(e) => {
-                            e.stopPropagation();
-                            useMultiPlayerStore.getState().toggleAutoReset();
-                        }}
+                e.stopPropagation();
+                item.action();
+                this.activeDropdown = null;
+                this.render();
+            }}
+                        class="
+                            w-full text-left px-3 py-2 rounded-md text-sm font-medium
+                            text-slate-400
+                            hover:text-slate-100
+                            hover:bg-slate-800
+                            transition-colors duration-150
+                            flex items-center gap-2
+                        "
                     >
-                        <div class="flex flex-col">
-                            <span class="text-sm font-bold text-slate-200"
-                                >Auto-Reset</span
-                            >
-                            <span class="text-[10px] text-slate-500"
-                                >Restart on error</span
-                            >
-                        </div>
-                        <div
-                            class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isAutoResetEnabled
-                                ? 'bg-blue-600'
-                                : 'bg-slate-600'}"
-                        >
-                            <span
-                                class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${isAutoResetEnabled
-                                    ? 'translate-x-4.5'
-                                    : 'translate-x-0.5'}"
-                            ></span>
-                        </div>
-                    </div>
-
-                    <div class="w-full h-px bg-white/10 mb-2"></div>
-
-                    <!-- Grid Layout -->
-                    <div
-                        class="px-2 mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-500"
-                    >
-                        Grid Layout
-                    </div>
-                    <div class="space-y-0.5">
-                        ${gridOptions.map(
-                            (opt) => html`
-                                <button
-                                    @click=${() => handleGridSelect(opt.value)}
-                                    class="w-full text-left px-2 py-1.5 rounded text-xs font-medium flex items-center justify-between transition-colors ${gridColumns ===
-                                    opt.value
-                                        ? 'bg-blue-600 text-white'
-                                        : 'text-slate-300 hover:bg-white/10'}"
-                                >
-                                    <span>${opt.label}</span>
-                                    ${gridColumns === opt.value
-                                        ? html`<span class="scale-75"
-                                              >${icons.checkCircle}</span
-                                          >`
-                                        : ''}
-                                </button>
-                            `
-                        )}
-                    </div>
-                </div>
-            `;
-        };
-
-        // --- Styles ---
-        const iconBtn = (active = false, danger = false) => `
-            flex items-center justify-center w-10 h-10 rounded-full transition-all duration-200 
-            ${
-                active
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40 ring-1 ring-blue-400/50'
-                    : danger
-                      ? 'text-red-400 hover:bg-red-900/20 hover:text-red-200'
-                      : 'text-slate-400 hover:text-white hover:bg-white/10 active:scale-95'
-            }
-            disabled:opacity-30 disabled:cursor-not-allowed shrink-0
-        `;
-
-        const playBtn = `
-            flex items-center justify-center w-14 h-14 rounded-full bg-white text-black 
-            hover:scale-105 active:scale-95 transition-all shadow-xl shadow-white/10 
-            disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 shrink-0
-        `;
-
-        const controlGroup =
-            'flex items-center gap-1 bg-slate-800/80 backdrop-blur-sm border border-slate-700/50 rounded-full p-1.5 shadow-sm shrink-0';
-
-        const pillBtn = (active = false) => `
-            flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap
-            ${
-                active
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'bg-transparent text-slate-400 hover:text-white hover:bg-white/5'
-            }
-            disabled:opacity-30 disabled:cursor-not-allowed
-        `;
-
-        // --- Selection UI ---
-        const selectionUI = html`
-            <div class="${controlGroup} px-1">
-                <button
-                    @click=${handleSelectionToggle}
-                    class="flex items-center gap-3 px-3 py-1.5 rounded-full hover:bg-white/5 transition-colors group"
-                    title="${selectedCount === playersList.length
-                        ? 'Deselect All'
-                        : 'Select All'}"
-                >
-                    <div
-                        class="w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedCount >
-                        0
-                            ? 'bg-blue-500 border-blue-500 text-white'
-                            : 'border-slate-500 group-hover:border-slate-300'}"
-                    >
-                        ${selectedCount > 0 &&
-                        selectedCount < playersList.length
-                            ? html`<div
-                                  class="w-2 h-0.5 bg-white rounded-full"
-                              ></div>`
-                            : ''}
-                        ${selectedCount === playersList.length
-                            ? icons.checkCircle
-                            : ''}
-                    </div>
-                    <span
-                        class="text-xs font-bold text-slate-300 tracking-wide uppercase whitespace-nowrap"
-                    >
-                        ${selectedCount}
-                        <span class="text-slate-500 font-semibold normal-case"
-                            >Selected</span
-                        >
-                    </span>
-                </button>
+                        ${item.icon ? html`<span class="opacity-70">${item.icon}</span>` : ''}
+                        ${item.label}
+                    </button>
+                    ${item.divider ? html`<div class="h-px bg-slate-800 my-1 opacity-50"></div>` : ''}
+                `)}
             </div>
         `;
+    }
 
-        // --- Transport UI ---
-        const transportUI = html`
-            <div class="flex items-center gap-4 shrink-0">
-                <div class="${controlGroup}">
-                    <button
-                        class="${iconBtn()}"
-                        @click=${() => handleSeek(-10)}
-                        ?disabled=${!hasSelection}
-                        title="Rewind 10s"
+    render() {
+        const {
+            players,
+            gridColumns,
+            showGlobalHud,
+            globalMute,
+            focusedStreamId,
+        } = useMultiPlayerStore.getState();
+
+        const { activeSidebar } = useUiStore.getState();
+        const isLogOpen = activeSidebar === 'contextual';
+
+        const playersList = Array.from(players.values());
+        const selectedCount = playersList.filter(p => p.selectedForAction).length;
+        const allPlaying = playersList.every(p => p.state === 'playing');
+        const anyPlaying = playersList.some(p => p.state === 'playing');
+        const mainIcon = allPlaying ? icons.pause : (anyPlaying ? icons.pause : icons.play);
+
+        // --- STYLES ---
+        const islandClass = `
+            h-14 flex items-center px-4 gap-3
+            bg-slate-800
+            transition-all duration-300
+            hover:bg-slate-800
+            pointer-events-auto
+            relative
+        `;
+
+        const islandStyle = `
+            
+            border-radius: 0.75rem;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 30px rgb(0 0 0 / 0.35);
+        `;
+
+        const btnBase = `
+            relative flex items-center justify-center
+            min-w-[40px] h-10 px-2 rounded-full
+            text-slate-400
+            transition-all duration-200
+            hover:text-slate-100
+            hover:bg-slate-800
+            active:scale-95
+            disabled:opacity-40 disabled:cursor-not-allowed
+        `;
+
+        const btnPrimary = `
+            relative flex items-center justify-center
+            w-14 h-14 rounded-full
+            bg-blue-500 text-slate-200
+            shadow-[0_0_20px_-5px_#3b82f6]
+            hover:bg-[#60a5fa]
+            transition-all duration-200
+            hover:scale-105 active:scale-95
+        `;
+
+        const divider = `w-px h-6 bg-slate-800 opacity-50`;
+
+        // --- DROPDOWN ITEMS DEFINITION ---
+
+        // 1. Grid Options
+        const gridOptions = [
+            { label: 'Auto Layout', icon: icons.layout, action: () => useMultiPlayerStore.getState().setGridColumns('auto') },
+            { divider: true },
+            { label: '1 x 1 View', icon: icons.stop, action: () => useMultiPlayerStore.getState().setGridColumns('1') },
+            { label: '2 x 2 Grid', icon: icons.grid, action: () => useMultiPlayerStore.getState().setGridColumns('2') },
+            { label: '3 x 3 Grid', icon: icons.grid, action: () => useMultiPlayerStore.getState().setGridColumns('3') },
+            { label: '4 x 4 Grid', icon: icons.grid, action: () => useMultiPlayerStore.getState().setGridColumns('4') },
+        ];
+
+        // 2. Selection Actions
+        const selectionActions = [
+            { label: 'Play Selected', icon: icons.play, action: () => multiPlayerService.applyActionToSelected({ type: 'play' }) },
+            { label: 'Pause Selected', icon: icons.pause, action: () => multiPlayerService.applyActionToSelected({ type: 'pause' }) },
+            { divider: true },
+            { label: 'Mute Selected', icon: icons.volumeOff, action: () => multiPlayerService.applyActionToSelected({ type: 'mute' }) },
+            { label: 'Unmute Selected', icon: icons.volumeUp, action: () => multiPlayerService.applyActionToSelected({ type: 'unmute' }) },
+            { divider: true },
+            { label: 'Sync to Live', icon: icons.radio, action: () => multiPlayerService.applyActionToSelected({ type: 'syncLive' }) },
+            { label: 'Reset Players', icon: icons.refresh, action: () => multiPlayerService.resetSelectedPlayers() },
+            { divider: true },
+            {
+                label: 'Remove Selected', icon: icons.trash, action: () => {
+                    const selected = playersList.filter(p => p.selectedForAction);
+                    selected.forEach(p => multiPlayerService.removePlayer(p.streamId));
+                }
+            },
+        ];
+
+        // 3. Configuration Actions (Bulk)
+        const configActions = [
+            { label: 'Enable ABR', icon: icons.activity, action: () => multiPlayerService.applyConfigToSelected({ abrEnabled: true }) },
+            { label: 'Disable ABR', icon: icons.activity, action: () => multiPlayerService.applyConfigToSelected({ abrEnabled: false }) },
+            { divider: true },
+            { label: 'Limit: 1080p', icon: icons.monitor, action: () => multiPlayerService.applyConfigToSelected({ maxHeight: 1080 }) },
+            { label: 'Limit: 720p', icon: icons.monitor, action: () => multiPlayerService.applyConfigToSelected({ maxHeight: 720 }) },
+            { label: 'Limit: 480p', icon: icons.monitor, action: () => multiPlayerService.applyConfigToSelected({ maxHeight: 480 }) },
+            { divider: true },
+            { label: 'Cap: 5 Mbps', icon: icons.network, action: () => multiPlayerService.applyConfigToSelected({ maxBandwidth: 5000000 }) },
+            { label: 'Cap: 2 Mbps', icon: icons.network, action: () => multiPlayerService.applyConfigToSelected({ maxBandwidth: 2000000 }) },
+        ];
+
+
+        const template = html`
+            <style>
+                @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+            </style>
+            <div class="w-full h-full flex items-center justify-between pointer-events-none px-[0.75rem] pb-2">
+                
+                <!-- LEFT ISLAND: Selection & Grid -->
+                <div class="${islandClass}" style="${islandStyle}">
+                    <!-- Select All Toggle -->
+                     <button
+                        @click=${() => useMultiPlayerStore.getState().toggleSelectAll()}
+                        class="${btnBase} !w-10 !px-0"
+                        data-tooltip="Select All"
+                    >
+                         <div class="flex items-center justify-center w-6 h-6 rounded-full ${selectedCount > 0 ? 'bg-blue-500 text-white' : 'bg-slate-800'}">
+                            ${icons.check}
+                         </div>
+                    </button>
+
+                    <!-- Selection Count -->
+                    <div class="flex flex-col leading-tight mr-2">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Selected</span>
+                        <span class="text-slate-100 font-black text-sm">${selectedCount}</span>
+                    </div>
+
+                    <div class="${divider}"></div>
+
+                    <!-- Actions Dropdown -->
+                    <div class="relative">
+                        <button
+                            @click=${(e) => this.toggleDropdown('actions', e)}
+                            class="${btnBase} ${this.activeDropdown === 'actions' ? 'bg-slate-800 text-blue-400' : ''}"
+                            data-tooltip="Selection Actions"
+                            ?disabled=${selectedCount === 0}
+                        >
+                            ${icons.layers}
+                            <span class="ml-1 opacity-50 scale-75">${icons.chevronDown}</span>
+                        </button>
+                        ${this.activeDropdown === 'actions' ? this.renderDropdownMenu(selectionActions) : ''}
+                    </div>
+
+                    <!-- Config Dropdown -->
+                    <div class="relative">
+                        <button
+                            @click=${(e) => this.toggleDropdown('config', e)}
+                            class="${btnBase} ${this.activeDropdown === 'config' ? 'bg-slate-800 text-blue-400' : ''}"
+                            data-tooltip="Deep Config"
+                            ?disabled=${selectedCount === 0}
+                        >
+                            ${icons.slidersHorizontal}
+                            <span class="ml-1 opacity-50 scale-75">${icons.chevronDown}</span>
+                        </button>
+                        ${this.activeDropdown === 'config' ? this.renderDropdownMenu(configActions) : ''}
+                    </div>
+
+                    <div class="${divider}"></div>
+
+                    <!-- Grid Layout Dropdown -->
+                    <div class="relative">
+                        <button
+                            @click=${(e) => this.toggleDropdown('grid', e)}
+                            class="${btnBase} pl-3 pr-2 ${this.activeDropdown === 'grid' ? 'bg-slate-800 text-blue-400' : ''}"
+                            data-tooltip="Layout Mode"
+                        >
+                            <span class="mr-2 text-xs font-semibold uppercase tracking-wide opacity-80">
+                                ${gridColumns === 'auto' ? 'Auto' : `${gridColumns}x${gridColumns}`}
+                            </span>
+                             <span class="opacity-70">${icons.chevronDown}</span>
+                        </button>
+                         ${this.activeDropdown === 'grid' ? this.renderDropdownMenu(gridOptions) : ''}
+                    </div>
+                </div>
+
+                <!-- CENTER ISLAND: Transport -->
+                <div class="${islandClass} !h-20 !px-10 !gap-6 !rounded-full transform hover:-translate-y-1 z-10" style="${islandStyle}">
+                     <button
+                        @click=${() => eventBus.dispatch(EVENTS.UI.MP_SEEK_RELATIVE, { offset: -10 })}
+                        class="${btnBase}"
+                        data-tooltip="-10s"
                     >
                         ${icons.frameBackward}
                     </button>
+
                     <button
-                        class="${iconBtn()}"
-                        @click=${() => handleSeek(30)}
-                        ?disabled=${!hasSelection}
-                        title="Forward 30s"
+                        @click=${() => allPlaying ? multiPlayerService.pauseAll() : multiPlayerService.playAll()}
+                        class="${btnPrimary}"
+                        data-tooltip="${allPlaying ? 'Pause All' : 'Play All'}"
+                    >
+                        <div class="scale-125">${mainIcon}</div>
+                    </button>
+
+                    <button
+                        @click=${() => eventBus.dispatch(EVENTS.UI.MP_SEEK_RELATIVE, { offset: 10 })}
+                        class="${btnBase}"
+                        data-tooltip="+10s"
                     >
                         ${icons.frameForward}
                     </button>
                 </div>
-                <button
-                    class="${playBtn}"
-                    @click=${handlePlayPause}
-                    ?disabled=${!hasSelection}
-                    title="Play/Pause"
-                >
-                    <div class="scale-125">
-                        ${isAllPlaying ? icons.pause : icons.play}
-                    </div>
-                </button>
-                <div class="${controlGroup}">
+
+                <!-- RIGHT ISLAND: Global Tools -->
+                <div class="${islandClass}" style="${islandStyle}">
                     <button
-                        class="${iconBtn(isMutedAll)}"
-                        @click=${() =>
-                            isMutedAll
-                                ? eventBus.dispatch(
-                                      'ui:multi-player:unmute-all'
-                                  )
-                                : eventBus.dispatch('ui:multi-player:mute-all')}
-                        title="${isMutedAll ? 'Unmute All' : 'Mute All'}"
+                        @click=${() => eventBus.dispatch(EVENTS.UI.MP_SYNC_ALL_TO, { streamId: focusedStreamId })}
+                        class="${btnBase} ${!focusedStreamId ? '' : 'text-blue-400'}"
+                        data-tooltip="Sync All to Focused"
+                        ?disabled=${!focusedStreamId}
                     >
-                        ${isMutedAll ? icons.volumeOff : icons.volumeUp}
+                        ${icons.sync}
                     </button>
-                </div>
-            </div>
-        `;
-
-        // --- Log Drawer ---
-        const logDrawer = this.showLog
-            ? html`
-                  <div
-                      class="absolute bottom-full left-4 right-4 h-64 bg-slate-900/95 backdrop-blur-xl border border-slate-700 rounded-t-xl shadow-2xl z-40 overflow-hidden animate-slideInUp flex flex-col"
-                  >
-                      <div
-                          class="flex items-center justify-between px-4 py-2 border-b border-slate-700/50 bg-slate-900/50"
-                      >
-                          <span
-                              class="text-xs font-bold text-slate-400 uppercase tracking-widest"
-                              >Session Event Log</span
-                          >
-                          <button
-                              @click=${() => this.toggleLog()}
-                              class="text-slate-500 hover:text-white transition-colors"
-                          >
-                              ${icons.chevronDown}
-                          </button>
-                      </div>
-                      <div class="grow overflow-hidden">
-                          <event-log-component></event-log-component>
-                      </div>
-                  </div>
-              `
-            : '';
-
-        // --- Config UI ---
-        const configUI = html`
-            <div class="flex items-center gap-3 shrink-0">
-                <button
-                    class="${iconBtn(this.showLog)}"
-                    @click=${() => this.toggleLog()}
-                    title="Toggle Event Log"
-                >
-                    ${icons.terminal}
-                </button>
-                <div class="w-px h-8 bg-slate-800 mx-1"></div>
-
-                <div class="${controlGroup}">
+                    
                     <button
-                        @click=${(e) =>
-                            toggleDropdown(
-                                e.currentTarget,
-                                quickSettingsTemplate,
-                                e
-                            )}
-                        class="${pillBtn(false)}"
-                        title="Settings"
+                        @click=${() => globalMute ? multiPlayerService.unmuteAll() : multiPlayerService.muteAll()}
+                        class="${btnBase} ${globalMute ? 'text-red-400' : ''}"
+                        data-tooltip="Global Mute"
                     >
-                        ${icons.settings} Settings
+                        ${globalMute ? icons.volumeOff : icons.volumeUp}
+                    </button>
+
+                    <div class="${divider}"></div>
+
+                    <button
+                        @click=${() => useMultiPlayerStore.getState().toggleGlobalHud()}
+                        class="${btnBase} ${showGlobalHud ? '!bg-blue-500 !text-white' : ''}"
+                        data-tooltip="Toggle Metrics HUD"
+                    >
+                       ${icons.activity}
+                    </button>
+
+                    <button
+                        @click=${() => this.toggleLog()}
+                        class="${btnBase} ${isLogOpen ? '!bg-blue-500 !text-white' : ''}"
+                         data-tooltip="Result Log"
+                    >
+                        ${icons.terminal}
+                    </button>
+                    
+                     <button
+                        @click=${() => uiActions.toggleFabSideMenu()}
+                        class="${btnBase}"
+                         data-tooltip="Settings"
+                    >
+                        ${icons.settings}
                     </button>
                 </div>
 
-                <div class="w-px h-8 bg-slate-800 mx-1"></div>
-
-                <div class="${controlGroup}">
-                    <button
-                        @click=${() =>
-                            multiPlayerService.applyConfigToSelected({
-                                abrEnabled: true,
-                            })}
-                        ?disabled=${!hasSelection}
-                        class="${pillBtn(globalAbrEnabled)}"
-                        title="Enable Auto ABR"
-                    >
-                        Auto
-                    </button>
-                    <div class="w-px h-4 bg-slate-700"></div>
-                    <button
-                        @click=${(e) =>
-                            hasSelection &&
-                            toggleDropdown(
-                                e.currentTarget,
-                                () => virtualTrackDropdownTemplate(),
-                                e
-                            )}
-                        ?disabled=${!hasSelection}
-                        class="${pillBtn(!globalAbrEnabled)}"
-                        title="Manual Quality"
-                    >
-                        Quality ${icons.chevronDown}
-                    </button>
-                </div>
-
-                <div class="w-px h-8 bg-slate-800 mx-1"></div>
-
-                <div class="${controlGroup}">
-                    <button
-                        @click=${handleResetAll}
-                        ?disabled=${!hasPlayers}
-                        class="${pillBtn(false)}"
-                        title="Reset All Players"
-                    >
-                        ${icons.sync} All
-                    </button>
-                    <div class="w-px h-4 bg-slate-700"></div>
-                    <button
-                        @click=${handleResetSelected}
-                        ?disabled=${!hasSelection}
-                        class="${pillBtn(false)}"
-                        title="Reset Selected Players"
-                    >
-                        Selected
-                    </button>
-                </div>
-
-                <button
-                    class="${iconBtn(showGlobalHud)}"
-                    @click=${() =>
-                        eventBus.dispatch('ui:multi-player:toggle-global-hud')}
-                    title="Toggle HUD"
-                >
-                    ${icons.activity}
-                </button>
-
-                ${hasSelection
-                    ? html`
-                          <div class="w-px h-8 bg-slate-800 mx-1"></div>
-                          <button
-                              class="${iconBtn(false)}"
-                              @click=${() =>
-                                  selectedPlayers.forEach((p) =>
-                                      multiPlayerService.duplicateStream(
-                                          p.streamId
-                                      )
-                                  )}
-                              title="Clone"
-                          >
-                              ${icons.copy}
-                          </button>
-                          <div
-                              class="${controlGroup} border-red-900/30 bg-red-900/10 ml-1"
-                          >
-                              <button
-                                  class="${iconBtn(false, true)}"
-                                  @click=${() =>
-                                      removablePlayers.forEach((p) =>
-                                          multiPlayerService.removePlayer(
-                                              p.streamId
-                                          )
-                                      )}
-                                  ?disabled=${!hasRemovableSelection}
-                                  title="Remove"
-                              >
-                                  ${icons.xCircle}
-                              </button>
-                          </div>
-                      `
-                    : ''}
-            </div>
-        `;
-
-        const template = html`
-            <div class="relative w-full">
-                ${logDrawer}
-                <div
-                    class="relative shrink-0 h-24 bg-slate-900 border-t border-slate-800/50 shadow-[0_-10px_40px_rgba(0,0,0,0.8)] z-50 flex items-center justify-between px-6 animate-slideInUp backdrop-blur-md w-full gap-6"
-                >
-                    <div class="shrink-0">${selectionUI}</div>
-
-                    <!-- Combined Transport & Config Area -->
-                    <div
-                        class="flex items-center gap-6 overflow-x-auto scrollbar-hide justify-end grow py-2"
-                    >
-                        ${transportUI}
-                        <div
-                            class="w-px h-10 bg-slate-800 shrink-0 hidden md:block"
-                        ></div>
-                        ${configUI}
-                    </div>
-                </div>
             </div>
         `;
 

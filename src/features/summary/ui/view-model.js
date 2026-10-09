@@ -156,8 +156,8 @@ export function createSummaryViewModel(stream) {
         protocol: summary.general.protocol,
         type: isLive ? 'LIVE' : 'VOD',
         typeClass: isLive
-            ? 'bg-red-500/20 text-red-400 border-red-500/50'
-            : 'bg-blue-500/20 text-blue-400 border-blue-500/50',
+            ? 'bg-slate-800 text-red-400 border-red-500'
+            : 'bg-slate-800 text-blue-400 border-blue-500',
         isEncrypted: summary.security.isEncrypted,
         encryptionType:
             summary.security.hlsEncryptionMethod ||

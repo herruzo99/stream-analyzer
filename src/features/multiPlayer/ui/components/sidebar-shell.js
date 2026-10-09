@@ -27,8 +27,8 @@ class SidebarShellComponent extends HTMLElement {
                 @click=${() => uiActions.setMultiPlayerActiveTab(key)}
                 class="px-4 py-2 text-xs font-bold uppercase tracking-wide rounded-t-lg transition-all duration-200 border-t border-x ${multiPlayerActiveTab ===
                 key
-                    ? 'bg-slate-900 border-slate-700 text-white -mb-px'
-                    : 'bg-slate-950 border-transparent text-slate-500 hover:text-slate-300 hover:bg-slate-900/50'}"
+                    ? 'bg-slate-800 border-slate-800 text-slate-100 -mb-px'
+                    : 'bg-slate-900 border-transparent text-slate-400 hover:text-slate-200 hover:bg-[var(--bg-glass-A-1)]'}"
             >
                 ${label}
             </button>
@@ -49,16 +49,16 @@ class SidebarShellComponent extends HTMLElement {
         // child components to fully control their scrolling behavior.
         const template = html`
             <div
-                class="flex flex-col h-full bg-slate-950 border-l border-slate-800"
+                class="flex flex-col h-full bg-slate-900 border-l border-slate-700"
             >
                 <div
-                    class="shrink-0 border-b border-slate-700 flex space-x-1 px-3 pt-3 bg-slate-950 z-10"
+                    class="shrink-0 border-b border-slate-800 flex space-x-1 px-3 pt-3 bg-slate-900 z-10"
                 >
                     ${tabButton('Event Log', 'event-log')}
                     ${tabButton('Graphs', 'graphs')}
                 </div>
                 <div
-                    class="grow min-h-0 overflow-hidden relative p-0 bg-slate-900"
+                    class="grow min-h-0 overflow-hidden relative p-0 bg-slate-800"
                 >
                     ${viewContent}
                 </div>

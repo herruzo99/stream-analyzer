@@ -1,78 +1,344 @@
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
-import { useUiStore } from '@/state/uiStore';
+import { uiActions, useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
 import { html, render } from 'lit-html';
 import { explorerToolbarTemplate } from './components/explorer-toolbar.js';
 import { segmentBottomPanelTemplate } from './components/segment-bottom-panel.js';
 import { timelineGridTemplate } from './components/timeline-grid.js';
 import { createSegmentExplorerViewModel } from './view-model.js';
+import { eventBus } from '@/application/event-bus';
+import { inferMediaInfoFromExtension } from '@/infrastructure/parsing/utils/media-types';
+import { showToast } from '@/ui/components/toast';
 
-let container = null;
-let unsubs = [];
-
-function renderExplorer() {
-    if (!container) return;
-
-    const { streams, activeStreamId } = useAnalysisStore.getState();
-    const uiState = useUiStore.getState();
-    const stream = streams.find((s) => s.id === activeStreamId);
-
-    if (!stream) {
-        render(
-            html`
-                <div
-                    class="h-full flex flex-col items-center justify-center text-slate-500 bg-slate-950"
-                >
-                    <div
-                        class="p-6 bg-slate-900 rounded-2xl shadow-xl border border-slate-800 mb-4 animate-pulse"
-                    >
-                        ${icons.search}
-                    </div>
-                    <p class="font-medium">No stream loaded.</p>
-                </div>
-            `,
-            container
-        );
-        return;
+class SegmentExplorerView {
+    // Port note: was `extends BaseView` (never committed). Plain class
+    // with inlined mount/unmount/subscribe; shell-slot padding calls had
+    // no 1.2.0 equivalent (dropped).
+    constructor() {
+        this.hasContextualSidebar = false;
+        this._boundKeyDownHandler = null;
+        this._unsubs = [];
+        this.container = null;
+        this.stream = null;
     }
 
-    const viewModel = createSegmentExplorerViewModel(stream, uiState);
+    subscribe(store, listener) {
+        const unsubscribe = store.subscribe(listener);
+        this._unsubs.push(unsubscribe);
+        return unsubscribe;
+    }
 
-    const template = html`
-        <div
-            class="h-full flex flex-col relative bg-slate-950 overflow-hidden w-full"
-        >
-            ${explorerToolbarTemplate()}
+    /**
+     * @param {HTMLElement} containerElement
+     * @param {{ stream?: any }} [args]
+     */
+    mount(containerElement, { stream } = {}) {
+        this.container = containerElement;
+        this.stream = stream || null;
+        this.onMount();
+    }
 
-            <div class="grow min-h-0 relative z-0 w-full">
-                ${timelineGridTemplate(viewModel, stream)}
+    unmount() {
+        this.onUnmount();
+        for (const unsubscribe of this._unsubs.splice(0)) {
+            try {
+                unsubscribe();
+            } catch {
+                /* ignore late unsubscribe errors */
+            }
+        }
+        if (this.container) render(html``, this.container);
+        this.container = null;
+        this.stream = null;
+    }
+
+    onMount() {
+        // 2. Event Listeners
+        this._boundKeyDownHandler = this._handleGlobalKeyDown.bind(this);
+        document.addEventListener('keydown', this._boundKeyDownHandler);
+
+        // 3. Store Subscriptions
+        // Analysis Store: Subscribe to all relevant changes
+        this.subscribe(useAnalysisStore, () => this.render());
+
+        // Segment Cache: Re-render on cache updates (loading states)
+        this.subscribe(useSegmentCacheStore, () => this.render());
+
+        // UI Store: Selective Subscription
+        this.subscribe(useUiStore, (state, prevState) => {
+            if (
+                state.activeStreamId !== prevState.activeStreamId ||
+                state.segmentExplorerActiveTab !== prevState.segmentExplorerActiveTab ||
+                state.segmentExplorerSelectedSegment !== prevState.segmentExplorerSelectedSegment ||
+                state.segmentMatrixClickMode !== prevState.segmentMatrixClickMode
+            ) {
+                this.render();
+            }
+        });
+
+        // 4. Initial Render
+        this.render();
+    }
+
+    onUnmount() {
+        if (this._boundKeyDownHandler) {
+            document.removeEventListener('keydown', this._boundKeyDownHandler);
+            this._boundKeyDownHandler = null;
+        }
+        // BaseView automatically clears subscriptions and resets shell slots
+    }
+
+    render() {
+        if (!this.container) return;
+
+        const { streams, activeStreamId, segmentsForCompare } = useAnalysisStore.getState();
+        const uiState = useUiStore.getState();
+        const stream = streams.find((s) => s.id === activeStreamId);
+
+        // --- EMPTY STATE ---
+        if (!stream) {
+            render(
+                html`
+                    <div class="h-full flex flex-col items-center justify-center text-slate-400 bg-slate-900">
+                        <div class="p-6 bg-slate-800 rounded-2xl shadow-xl border border-slate-800 mb-4 animate-pulse">
+                            ${icons.search}
+                        </div>
+                        <p class="font-medium">No stream loaded.</p>
+                    </div>
+                `,
+                this.container
+            );
+            return;
+        }
+
+        // --- ACTIVE STATE ---
+
+        // 1. Toolbar (in-flow; 1.2.0 has no topBar slot)
+        const toolbarPanel = explorerToolbarTemplate();
+
+        // 2. Bottom Panel (in-flow)
+        const bottomPanel = segmentBottomPanelTemplate(stream);
+
+        // 3. Main Content (Timeline Grid)
+        let content;
+        try {
+            const viewModel = createSegmentExplorerViewModel(stream, uiState);
+            content = timelineGridTemplate(
+                viewModel,
+                stream.id,
+                stream.manifest?.segmentFormat || 'unknown',
+                uiState,
+                segmentsForCompare
+            );
+        } catch (err) {
+            console.error('Segment Explorer Render Error:', err);
+            content = html`
+                <div class="w-full h-full flex flex-col items-center justify-center text-red-400">
+                    <div class="mb-2">${icons.alertTriangle}</div>
+                    <div class="font-bold">Failed to load timeline</div>
+                    <div class="text-xs opacity-70 mt-2 max-w-md text-center font-mono bg-black/20 p-2 rounded">${err.message}</div>
+                </div>
+            `;
+        }
+
+        // Glass Wrapper for the Grid, with toolbar on top and the bottom
+        // panel below (both in-flow; 1.2.0 has no shell slots).
+        const template = html`
+            <div class="w-full h-full box-border flex flex-col relative z-0 overflow-hidden" style="gap: 0.75rem">
+                 <div class="shrink-0">${toolbarPanel}</div>
+                 <!-- Glass Card Container -->
+                 <div class="grow w-full relative rounded-3xl border border-slate-800 bg-slate-800 shadow-2xl backdrop-blur-xl overflow-hidden flex flex-col min-h-0">
+                     <div class="grow min-h-0 relative z-0 w-full">
+                        ${content}
+                     </div>
+                 </div>
+                 <div class="shrink-0 max-h-[32%] overflow-y-auto custom-scrollbar min-h-0">
+                    ${bottomPanel}
+                 </div>
             </div>
+        `;
 
-            ${segmentBottomPanelTemplate(stream)}
-        </div>
-    `;
+        render(template, this.container);
+    }
 
-    render(template, container);
+    _triggerFetch(uniqueId, resolvedUrl, number, streamId, format, setCache) {
+        const { contentType } = inferMediaInfoFromExtension(resolvedUrl);
+        let formatHint = format === 'unknown' ? null : format;
+
+        if (contentType === 'text') {
+            const urlLower = resolvedUrl.toLowerCase();
+            if (
+                urlLower.endsWith('.ttml') ||
+                urlLower.endsWith('.dfxp') ||
+                urlLower.endsWith('.xml') ||
+                urlLower.includes('ttml+xml')
+            ) {
+                formatHint = 'ttml';
+            } else {
+                formatHint = 'vtt';
+            }
+        }
+
+        setCache(uniqueId, { status: -1, data: null, parsedData: null });
+        eventBus.dispatch('segment:fetch', {
+            uniqueId: uniqueId,
+            streamId,
+            format: formatHint,
+            context: {},
+        });
+
+        const label = typeof number === 'number' ? `#${number}` : 'Index';
+        showToast({ message: `Fetching Segment ${label}...`, type: 'info' });
+    }
+
+    _handleGlobalKeyDown(e) {
+        if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key))
+            return;
+
+        // Ignore if focus is in an input
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+        const { activeStreamId, streams } = useAnalysisStore.getState();
+        const stream = streams.find((s) => s.id === activeStreamId);
+        if (!stream) return;
+
+        const uiState = useUiStore.getState();
+        const selectedItem = uiState.segmentExplorerSelectedSegment;
+
+        if (!selectedItem) return; // Only navigate if something is selected
+
+        const viewModel = createSegmentExplorerViewModel(stream, uiState);
+        const tracks = viewModel.tracks;
+
+        // Find current track and segment indices
+        const trackIndex = tracks.findIndex((t) => t.id === selectedItem.repId);
+        if (trackIndex === -1) return;
+
+        const track = tracks[trackIndex];
+        const segmentIndex = track.segments.findIndex(
+            (s) => s.uniqueId === selectedItem.uniqueId
+        );
+
+        let newTrackIndex = trackIndex;
+        let newSegmentIndex = segmentIndex;
+
+        const targetTime =
+            selectedItem.start !== undefined
+                ? selectedItem.start
+                : selectedItem.time;
+        const isTargetSeconds = selectedItem.start !== undefined;
+
+        if (e.key === 'ArrowLeft') {
+            if (segmentIndex > 0) {
+                newSegmentIndex = segmentIndex - 1;
+            }
+        } else if (e.key === 'ArrowRight') {
+            if (segmentIndex !== -1 && segmentIndex < track.segments.length - 1) {
+                newSegmentIndex = segmentIndex + 1;
+            } else if (segmentIndex === -1 && track.segments.length > 0) {
+                newSegmentIndex = 0;
+            }
+        } else if (e.key === 'ArrowUp') {
+            if (trackIndex > 0) {
+                newTrackIndex = trackIndex - 1;
+            }
+        } else if (e.key === 'ArrowDown') {
+            if (trackIndex < tracks.length - 1) {
+                newTrackIndex = trackIndex + 1;
+            }
+        }
+
+        if (newTrackIndex !== trackIndex || newSegmentIndex !== segmentIndex) {
+            e.preventDefault();
+
+            const newTrack = tracks[newTrackIndex];
+            let newSegment = null;
+
+            if (newTrackIndex !== trackIndex) {
+                // Vertical navigation: Find closest segment by time
+                if (segmentIndex === -1) {
+                    // Try to select Init of new track
+                    if (newTrack.initSegment) {
+                        newSegment = {
+                            ...newTrack.initSegment,
+                            repId: newTrack.id,
+                        };
+                    } else if (newTrack.segments.length > 0) {
+                        newSegment = {
+                            ...newTrack.segments[0],
+                            repId: newTrack.id,
+                        };
+                    }
+                } else {
+                    // Find segment covering targetTime
+                    if (isTargetSeconds) {
+                        newSegment = newTrack.segments.find(
+                            (s) => s.start <= targetTime && s.end > targetTime
+                        );
+
+                        if (!newSegment) {
+                            // Find closest start time
+                            let minDiff = Infinity;
+                            let closest = null;
+                            for (const s of newTrack.segments) {
+                                const diff = Math.abs(s.start - targetTime);
+                                if (diff < minDiff) {
+                                    minDiff = diff;
+                                    closest = s;
+                                }
+                            }
+                            newSegment = closest;
+                        }
+                    } else {
+                        // Fallback to raw time
+                        newSegment = newTrack.segments.find(
+                            (s) =>
+                                s.time <= targetTime &&
+                                s.time + s.duration > targetTime
+                        );
+                    }
+
+                    if (newSegment) {
+                        newSegment = { ...newSegment, repId: newTrack.id };
+                    }
+                }
+            } else {
+                // Horizontal navigation
+                if (
+                    newSegmentIndex >= 0 &&
+                    newSegmentIndex < newTrack.segments.length
+                ) {
+                    newSegment = {
+                        ...newTrack.segments[newSegmentIndex],
+                        repId: newTrack.id,
+                    };
+                }
+            }
+
+            if (newSegment) {
+                uiActions.setSegmentExplorerSelectedSegment(newSegment);
+
+                // Auto-fetch logic
+                const entry = useSegmentCacheStore
+                    .getState()
+                    .get(newSegment.uniqueId);
+                const isLoaded = entry && entry.status === 200 && entry.data;
+                const isLoading = entry && entry.status === -1;
+
+                if (!isLoaded && !isLoading) {
+                    this._triggerFetch(
+                        newSegment.uniqueId,
+                        newSegment.resolvedUrl,
+                        newSegment.number,
+                        stream.id,
+                        stream.manifest.segmentFormat,
+                        useSegmentCacheStore.getState().set
+                    );
+                }
+            }
+        }
+    }
 }
 
-export const segmentExplorerView = {
-    hasContextualSidebar: false,
-    mount(containerElement) {
-        container = containerElement;
-
-        const scheduleRender = () => requestAnimationFrame(renderExplorer);
-
-        unsubs.push(useAnalysisStore.subscribe(scheduleRender));
-        unsubs.push(useUiStore.subscribe(scheduleRender));
-        unsubs.push(useSegmentCacheStore.subscribe(scheduleRender));
-
-        renderExplorer();
-    },
-    unmount() {
-        unsubs.forEach((u) => u());
-        unsubs = [];
-        if (container) render(html``, container);
-        container = null;
-    },
-};
+export const segmentExplorerView = new SegmentExplorerView();

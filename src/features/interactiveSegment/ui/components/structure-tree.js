@@ -4,133 +4,24 @@ import * as icons from '@/ui/icons';
 import { html, render } from 'lit-html';
 
 // --- Visual Configuration ---
-const BOX_COLORS = {
-    // Roots & Top Level
-    ftyp: 'text-rose-500',
-    styp: 'text-rose-500',
-    moov: 'text-indigo-400',
-    moof: 'text-blue-500',
-    mfra: 'text-teal-500',
-    mdat: 'text-slate-400',
-    free: 'text-slate-600',
-    skip: 'text-slate-600',
-    meta: 'text-pink-400',
-    void: 'text-slate-700',
+import { getBoxColorIndex } from '@/shared/constants/isobmff-colors.js';
 
-    // Headers
-    mvhd: 'text-indigo-300',
-    mfhd: 'text-blue-300',
-    tkhd: 'text-violet-300',
-    mdhd: 'text-sky-300',
-    tfhd: 'text-blue-300',
-    mehd: 'text-indigo-300',
-    trep: 'text-sky-300',
-
-    // Containers / Structure
-    trak: 'text-violet-400',
-    traf: 'text-blue-400',
-    mdia: 'text-sky-400',
-    minf: 'text-cyan-400',
-    dinf: 'text-cyan-500',
-    stbl: 'text-emerald-400',
-    mvex: 'text-indigo-400',
-    edts: 'text-fuchsia-400',
-    udta: 'text-pink-400',
-    sinf: 'text-amber-400',
-    schi: 'text-amber-300',
-
-    // Sample Table / Timing
-    stsd: 'text-emerald-300',
-    stts: 'text-teal-300',
-    ctts: 'text-teal-300',
-    stsc: 'text-teal-400',
-    stsz: 'text-emerald-300',
-    stz2: 'text-emerald-300',
-    stco: 'text-green-400',
-    co64: 'text-green-400',
-    stss: 'text-lime-300',
-    sdtp: 'text-lime-400',
-    sbgp: 'text-lime-500',
-    sgpd: 'text-lime-500',
-    tfdt: 'text-blue-300',
-    tfra: 'text-teal-500',
-    trun: 'text-cyan-300',
-    sidx: 'text-cyan-400',
-    elst: 'text-fuchsia-300',
-    cslg: 'text-fuchsia-300',
-
-    // Codecs & Visuals
-    avc1: 'text-emerald-400',
-    avc3: 'text-emerald-400',
-    hvc1: 'text-emerald-400',
-    hev1: 'text-emerald-400',
-    mp4a: 'text-purple-300',
-    enca: 'text-amber-300',
-    encv: 'text-amber-300',
-    avcC: 'text-emerald-200',
-    hvcC: 'text-emerald-200',
-    esds: 'text-purple-200',
-    pasp: 'text-sky-200',
-    colr: 'text-sky-200',
-    vpcC: 'text-emerald-200',
-    vp09: 'text-emerald-400',
-    Opus: 'text-purple-400',
-    dOps: 'text-purple-200',
-
-    // Encryption / DRM
-    pssh: 'text-amber-500',
-    tenc: 'text-amber-300',
-    schm: 'text-amber-300',
-    frma: 'text-amber-200',
-    saiz: 'text-yellow-400',
-    saio: 'text-yellow-500',
-
-    // Misc
-    hdlr: 'text-sky-300',
-    vmhd: 'text-cyan-300',
-    smhd: 'text-purple-300',
-    hmhd: 'text-orange-300',
-    nmhd: 'text-slate-300',
-    'url ': 'text-cyan-400',
-    'urn ': 'text-slate-400',
-    dref: 'text-cyan-300',
-    emsg: 'text-pink-500',
-    prft: 'text-pink-400',
-    kinds: 'text-pink-300',
-
-    ID32: 'text-emerald-400',
-    stpp: 'text-emerald-400',
-    wvtt: 'text-emerald-400',
-    cprt: 'text-pink-400',
-    uuid: 'text-slate-400',
-    ilst: 'text-pink-400',
-    kind: 'text-pink-400',
+// --- Visual Configuration ---
+// Categorical text colors by chart index. Full literals (never
+// interpolated) so Tailwind generates the CSS.
+const CHART_TEXT = {
+    1: 'text-blue-300',
+    2: 'text-emerald-300',
+    3: 'text-amber-300',
+    4: 'text-purple-300',
+    5: 'text-slate-300',
+    6: 'text-rose-300',
+    7: 'text-cyan-300',
+    8: 'text-slate-400',
+    9: 'text-cyan-300',
+    10: 'text-orange-300',
 };
-
-const getColorForUnknown = (type) => {
-    if (!type) return 'text-slate-500';
-    const charCode = type.charCodeAt(0);
-    const colors = [
-        'text-red-300',
-        'text-orange-300',
-        'text-amber-300',
-        'text-yellow-300',
-        'text-lime-300',
-        'text-green-300',
-        'text-emerald-300',
-        'text-teal-300',
-        'text-cyan-300',
-        'text-sky-300',
-        'text-blue-300',
-        'text-indigo-300',
-        'text-violet-300',
-        'text-purple-300',
-        'text-fuchsia-300',
-        'text-pink-300',
-        'text-rose-300',
-    ];
-    return colors[charCode % colors.length];
-};
+const getChartColorClass = (index) => CHART_TEXT[index] || 'text-slate-300';
 
 const getIconForNode = (node) => {
     if (
@@ -219,38 +110,40 @@ class StructureTree extends HTMLElement {
         this._data = null;
         this._flattenedItems = [];
         this._expandedOffsets = new Set();
+        this._hoverTimeout = null;
 
         this._toggleExpand = this._toggleExpand.bind(this);
         this._renderRow = this._renderRow.bind(this);
         this._handleSelect = this._handleSelect.bind(this);
     }
 
-    set data(val) {
-        this._data = val;
-        if (val && val.boxes && this._expandedOffsets.size === 0) {
-            const expandRecursive = (nodes) => {
-                for (const node of nodes) {
-                    if (node.children && node.children.length > 0) {
-                        this._expandedOffsets.add(node.offset);
-                        expandRecursive(node.children);
-                    }
-                }
-            };
-            expandRecursive(val.boxes);
-        }
-        this._recalcList();
-    }
-
     connectedCallback() {
-        this.classList.add('block', 'h-full', 'w-full', 'relative');
-        this.render();
-        this.unsubscribe = useUiStore.subscribe((state) => {
+        this.classList.add('block', 'h-full', 'overflow-hidden');
+        this.unsubscribe = useUiStore.subscribe(() => {
             this.requestUpdate();
         });
     }
 
     disconnectedCallback() {
         if (this.unsubscribe) this.unsubscribe();
+    }
+
+    set data(val) {
+        this._data = val;
+        this._expandedOffsets.clear();
+        // Default expand ALL items recursively
+        if (this._data && this._data.boxes) {
+            const expandRecursive = (nodes) => {
+                for (const node of nodes) {
+                    this._expandedOffsets.add(node.offset);
+                    if (node.children && node.children.length > 0) {
+                        expandRecursive(node.children);
+                    }
+                }
+            };
+            expandRecursive(this._data.boxes);
+        }
+        this._recalcList();
     }
 
     _recalcList() {
@@ -262,12 +155,7 @@ class StructureTree extends HTMLElement {
                 this._expandedOffsets
             );
         }
-
-        /** @type {any} */
-        const list = this.querySelector('virtualized-list');
-        if (list) {
-            list.items = this._flattenedItems;
-        }
+        this.requestUpdate();
     }
 
     _toggleExpand(e, item) {
@@ -282,14 +170,31 @@ class StructureTree extends HTMLElement {
 
     _handleSelect(e, item) {
         e.stopPropagation();
-        uiActions.setInteractiveSegmentSelectedItem(item);
+        uiActions.setInteractiveSegmentSelectedItem(item, 'structure');
     }
 
     _handleHover(item, isHovering) {
+        if (this._hoverTimeout) {
+            clearTimeout(this._hoverTimeout);
+            this._hoverTimeout = null;
+        }
+
         if (isHovering) {
-            uiActions.setInteractiveSegmentHighlightedItem(item, 'Box Header');
+            // Debounce hover entry to avoid thrashing when moving quickly across rows
+            this._hoverTimeout = setTimeout(() => {
+                uiActions.setInteractiveSegmentHighlightedItem(
+                    item,
+                    'Box Header'
+                );
+            }, 50); // 50ms delay
         } else {
-            uiActions.setInteractiveSegmentHighlightedItem(null, null);
+            // Clear immediately on leave, but only if we're not about to enter another one
+            // (The next enter will cancel this if it happens fast enough, but we want to clear if leaving the tree)
+            // Actually, better to just debounce the clear too, or let the next enter override it.
+            // A small delay on clear prevents flickering.
+            this._hoverTimeout = setTimeout(() => {
+                uiActions.setInteractiveSegmentHighlightedItem(null, null);
+            }, 50);
         }
     }
 
@@ -297,6 +202,7 @@ class StructureTree extends HTMLElement {
         /** @type {any} */
         const list = this.querySelector('virtualized-list');
         if (list) list.requestUpdate();
+        this.render(); // Ensure main render is called too if needed, though usually lit-html handles this via properties
     }
 
     _renderRow(item) {
@@ -316,29 +222,33 @@ class StructureTree extends HTMLElement {
                 ? `${(item.size / 1024).toFixed(1)} KB`
                 : `${item.size} B`;
 
-        const typeColor =
-            BOX_COLORS[item.type] || getColorForUnknown(item.type);
+        const colorIndex = getBoxColorIndex(item.type);
+        const typeColor = getChartColorClass(colorIndex);
         const iconColorClass = isSelected
             ? 'text-white'
             : isHovered
-              ? 'text-slate-200'
+              ? 'text-slate-100'
               : typeColor;
 
         let containerClass =
-            'flex items-center gap-2 py-1 px-2 text-xs font-mono cursor-pointer select-none transition-colors border-l-2 ';
+            'flex items-center gap-2 py-1 px-2 text-xs font-mono cursor-pointer select-none transition-all border-l-2 ';
         if (isSelected) {
-            containerClass += 'bg-blue-600 text-white border-blue-400';
+            // Neon Selection
+            containerClass +=
+                'bg-gradient-to-r from-[#3b82f6]/20 to-transparent text-white border-[#3b82f6] z-10 relative rounded-r shadow-[0_0_15px_var(--primary-500-glow)]';
         } else if (isHovered) {
-            containerClass += 'bg-slate-800 text-slate-200 border-slate-600';
+            // Glass Hover
+            containerClass +=
+                'bg-slate-800/60 text-slate-100 border-slate-800 relative z-10 backdrop-blur-sm';
         } else {
             containerClass +=
-                'text-slate-400 border-transparent hover:bg-slate-800/50 hover:text-slate-300';
+                'text-slate-400 border-transparent hover:bg-slate-800/40 hover:text-slate-100';
         }
 
         // --- Chunk Badge Logic ---
         const chunkBadge = item.chunkInfo
             ? html`<span
-                  class="ml-2 px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 text-[9px] font-bold uppercase tracking-wider"
+                  class="ml-2 px-1.5 py-0.5 rounded bg-[#3b82f6]/10 text-blue-300 border border-[#3b82f6]/20 text-[9px] font-bold uppercase tracking-wider"
                   >Chunk #${item.chunkInfo.index}</span
               >`
             : '';
@@ -367,12 +277,15 @@ class StructureTree extends HTMLElement {
                     </span>
                 </div>
 
-                <span class="${iconColorClass} opacity-90 scale-90">
+                <span
+                    class="${iconColorClass} opacity-90 scale-90 transition-colors drop-shadow-[0_0_2px_rgba(0,0,0,0.5)]"
+                >
                     ${getIconForNode(item)}
                 </span>
 
                 <span
-                    class="font-bold truncate ${item.type === 'mdat'
+                    class="font-bold truncate ${iconColorClass} ${item.type ===
+                    'mdat'
                         ? 'opacity-50'
                         : ''}"
                 >
@@ -393,10 +306,10 @@ class StructureTree extends HTMLElement {
     render() {
         const template = html`
             <div
-                class="flex flex-col h-full overflow-hidden bg-slate-950 border-r border-slate-800"
+                class="flex flex-col h-full overflow-hidden bg-slate-800/40 backdrop-blur-xl border-r border-slate-800 relative"
             >
                 <div
-                    class="shrink-0 h-10 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 shadow-sm z-10"
+                    class="shrink-0 h-10 bg-slate-800/80 backdrop-blur-md border-b border-slate-800 flex items-center justify-between px-4 shadow-sm z-10"
                 >
                     <span
                         class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2"
@@ -405,13 +318,13 @@ class StructureTree extends HTMLElement {
                     </span>
                 </div>
 
-                <div class="grow relative w-full min-h-0">
+                <div class="grow relative w-full min-h-0 bg-transparent">
                     <virtualized-list
                         .items=${this._flattenedItems}
                         .rowTemplate=${this._renderRow}
                         .rowHeight=${28}
                         .itemId=${(item) => item.offset}
-                        class="absolute inset-0"
+                        class="absolute inset-0 custom-scrollbar"
                     ></virtualized-list>
                 </div>
             </div>

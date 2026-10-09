@@ -1,305 +1,142 @@
-import { uiActions, useUiStore } from '@/state/uiStore';
-import { disposeChart, renderChart } from '@/ui/shared/charts/chart-renderer';
 import { html, render } from 'lit-html';
+import * as icons from '@/ui/icons';
 
-class ComplianceScorecard extends HTMLElement {
+export class ComplianceScorecard extends HTMLElement {
+    /** @type {any} */
+    __data = null;
+
     constructor() {
         super();
-        this._data = null;
-        this.unsubscribe = null;
+        this.style.display = 'block';
+        this.style.width = '100%';
     }
 
-    set data(val) {
-        this._data = val;
+    set _data(val) {
+        this.__data = val;
         this.render();
-        this.updateCharts();
     }
 
-    connectedCallback() {
-        this.render();
-        window.addEventListener('resize', this.handleResize.bind(this));
-
-        // Subscribe to UI store to re-render or update highlights if needed
-        // For chart->table we use events, for table->chart we might want to emphasize
-        this.unsubscribe = useUiStore.subscribe(
-            ({ highlightedComplianceCategory }) => {
-                // Optional: visual effect on chart when table row is hovered
-                // ECharts doesn't support easy "highlight by axis" API, so we might just
-                // rely on the tooltip synchronization if we wanted to go that deep.
-                // For now, we will rely on chart internal hover state for chart->table.
-            }
-        );
+    get _data() {
+        return this.__data;
     }
 
-    disconnectedCallback() {
-        window.removeEventListener('resize', this.handleResize.bind(this));
-        if (this.unsubscribe) this.unsubscribe();
-        const chartContainer = /** @type {HTMLElement} */ (
-            this.querySelector('#compliance-radar')
-        );
-        if (chartContainer) {
-            disposeChart(chartContainer);
-        }
-    }
 
-    handleResize() {
-        // Chart renderer handles internal resize logic via Observer
-    }
 
-    updateCharts() {
-        if (!this._data || this._data.categories.length === 0) return;
-
-        const container = /** @type {HTMLElement} */ (
-            this.querySelector('#compliance-radar')
-        );
-        if (!container) return;
-
-        const categoriesToShow = this._data.categories.slice(0, 6);
-        const indicator = categoriesToShow.map((c) => ({
-            name: c.name,
-            max: 100,
-        }));
-        const dataValues = categoriesToShow.map((c) => c.score);
-
-        // Map category data for the tooltip
-        const categoryMap = new Map();
-        categoriesToShow.forEach((c) => categoryMap.set(c.name, c));
-
-        const option = {
-            backgroundColor: 'transparent',
-            tooltip: {
-                trigger: 'item',
-                confine: true,
-                backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                borderColor: '#334155',
-                textStyle: { color: '#f8fafc' },
-                padding: 0,
-                borderWidth: 1,
-                // Using custom formatter to show rich details
-                formatter: (params) => {
-                    // For radar, params can be complex.
-                    // However, we want to show details when hovering specific points if possible.
-                    // ECharts radar tooltip usually shows all axes for the series.
-                    // We can format it to list the breakdown.
-
-                    let htmlContent = `
-                        <div class="p-3 min-w-[200px]">
-                            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 border-b border-slate-700 pb-1">
-                                Compliance Breakdown
-                            </div>
-                    `;
-
-                    categoriesToShow.forEach((cat, idx) => {
-                        const scoreColor =
-                            cat.score === 100
-                                ? 'text-emerald-400'
-                                : cat.score > 70
-                                  ? 'text-yellow-400'
-                                  : 'text-red-400';
-                        htmlContent += `
-                            <div class="mb-2 last:mb-0">
-                                <div class="flex justify-between items-center">
-                                    <span class="text-sm font-semibold text-slate-200">${cat.name}</span>
-                                    <span class="text-sm font-mono ${scoreColor}">${cat.score}</span>
-                                </div>
-                                <div class="flex gap-2 mt-0.5 text-[10px] font-mono">
-                                    ${cat.errors > 0 ? `<span class="text-red-400 bg-red-900/20 px-1 rounded">${cat.errors} ERR</span>` : ''}
-                                    ${cat.warnings > 0 ? `<span class="text-yellow-400 bg-yellow-900/20 px-1 rounded">${cat.warnings} WARN</span>` : ''}
-                                    ${cat.infos > 0 ? `<span class="text-blue-400 bg-blue-900/20 px-1 rounded">${cat.infos} INFO</span>` : ''}
-                                    ${cat.issues === 0 ? '<span class="text-slate-500">No Issues</span>' : ''}
-                                </div>
-                            </div>
-                        `;
-                    });
-
-                    htmlContent += `</div>`;
-                    return htmlContent;
-                },
-            },
-            radar: {
-                indicator: indicator,
-                shape: 'circle',
-                splitNumber: 4,
-                axisName: {
-                    color: '#94a3b8',
-                    backgroundColor: '#1e293b',
-                    borderRadius: 3,
-                    padding: [3, 5],
-                    fontSize: 10,
-                },
-                splitLine: {
-                    lineStyle: { color: 'rgba(255, 255, 255, 0.05)' },
-                },
-                splitArea: { show: false },
-                axisLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.1)' } },
-                triggerEvent: true, // Enable events on axes
-            },
-            series: [
-                {
-                    type: 'radar',
-                    data: [
-                        {
-                            value: dataValues,
-                            name: 'Category Score',
-                            areaStyle: { color: 'rgba(59, 130, 246, 0.2)' },
-                            lineStyle: { color: '#3b82f6', width: 2 },
-                            itemStyle: { color: '#60a5fa' },
-                        },
-                    ],
-                },
-            ],
-        };
-
-        const handlers = {
-            onMouseOver: (params) => {
-                // Try to detect which axis is hovered if possible,
-                // but ECharts radar hover is often series-based.
-                // If the user hovers the axis label (triggerEvent: true), we get params.componentType === 'radar' && targetType === 'axisName'
-                if (
-                    params.componentType === 'radar' &&
-                    params.targetType === 'axisLabel'
-                ) {
-                    // params.name contains the category name
-                    uiActions.setHighlightedComplianceCategory(params.name);
-                }
-            },
-            onMouseOut: () => {
-                uiActions.setHighlightedComplianceCategory(null);
-            },
-        };
-
-        // Note: We need to attach specific mouseover for axis names manually if the chart renderer doesn't expose it fully via config.
-        // But renderChart supports custom handlers map.
-        renderChart(container, option, handlers);
-
-        // ECharts 'axisLabel' events are tricky. We might need to listen on the instance directly if the wrapper doesn't pass 'radar' component events.
-        // However, the rich tooltip is the primary request, which is handled by formatter.
-    }
 
     render() {
         if (!this._data) return;
-        const { totalScore, label, summary } = this._data;
+        const { totalScore, label, summary, categories } = this._data;
 
-        let labelColor = 'text-green-400';
-        let ringColor = 'text-green-500';
+        // Colors
+        let scoreColor = '#f1f5f9';
+        if (totalScore >= 90) scoreColor = '#10b981';
+        else if (totalScore >= 70) scoreColor = '#f59e0b';
+        else scoreColor = '#ef4444';
 
-        if (label === 'FAIL') {
-            labelColor = 'text-red-500';
-            ringColor = 'text-red-600';
-        } else if (label === 'WARNING') {
-            labelColor = 'text-yellow-400';
-            ringColor = 'text-yellow-500';
-        }
+        // Reusable card wrapper with "Cyberpunk/Tech" styling
+        const renderTechCard = (content, classes = '') => html`
+            <div class="layout-card rounded-xl p-5 relative overflow-hidden group border border-slate-800 ${classes}">
+                <!-- Tech Lines Decoration -->
+                <div class="absolute top-0 right-0 w-16 h-16 border-t-2 border-r-2 border-[var(--sidebar-accent,#3b82f6)]/10 rounded-tr-[0.75rem] pointer-events-none"></div>
+                <div class="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-slate-400/10 rounded-bl-[0.75rem] pointer-events-none"></div>
 
-        const radius = 70;
-        const circumference = 2 * Math.PI * radius;
-        const offset = circumference - (totalScore / 100) * circumference;
-
-        const template = html`
-            <div
-                class="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-6 bg-slate-900 rounded-xl border border-slate-700 p-6 shadow-xl relative overflow-hidden"
-            >
-                <div
-                    class="absolute top-0 left-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"
-                ></div>
-
-                <!-- Score Section -->
-                <div
-                    class="flex flex-col items-center justify-center border-r border-slate-800 pr-6 relative z-10"
-                >
-                    <div
-                        class="relative w-40 h-40 flex items-center justify-center"
-                    >
-                        <svg class="w-full h-full transform -rotate-90">
-                            <circle
-                                cx="80"
-                                cy="80"
-                                r="${radius}"
-                                stroke="currentColor"
-                                stroke-width="8"
-                                fill="transparent"
-                                class="text-slate-800"
-                            />
-                            <circle
-                                cx="80"
-                                cy="80"
-                                r="${radius}"
-                                stroke="currentColor"
-                                stroke-width="8"
-                                fill="transparent"
-                                stroke-dasharray="${circumference}"
-                                stroke-dashoffset="${offset}"
-                                stroke-linecap="round"
-                                class="${ringColor} transition-all duration-1000 ease-out"
-                            />
-                        </svg>
-                        <div class="absolute flex flex-col items-center">
-                            <span class="text-5xl font-bold text-white"
-                                >${totalScore}</span
-                            >
-                            <span
-                                class="text-lg font-bold ${labelColor} uppercase tracking-widest mt-1 opacity-90"
-                                >${label}</span
-                            >
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Metrics Section -->
-                <div class="flex flex-col gap-4 min-w-0">
-                    <div class="grid grid-cols-3 gap-4 mb-2">
-                        <div
-                            class="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50 text-center"
-                        >
-                            <div class="text-2xl font-bold text-red-400">
-                                ${summary.errors}
-                            </div>
-                            <div
-                                class="text-xs text-slate-500 font-bold uppercase tracking-wider"
-                            >
-                                Errors
-                            </div>
-                        </div>
-                        <div
-                            class="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50 text-center"
-                        >
-                            <div class="text-2xl font-bold text-yellow-400">
-                                ${summary.warnings}
-                            </div>
-                            <div
-                                class="text-xs text-slate-500 font-bold uppercase tracking-wider"
-                            >
-                                Warnings
-                            </div>
-                        </div>
-                        <div
-                            class="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50 text-center"
-                        >
-                            <div class="text-2xl font-bold text-blue-400">
-                                ${summary.info}
-                            </div>
-                            <div
-                                class="text-xs text-slate-500 font-bold uppercase tracking-wider"
-                            >
-                                Notes
-                            </div>
-                        </div>
-                    </div>
-                    <div class="grow relative min-h-[200px]">
-                        <div
-                            id="compliance-radar"
-                            class="absolute inset-0 w-full h-full"
-                        ></div>
-                        ${this._data.categories.length === 0
-                            ? html`<div
-                                  class="absolute inset-0 flex items-center justify-center text-slate-600 text-sm italic"
-                              >
-                                  No issues found.
-                              </div>`
-                            : ''}
-                    </div>
+                <div class="relative z-10 font-sans">
+                    ${content}
                 </div>
             </div>
+        `;
+
+        const template = html`
+                ${renderTechCard(html`
+                    <div class="flex flex-col gap-6">
+                        
+                        <!-- 1. Top Section: Score & Protocol -->
+                        <div class="flex items-center justify-between">
+                            <!-- Condition (Left) -->
+                            <div>
+                                <div class="text-[10px] font-mono text-slate-400 mb-1 opacity-60 uppercase">CONDITION</div>
+                                <div class="text-2xl font-black tracking-tighter" style="color: ${scoreColor}">
+                                    ${label}
+                                </div>
+                            </div>
+
+                            <!-- Score (Right) -->
+                            <div class="flex flex-col items-end">
+                                <div class="text-[10px] font-mono text-slate-400 mb-1 opacity-60 uppercase">SCORE</div>
+                                <div class="flex items-baseline gap-1">
+                                    <span class="text-4xl font-black text-slate-100 tracking-tighter">
+                                        ${totalScore}
+                                    </span>
+                                    <span class="text-xs font-bold text-slate-400 opacity-60">/100</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 2. Middle Section: Critical & Warnings -->
+                        <div class="grid grid-cols-2 gap-2">
+                            <!-- Critical -->
+                            <div class="p-2 rounded bg-slate-900/30 border border-white/5 flex flex-col items-center justify-center relative overflow-hidden">
+                                <span class="text-2xl font-black mb-1 z-10" style="color: ${summary.errors > 0 ? '#ef4444' : '#f1f5f9'}">
+                                    ${summary.errors}
+                                </span>
+                                <div class="flex items-center gap-2 opacity-80 z-10">
+                                    <span class="text-red-400 scale-75">${icons.xCircle}</span>
+                                    <span class="text-[9px] font-mono text-slate-400 uppercase">Critical</span>
+                                </div>
+                            </div>
+
+                            <!-- Warnings -->
+                            <div class="p-2 rounded bg-slate-900/30 border border-white/5 flex flex-col items-center justify-center relative overflow-hidden">
+                                <span class="text-2xl font-black mb-1 z-10" style="color: ${summary.warnings > 0 ? '#f59e0b' : '#f1f5f9'}">
+                                    ${summary.warnings}
+                                </span>
+                                <div class="flex items-center gap-2 opacity-80 z-10">
+                                    <span class="text-amber-400 scale-75">${icons.alertTriangle}</span>
+                                    <span class="text-[9px] font-mono text-slate-400 uppercase">Warnings</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 3. Bottom Section: Category Analysis -->
+                         <div class="flex flex-col gap-4 pt-4 border-t border-slate-800/50">
+                            <div class="flex items-center justify-between">
+                                <div class="text-[10px] font-mono text-slate-400 opacity-60 uppercase">
+                                    Category Analysis
+                                </div>
+                                <div class="text-[10px] font-bold text-slate-100 bg-slate-900/50 px-2 py-0.5 rounded-full border border-white/5">
+                                    ${categories.length} ZONES
+                                </div>
+                            </div>
+                            
+                            <div class="flex flex-col gap-3">
+                                ${categories.map(cat => {
+            let barColor = '#94a3b8';
+            if (cat.score >= 90) barColor = '#10b981';
+            else if (cat.score >= 70) barColor = '#f59e0b';
+            else barColor = '#ef4444';
+
+            return html`
+                                        <div class="flex flex-col gap-1.5 group/cat">
+                                            <div class="flex items-center justify-between">
+                                                <span class="text-xs font-bold text-slate-100 tracking-wide group-hover/cat:text-white transition-colors">${cat.name}</span>
+                                                <span class="text-xs font-mono font-bold" style="color: ${barColor}">${cat.score}%</span>
+                                            </div>
+                                            <div class="w-full h-1 bg-slate-900 rounded-full overflow-hidden">
+                                                <div 
+                                                    class="h-full rounded-full transition-all duration-500 relative"
+                                                    style="width: ${cat.score}%; background: ${barColor}"
+                                                >
+                                                     <div class="absolute right-0 top-0 bottom-0 w-2 bg-white/20"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `;
+        })}
+                            </div>
+                        </div>
+
+                    </div>
+                `)}
         `;
 
         render(template, this);

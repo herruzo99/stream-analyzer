@@ -3,23 +3,44 @@ import { useUiStore } from '@/state/uiStore';
 import { disposeChart, renderChart } from '@/ui/shared/charts/chart-renderer';
 import { formatBitrate } from '@/ui/shared/format';
 
+const getThemeColor = (varName) =>
+    getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+
 const createChartOptions = (title, yAxisName, yAxisFormatter, seriesData) => ({
-    title: { text: title, textStyle: { color: '#e5e7eb', fontSize: 16 } },
+    title: {
+        text: title,
+        textStyle: {
+            color: getThemeColor('--text-on-B-primary'),
+            fontSize: 16,
+        },
+    },
     tooltip: {
         trigger: 'axis',
-        backgroundColor: 'rgba(31, 41, 55, 0.9)',
-        borderColor: '#4b5563',
-        textStyle: { color: '#e5e7eb' },
+        backgroundColor: getThemeColor('--bg-surface-B-panel-opaque'),
+        borderColor: getThemeColor('--border-on-B'),
+        textStyle: { color: getThemeColor('--text-on-B-primary') },
     },
-    legend: { type: 'scroll', bottom: 0, textStyle: { color: '#9ca3af' } },
+    legend: {
+        type: 'scroll',
+        bottom: 0,
+        textStyle: { color: getThemeColor('--text-on-B-secondary') },
+    },
     grid: { top: '60', right: '20', bottom: '50', left: '65' },
-    xAxis: { type: 'time', axisLine: { lineStyle: { color: '#4b5563' } } },
+    xAxis: {
+        type: 'time',
+        axisLine: { lineStyle: { color: getThemeColor('--border-on-B') } },
+        axisLabel: { color: getThemeColor('--text-on-B-secondary') },
+    },
     yAxis: {
         type: 'value',
         name: yAxisName,
-        axisLabel: { formatter: yAxisFormatter },
-        splitLine: { lineStyle: { color: '#374151' } },
-        axisLine: { lineStyle: { color: '#4b5563' } },
+        nameTextStyle: { color: getThemeColor('--text-on-B-secondary') },
+        axisLabel: {
+            formatter: yAxisFormatter,
+            color: getThemeColor('--text-on-B-secondary'),
+        },
+        splitLine: { lineStyle: { color: getThemeColor('--bg-glass-B-2') } },
+        axisLine: { lineStyle: { color: getThemeColor('--border-on-B') } },
     },
     series: seriesData,
 });
@@ -34,10 +55,10 @@ class GraphsViewComponent extends HTMLElement {
     connectedCallback() {
         this.innerHTML = `
             <div class="space-y-8">
-                <div id="buffer-chart" class="h-72 bg-gray-800 p-4 rounded-lg border border-gray-700"></div>
-                <div id="latency-chart" class="h-72 bg-gray-800 p-4 rounded-lg border border-gray-700"></div>
-                <div id="bandwidth-chart" class="h-72 bg-gray-800 p-4 rounded-lg border border-gray-700"></div>
-                <div id="bitrate-chart" class="h-72 bg-gray-800 p-4 rounded-lg border border-gray-700"></div>
+                <div id="buffer-chart" class="h-72 bg-slate-800 p-4 rounded-lg border border-slate-800"></div>
+                <div id="latency-chart" class="h-72 bg-slate-800 p-4 rounded-lg border border-slate-800"></div>
+                <div id="bandwidth-chart" class="h-72 bg-slate-800 p-4 rounded-lg border border-slate-800"></div>
+                <div id="bitrate-chart" class="h-72 bg-slate-800 p-4 rounded-lg border border-slate-800"></div>
             </div>
         `;
         this.multiPlayerUnsubscribe = useMultiPlayerStore.subscribe(() =>

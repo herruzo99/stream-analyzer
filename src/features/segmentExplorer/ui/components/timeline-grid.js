@@ -4,7 +4,7 @@ import { useUiStore } from '@/state/uiStore';
 import { html, render } from 'lit-html';
 import './timeline-track.js';
 
-const TRACK_HEADER_WIDTH = 240;
+const getHeaderWidth = () => (window.innerWidth < 640 ? 120 : 240);
 const PIXELS_PER_SECOND = 20; // 1 second = 20px
 const OVERSCAN_PX = 500; // Render buffer
 
@@ -12,7 +12,8 @@ export class VirtualTimelineGrid extends HTMLElement {
     constructor() {
         super();
         this._data = null;
-        this._stream = null;
+        this._streamId = null;
+        this._segmentFormat = null;
 
         this._scrollTop = 0;
         this._scrollLeft = 0;
@@ -31,9 +32,39 @@ export class VirtualTimelineGrid extends HTMLElement {
         this.onScroll = this.onScroll.bind(this);
     }
 
-    set data({ viewModel, stream }) {
+    set data(val) {
+        if (!val) return;
+        const { viewModel, streamId, segmentFormat, uiState, segmentsForCompare } = val;
+
+        const clickMode = uiState ? uiState.segmentMatrixClickMode : null;
+        const activeThemeId = uiState ? uiState.activeThemeId : null;
+
+        // Performance Optimization:
+        if (
+            this._data === viewModel &&
+            this._streamId === streamId &&
+            this._segmentFormat === segmentFormat &&
+            this._clickMode === clickMode &&
+            this._activeThemeId === activeThemeId &&
+            this._segmentsForCompare === segmentsForCompare
+        ) {
+            return;
+        }
+
+        const prevStreamId = this._streamId;
+
         this._data = viewModel;
-        this._stream = stream;
+        this._streamId = streamId;
+        this._segmentFormat = segmentFormat;
+        this._clickMode = clickMode;
+        this._activeThemeId = activeThemeId;
+        this._segmentsForCompare = segmentsForCompare;
+
+        // Reset scroll only if stream actually changed
+        if (prevStreamId !== streamId) {
+            this._scrollLeft = 0;
+            if (this.scroller) this.scroller.scrollLeft = 0;
+        }
 
         if (this._data && !this._data.isLive) {
             this.isSticky = false;
@@ -77,7 +108,7 @@ export class VirtualTimelineGrid extends HTMLElement {
         this.style.width = '100%';
         this.style.overflow = 'hidden';
 
-        this.innerHTML = `<div id="scroller" class="w-full h-full overflow-auto bg-slate-950 relative scroll-smooth">
+        this.innerHTML = `<div id="scroller" class="w-full h-full overflow-auto bg-transparent relative scroll-smooth custom-scrollbar">
             <div id="content" class="relative min-w-full h-full"></div>
         </div>`;
 
@@ -157,29 +188,38 @@ export class VirtualTimelineGrid extends HTMLElement {
     }
 
     renderGrid() {
-        if (!this._data || !this._stream || !this.content) return;
+        // DEBUG LOGS
+        // console.log('[VirtualTimelineGrid] renderGrid called', { 
+        //    hasData: !!this._data, 
+        //    streamId: this._streamId, 
+        //    hasContent: !!this.content 
+        // });
+
+        if (!this._data || this._streamId == null || !this.content) {
+            // console.warn('[VirtualTimelineGrid] renderGrid aborted: missing strict dependencies.');
+            return;
+        }
 
         const { tracks, timeBounds } = this._data;
         const totalDuration = timeBounds.duration;
 
+        const headerWidth = getHeaderWidth();
+
         // Calculate Total Width based on Duration
         // Tight fit: Exact duration width + header width. Small buffer (20px) for labels.
         const totalWidth = Math.ceil(
-            totalDuration * PIXELS_PER_SECOND + TRACK_HEADER_WIDTH + 20
+            totalDuration * PIXELS_PER_SECOND + headerWidth + 20
         );
         this.content.style.width = `${totalWidth}px`;
 
         // Virtualization Window (Pixels relative to content start, excluding header)
-        const effectiveScrollLeft = Math.max(
-            0,
-            this._scrollLeft - TRACK_HEADER_WIDTH
-        );
+        const effectiveScrollLeft = Math.max(0, this._scrollLeft - headerWidth);
         const visibleStartPx = Math.max(0, effectiveScrollLeft - OVERSCAN_PX);
         const visibleEndPx =
             effectiveScrollLeft + this.viewportWidth + OVERSCAN_PX;
 
         // Context Setup
-        const { interactiveSegmentSelectedItem, segmentMatrixClickMode } =
+        const { interactiveSegmentSelectedItem, segmentMatrixClickMode, activeThemeId } =
             useUiStore.getState();
         const { segmentsForCompare } = useAnalysisStore.getState();
         const { cache } = useSegmentCacheStore.getState();
@@ -197,9 +237,10 @@ export class VirtualTimelineGrid extends HTMLElement {
             inspectedSegment, // Pass full object, not just ID
             compareSet,
             clickMode: segmentMatrixClickMode,
-            streamId: this._stream.id,
-            segmentFormat: this._stream.manifest.segmentFormat,
+            streamId: this._streamId, // Updated usage
+            segmentFormat: this._segmentFormat, // Updated usage
             cache,
+            activeThemeId,
         };
 
         // Render Tracks with Proportional Logic
@@ -207,127 +248,89 @@ export class VirtualTimelineGrid extends HTMLElement {
             (track) => html`
                 <timeline-track
                     .data=${{
-                        track,
-                        ctx,
-                        visibleStartPx,
-                        visibleEndPx,
-                        pixelsPerSecond: PIXELS_PER_SECOND,
-                        totalWidthPx: totalWidth,
-                    }}
+                    track,
+                    ctx,
+                    visibleStartPx,
+                    visibleEndPx,
+                    pixelsPerSecond: PIXELS_PER_SECOND,
+                    totalWidthPx: totalWidth,
+                    headerWidth: headerWidth,
+                }}
                     style="display: block; position: relative; z-index: 10;"
                 ></timeline-track>
             `
         );
 
-        // Render Header (Sticky Ruler)
-        const headerContent = this.renderRuler(
-            visibleStartPx,
-            visibleEndPx,
-            totalWidth
-        );
+        // Corner
+        const corner = html`
+            <div
+                class="sticky left-0 z-50 bg-slate-800 backdrop-blur-md border-r border-slate-800 shrink-0"
+                style="width: ${headerWidth}px;"
+            ></div>
+        `;
 
-        // Render Full Height Grid Lines
-        const gridContent = this.renderGridLines(
-            visibleStartPx,
-            visibleEndPx,
-            totalWidth
-        );
-
-        render(
-            html`
-                <div class="flex flex-col min-w-max h-full relative">
-                    ${headerContent} ${gridContent}
-                    <div class="flex-1 pb-10 relative z-10">
-                        ${tracksContent}
-                    </div>
-                </div>
-            `,
-            this.content
-        );
-    }
-
-    renderGridLines(visibleStartPx, visibleEndPx, totalWidth) {
-        const TICK_INTERVAL_SEC = 5;
-        const tickIntervalPx = TICK_INTERVAL_SEC * PIXELS_PER_SECOND;
-
-        const startTickIndex = Math.floor(visibleStartPx / tickIntervalPx);
-        const endTickIndex = Math.ceil(visibleEndPx / tickIntervalPx);
-
-        const lines = [];
-        for (let i = startTickIndex; i <= endTickIndex; i++) {
-            const posPx = i * tickIntervalPx + TRACK_HEADER_WIDTH;
-            // Optimization: Don't render lines outside bounds
-            if (posPx > totalWidth) break;
-
-            lines.push(html`
-                <div
-                    class="absolute top-0 bottom-0 border-l border-slate-800/30 pointer-events-none"
-                    style="left: ${posPx}px;"
-                ></div>
-            `);
-        }
-
-        return html`<div class="absolute inset-0 z-0 pointer-events-none">
-            ${lines}
-        </div>`;
-    }
-
-    renderRuler(visibleStartPx, visibleEndPx, totalWidth) {
-        const TICK_INTERVAL_SEC = 5;
-        const tickIntervalPx = TICK_INTERVAL_SEC * PIXELS_PER_SECOND;
-
-        const startTickIndex = Math.floor(visibleStartPx / tickIntervalPx);
-        const endTickIndex = Math.ceil(visibleEndPx / tickIntervalPx);
-
-        const timelineWidth = totalWidth - TRACK_HEADER_WIDTH;
-
+        // Ticks
+        const startTick = Math.floor(visibleStartPx / PIXELS_PER_SECOND);
+        const endTick = Math.ceil(visibleEndPx / PIXELS_PER_SECOND);
         const ticks = [];
-        for (let i = startTickIndex; i <= endTickIndex; i++) {
-            const posPx = i * tickIntervalPx;
 
-            // FIX: Prevent ruler from expanding infinitely if scrolling overshot
-            if (posPx > timelineWidth) break;
+        // Determine label interval based on timestamp length to prevent overlap
+        // For large timestamps (millions), we need more space.
+        // 1000000s is ~7 chars. 10px font ~ 50-60px width.
+        // 5 seconds * 20px = 100px space. Safe.
+        const labelInterval = 5;
 
-            const timeSec = i * TICK_INTERVAL_SEC;
+        for (let i = startTick; i <= endTick; i++) {
+            if (i > totalDuration) break;
+            const left = i * PIXELS_PER_SECOND;
+            const isMajor = i % labelInterval === 0;
 
             ticks.push(html`
                 <div
-                    class="absolute top-0 h-4 border-l border-slate-600/50 pl-1"
-                    style="left: ${posPx}px;"
+                    class="absolute top-0 bottom-0 border-l ${isMajor
+                    ? 'border-slate-800 h-full'
+                    : 'border-slate-800/30 h-2'}"
+                    style="left: ${left}px;"
                 >
-                    <span
-                        class="text-[9px] font-mono text-slate-500 block -mt-0.5"
-                    >
-                        ${timeSec}s
-                    </span>
+                    ${isMajor
+                    ? html`<span
+                              class="absolute top-2 left-1 text-[10px] text-slate-400 select-none font-mono font-bold opacity-70"
+                              >${i}s</span
+                          >`
+                    : ''}
                 </div>
             `);
         }
 
-        const corner = html`
+        const header = html`
             <div
-                class="sticky left-0 z-50 flex items-center justify-between px-4 bg-slate-900 border-r border-b border-slate-800 text-xs font-bold text-slate-400 shrink-0"
-                style="width: ${TRACK_HEADER_WIDTH}px; height: 28px;"
-            >
-                <span>TRACKS</span>
-            </div>
-        `;
-
-        return html`
-            <div
-                class="sticky top-0 z-40 flex bg-slate-900 border-b border-slate-800 h-[28px] shrink-0 shadow-sm"
+                class="sticky top-0 z-40 flex bg-slate-800 backdrop-blur-md border-b border-slate-800 h-[28px] shrink-0 shadow-sm"
             >
                 ${corner}
                 <div class="relative h-full grow">${ticks}</div>
             </div>
         `;
+
+        render(
+            html`
+                ${header}
+                <div class="flex flex-col">${tracksContent}</div>
+            `,
+            this.content
+        );
     }
 }
 
 customElements.define('virtual-timeline-grid', VirtualTimelineGrid);
 
-export const timelineGridTemplate = (viewModel, stream) => {
+export const timelineGridTemplate = (
+    viewModel,
+    streamId,
+    segmentFormat,
+    uiState,
+    segmentsForCompare
+) => {
     return html`<virtual-timeline-grid
-        .data=${{ viewModel, stream }}
+        .data=${{ viewModel, streamId, segmentFormat, uiState, segmentsForCompare }}
     ></virtual-timeline-grid>`;
 };

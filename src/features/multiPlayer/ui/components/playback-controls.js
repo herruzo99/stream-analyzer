@@ -20,16 +20,16 @@ const playbackControlsTemplate = ({ selectedCount }) => {
     const isDisabled = selectedCount === 0;
 
     const buttonClasses = `
-        bg-slate-700 hover:bg-slate-600 text-white font-bold
+        bg-slate-800 hover:bg-slate-800 text-slate-100 font-bold
         p-2 rounded-md transition-colors flex-1 flex items-center
         justify-center disabled:opacity-50 disabled:cursor-not-allowed
     `;
     const smallButtonClasses = `${buttonClasses} text-sm`;
-    const primaryButtonClasses = `bg-blue-600 hover:bg-blue-700`;
+    const primaryButtonClasses = `bg-blue-500 hover:bg-blue-500/80 text-white`;
 
     return html`
         <div class="space-y-3">
-            <h4 class="text-md font-bold text-slate-300">
+            <h4 class="text-md font-bold text-slate-100">
                 Selected Player Actions (${selectedCount})
             </h4>
             <div class="flex items-center justify-center gap-2">

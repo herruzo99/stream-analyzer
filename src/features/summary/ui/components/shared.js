@@ -30,7 +30,7 @@ const renderSourcedValue = (sourcedData) => {
     ) {
         return html`${sourcedData.value}${sourcedData.source === 'segment'
             ? html`<span
-                  class="ml-1 text-cyan-400 ${tooltipTriggerClasses}"
+                  class="ml-1 text-blue-400 ${tooltipTriggerClasses}"
                   data-tooltip="This value was derived by inspecting a media segment, not from the manifest."
                   >🔬</span
               >`
@@ -39,7 +39,9 @@ const renderSourcedValue = (sourcedData) => {
 
     if (typeof sourcedData === 'boolean') {
         return sourcedData
-            ? html`<span class="text-success font-semibold">Yes</span>`
+            ? html`<span class="text-emerald-400 font-semibold"
+                  >Yes</span
+              >`
             : html`<span class="text-slate-400">No</span>`;
     }
 
@@ -48,7 +50,7 @@ const renderSourcedValue = (sourcedData) => {
         sourcedData === undefined ||
         sourcedData === ''
     ) {
-        return html`<span class="text-slate-500">N/A</span>`;
+        return html`<span class="text-slate-400">N/A</span>`;
     }
 
     return sourcedData;
@@ -58,7 +60,9 @@ export const renderCodecInfo = (codecInfo) => {
     const supportedIcon = codecInfo.supported
         ? icons.checkCircle
         : icons.xCircleRed;
-    const colorClass = codecInfo.supported ? 'text-green-400' : 'text-red-400';
+    const colorClass = codecInfo.supported
+        ? 'text-emerald-400'
+        : 'text-red-400';
     const tooltip = codecInfo.supported
         ? 'Codec is supported by internal parsers.'
         : 'Codec is not supported by internal parsers.';
@@ -79,8 +83,12 @@ export const statCardTemplate = ({
     isoRef = null,
     customClasses = '',
     icon = null,
+    colorVar = null,
     iconBgClass = 'bg-slate-800 text-slate-400',
 }) => {
+    if (colorVar) {
+        iconBgClass = `bg-[var(${colorVar})]/10 text-[var(${colorVar})]`;
+    }
     if (value === null || value === undefined) {
         return '';
     }
@@ -105,7 +113,7 @@ export const statCardTemplate = ({
                     ${label}
                 </dt>
                 <dd
-                    class="text-base text-left font-mono text-white mt-1 wrap-break-word"
+                    class="text-base text-left font-mono text-slate-200 mt-1 wrap-break-word"
                 >
                     ${renderSourcedValue(value)}
                 </dd>
@@ -123,7 +131,9 @@ export const listCardTemplate = ({
 }) => {
     if (!items || items.length === 0) return '';
     return html`
-        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+        <div
+            class="bg-slate-900 p-3 rounded-lg border border-slate-700"
+        >
             <dt
                 class="text-xs font-medium text-slate-400 flex items-center gap-2 ${tooltipTriggerClasses}"
                 data-tooltip="${tooltip}"
@@ -132,7 +142,9 @@ export const listCardTemplate = ({
                 ${icon || ''}
                 <span>${label}</span>
             </dt>
-            <dd class="text-sm text-left font-mono text-white mt-2 space-y-1">
+            <dd
+                class="text-sm text-left font-mono text-slate-200 mt-2 space-y-1"
+            >
                 ${items.map(
                     (item) =>
                         html`<div
@@ -165,7 +177,7 @@ const trackCardTemplate = (track, type, gridColumns) => {
     if (isTrickPlay) {
         const otherRoles = roleValues.filter((r) => r !== 'trick');
         const trickBadge = html`<span
-            class="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-800 text-orange-200"
+            class="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400"
             >Trick Play</span
         >`;
         if (otherRoles.length > 0) {
@@ -210,7 +222,7 @@ const trackCardTemplate = (track, type, gridColumns) => {
         ) {
             bitrate = html`${effectiveBitrate}
                 <span
-                    class="block text-[10px] text-yellow-400 ${tooltipTriggerClasses}"
+                    class="block text-[10px] text-amber-400 ${tooltipTriggerClasses}"
                     data-tooltip="The manifest @bandwidth is ${manifestBitrate}, but the effective max bitrate from the 'btrt' box in the init segment is ${effectiveBitrate}. The effective rate is shown."
                     >(Manifest: ${manifestBitrate})</span
                 >`;
@@ -230,7 +242,7 @@ const trackCardTemplate = (track, type, gridColumns) => {
         if (track.scanType) {
             extraProps.push(
                 html`<span
-                    class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-600 text-[10px]"
+                    class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-800 text-[10px]"
                     >${track.scanType}</span
                 >`
             );
@@ -238,7 +250,7 @@ const trackCardTemplate = (track, type, gridColumns) => {
         if (track.hdcpLevel) {
             extraProps.push(
                 html`<span
-                    class="px-1.5 py-0.5 bg-amber-900/20 text-amber-400 border border-amber-500/30 text-[10px] flex items-center gap-1"
+                    class="px-1.5 py-0.5 bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] flex items-center gap-1"
                     >${icons.hdcp} ${track.hdcpLevel}</span
                 >`
             );
@@ -246,7 +258,7 @@ const trackCardTemplate = (track, type, gridColumns) => {
         if (track.sar) {
             extraProps.push(
                 html`<span
-                    class="px-1.5 py-0.5 bg-slate-800 text-slate-300 border border-slate-600 text-[10px]"
+                    class="px-1.5 py-0.5 bg-slate-800 text-slate-400 border border-slate-800 text-[10px]"
                     title="Sample Aspect Ratio"
                     >SAR ${track.sar}</span
                 >`
@@ -255,7 +267,7 @@ const trackCardTemplate = (track, type, gridColumns) => {
         if (track.codingDependency) {
             extraProps.push(
                 html`<span
-                    class="px-1.5 py-0.5 bg-purple-900/20 text-purple-300 border border-purple-500/30 text-[10px]"
+                    class="px-1.5 py-0.5 bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px]"
                     >Dependent</span
                 >`
             );
@@ -263,7 +275,7 @@ const trackCardTemplate = (track, type, gridColumns) => {
         if (track.maxPlayoutRate) {
             extraProps.push(
                 html`<span
-                    class="px-1.5 py-0.5 bg-blue-900/20 text-blue-300 border border-blue-500/30 text-[10px]"
+                    class="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[10px]"
                     >${track.maxPlayoutRate}x</span
                 >`
             );
@@ -271,28 +283,28 @@ const trackCardTemplate = (track, type, gridColumns) => {
 
         contentTemplate = html`
             <div
-                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 truncate flex items-center gap-2"
+                class="h-full p-2 border-r border-slate-800 font-mono text-slate-100 truncate flex items-center gap-2"
                 title=${track.label || track.id}
             >
                 ${icon} <span>${track.label || track.id}</span>
             </div>
             <div
-                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200"
+                class="h-full p-2 border-r border-slate-800 font-mono text-slate-100"
             >
                 ${bitrate}
             </div>
             <div
-                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200"
+                class="h-full p-2 border-r border-slate-800 font-mono text-slate-100"
             >
                 ${resolution}
             </div>
             <div
-                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200"
+                class="h-full p-2 border-r border-slate-800 font-mono text-slate-100"
             >
                 ${formatFrameRate(track.frameRate)}
             </div>
             <div
-                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
+                class="h-full p-2 border-r border-slate-800 font-mono text-slate-100 space-y-1"
             >
                 ${codecsToRender
                     .filter((c) => isVideoCodec(c.value))
@@ -301,18 +313,20 @@ const trackCardTemplate = (track, type, gridColumns) => {
 
             <!-- Audio Mux -->
             <div
-                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
+                class="h-full p-2 border-r border-slate-800 font-mono text-slate-100 space-y-1"
             >
                 ${track.muxedAudio?.codecs?.length > 0
                     ? track.muxedAudio.codecs.map(
                           (c) => html`<div>${renderCodecInfo(c)}</div>`
                       )
-                    : html`<span class="text-slate-500">N/A</span>`}
+                    : html`<span class="text-slate-400"
+                          >N/A</span
+                      >`}
             </div>
 
             <!-- Extra (Merged Roles + Props) -->
             <div
-                class="h-full p-2 font-mono text-slate-400 flex flex-col gap-1"
+                class="h-full p-2 font-mono text-slate-400 flex flex-col gap-1 whitespace-nowrap overflow-hidden"
             >
                 <div>${roles}</div>
                 ${extraProps.length > 0
@@ -325,72 +339,81 @@ const trackCardTemplate = (track, type, gridColumns) => {
     } else if (type === 'audio') {
         contentTemplate = html`
             <div
-                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 truncate flex items-center gap-2"
+                class="h-full p-2 border-r border-slate-800 font-mono text-slate-100 truncate flex items-center gap-2"
                 title=${track.label || track.id}
             >
                 ${icon} <span>${track.label || track.id}</span>
             </div>
             <div
-                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200"
+                class="h-full p-2 border-r border-slate-800 font-mono text-slate-100"
             >
                 ${track.lang || 'N/A'}
             </div>
             <div
-                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200"
+                class="h-full p-2 border-r border-slate-800 font-mono text-slate-100"
             >
                 ${track.format || 'Unknown'}
             </div>
             <div
-                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
+                class="h-full p-2 border-r border-slate-800 font-mono text-slate-100 space-y-1"
             >
                 <span>${track.channels || 'N/A'}</span>
                 ${track.sampleRate
-                    ? html`<span class="text-[10px] text-slate-500"
+                    ? html`<span
+                          class="text-[10px] text-slate-400"
                           >${track.sampleRate} Hz</span
                       >`
                     : ''}
             </div>
             <div
-                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200"
+                class="h-full p-2 border-r border-slate-800 font-mono text-slate-100"
             >
                 ${formatBitrate(track.bandwidth)}
             </div>
             <div
-                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
+                class="h-full p-2 border-r border-slate-800 font-mono text-slate-100 space-y-1"
             >
                 ${codecsToRender.map(
                     (c) => html`<div>${renderCodecInfo(c)}</div>`
                 )}
             </div>
-            <div class="h-full p-2 font-mono text-slate-400">${roles}</div>
+            <div
+                class="h-full p-2 font-mono text-slate-400 whitespace-nowrap overflow-hidden"
+            >
+                ${roles}
+            </div>
         `;
     } else {
         // text or application
         contentTemplate = html`
             <div
-                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 truncate flex items-center gap-2"
+                class="h-full p-2 border-r border-slate-800 font-mono text-slate-100 truncate flex items-center gap-2"
                 title=${track.label || track.id}
             >
                 ${icon} <span>${track.label || track.id}</span>
             </div>
             <div
-                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200"
+                class="h-full p-2 border-r border-slate-800 font-mono text-slate-100"
             >
                 ${track.lang || 'N/A'}
             </div>
             <div
-                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200"
+                class="h-full p-2 border-r border-slate-800 font-mono text-slate-100"
             >
                 ${track.format || 'Unknown'}
             </div>
             <div
-                class="h-full p-2 border-r border-slate-700 font-mono text-slate-200 space-y-1"
+                class="h-full p-2 border-r border-slate-800 font-mono text-slate-100 space-y-1"
             >
                 ${codecsToRender.map(
                     (c) => html`<div>${renderCodecInfo(c)}</div>`
                 )}
             </div>
-            <div class="h-full p-2 font-mono text-slate-400">${roles}</div>
+            <div
+                class="h-full p-2 font-mono text-slate-400 whitespace-nowrap overflow-hidden"
+            >
+                ${roles}
+            </div>
         `;
     }
 
@@ -416,53 +439,71 @@ export const trackTableTemplate = (tracks, type) => {
 
     let gridColumns;
     let headerTemplate;
+    let minWidthClass;
 
     if (type === 'video') {
+        minWidthClass = 'min-w-[1000px]';
         gridColumns =
             'grid-cols-[minmax(150px,1fr)_125px_125px_100px_1fr_1fr_180px]';
         headerTemplate = html`
-            <div class="p-2 border-r border-slate-700">Label</div>
-            <div class="p-2 border-r border-slate-700">Bitrate</div>
-            <div class="p-2 border-r border-slate-700">Resolution</div>
-            <div class="p-2 border-r border-slate-700">Frame Rate</div>
-            <div class="p-2 border-r border-slate-700">Video Codec(s)</div>
-            <div class="p-2 border-r border-slate-700">Muxed Audio</div>
+            <div class="p-2 border-r border-slate-800">Label</div>
+            <div class="p-2 border-r border-slate-800">Bitrate</div>
+            <div class="p-2 border-r border-slate-800">
+                Resolution
+            </div>
+            <div class="p-2 border-r border-slate-800">
+                Frame Rate
+            </div>
+            <div class="p-2 border-r border-slate-800">
+                Video Codec(s)
+            </div>
+            <div class="p-2 border-r border-slate-800">
+                Muxed Audio
+            </div>
             <div class="p-2">Roles / Info</div>
         `;
     } else if (type === 'audio') {
+        minWidthClass = 'min-w-[900px]';
         gridColumns =
             'grid-cols-[minmax(200px,1fr)_100px_100px_100px_125px_1fr_125px]';
         headerTemplate = html`
-            <div class="p-2 border-r border-slate-700">Rendition ID</div>
-            <div class="p-2 border-r border-slate-700">Language</div>
-            <div class="p-2 border-r border-slate-700">Format</div>
-            <div class="p-2 border-r border-slate-700">Ch / Hz</div>
-            <div class="p-2 border-r border-slate-700">Bitrate</div>
-            <div class="p-2 border-r border-slate-700">Codecs</div>
+            <div class="p-2 border-r border-slate-800">
+                Rendition ID
+            </div>
+            <div class="p-2 border-r border-slate-800">Language</div>
+            <div class="p-2 border-r border-slate-800">Format</div>
+            <div class="p-2 border-r border-slate-800">Ch / Hz</div>
+            <div class="p-2 border-r border-slate-800">Bitrate</div>
+            <div class="p-2 border-r border-slate-800">Codecs</div>
             <div class="p-2">Roles</div>
         `;
     } else {
         // text or application
+        minWidthClass = 'min-w-[700px]';
         gridColumns = 'grid-cols-[minmax(200px,1fr)_125px_125px_1fr_125px]';
         headerTemplate = html`
-            <div class="p-2 border-r border-slate-700">Rendition ID</div>
-            <div class="p-2 border-r border-slate-700">Language</div>
-            <div class="p-2 border-r border-slate-700">Format</div>
-            <div class="p-2 border-r border-slate-700">Codecs</div>
+            <div class="p-2 border-r border-slate-800">
+                Rendition ID
+            </div>
+            <div class="p-2 border-r border-slate-800">Language</div>
+            <div class="p-2 border-r border-slate-800">Format</div>
+            <div class="p-2 border-r border-slate-800">Codecs</div>
             <div class="p-2">Roles</div>
         `;
     }
 
     return html`
-        <div class="border border-slate-700 rounded-lg overflow-hidden">
+        <div
+            class="border border-slate-800 rounded-lg overflow-hidden ${minWidthClass}"
+        >
             <!-- Header -->
             <div
-                class="grid ${gridColumns} bg-slate-800/50 font-semibold text-xs text-slate-400"
+                class="grid ${gridColumns} bg-slate-800 font-semibold text-xs text-slate-400"
             >
                 ${headerTemplate}
             </div>
             <!-- Rows -->
-            <div class="divide-y divide-slate-700">
+            <div class="divide-y divide-slate-800">
                 ${sortedTracks.map((track) =>
                     trackCardTemplate(track, type, gridColumns)
                 )}

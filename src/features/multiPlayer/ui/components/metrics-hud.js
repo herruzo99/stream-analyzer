@@ -24,7 +24,7 @@ export class MetricsHudComponent extends HTMLElement {
             const retryMessage =
                 isAutoResetEnabled && retryCount > 0
                     ? html`<div
-                          class="mt-3 pt-3 border-t border-white/10 text-[10px] text-yellow-400 font-mono animate-pulse flex items-center justify-center gap-1"
+                          class="mt-3 pt-3 border-t border-slate-800 text-[10px] text-amber-400 font-mono animate-pulse flex items-center justify-center gap-1"
                       >
                           ${icons.refresh} Retrying (${retryCount}/5)
                       </div>`
@@ -32,25 +32,27 @@ export class MetricsHudComponent extends HTMLElement {
 
             const errorTemplate = html`
                 <div
-                    class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4 animate-fadeIn z-50"
+                    class="absolute inset-0 flex flex-col items-center justify-center bg-slate-800/90 backdrop-blur-sm p-4 animate-fadeIn z-50"
                 >
                     <div
-                        class="bg-slate-900 border border-red-500/30 rounded-xl p-4 w-full max-w-[280px] shadow-xl"
+                        class="bg-slate-800 border border-red-500/30 rounded-xl p-4 w-full max-w-[280px] shadow-xl"
                     >
                         <div class="flex items-start gap-3 mb-3">
-                            <div class="text-red-500 shrink-0 scale-110">
+                            <div
+                                class="text-red-400 shrink-0 scale-110"
+                            >
                                 ${icons.alertTriangle}
                             </div>
                             <div class="min-w-0">
                                 <h3
-                                    class="text-white font-bold text-sm leading-tight truncate"
+                                    class="text-slate-100 font-bold text-sm leading-tight truncate"
                                     title="${errInfo.title}"
                                 >
                                     ${errInfo.title}
                                 </h3>
                                 <div class="flex gap-1 mt-1">
                                     <span
-                                        class="text-[9px] font-mono bg-red-900/40 text-red-300 px-1.5 rounded border border-red-500/20"
+                                        class="text-[9px] font-mono bg-red-500/40 text-red-400 px-1.5 rounded border border-red-500/20"
                                     >
                                         ${errInfo.code}
                                     </span>
@@ -95,17 +97,19 @@ export class MetricsHudComponent extends HTMLElement {
 
         if (bufferValue < 2) {
             bufferColorClass =
-                'bg-gradient-to-r from-red-600 to-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]';
+                'bg-gradient-to-r from-red-500 to-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]';
             bufferTextColor = 'text-red-400';
         } else if (bufferValue < 5) {
-            bufferColorClass = 'bg-gradient-to-r from-orange-600 to-orange-500';
-            bufferTextColor = 'text-orange-400';
+            bufferColorClass =
+                'bg-gradient-to-r from-amber-500 to-amber-500';
+            bufferTextColor = 'text-amber-400';
         } else if (bufferValue < 10) {
-            bufferColorClass = 'bg-gradient-to-r from-yellow-500 to-yellow-400';
-            bufferTextColor = 'text-yellow-400';
+            bufferColorClass =
+                'bg-gradient-to-r from-amber-500 to-amber-500';
+            bufferTextColor = 'text-amber-400';
         } else {
             bufferColorClass =
-                'bg-gradient-to-r from-emerald-600 to-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.3)]';
+                'bg-gradient-to-r from-emerald-500 to-emerald-500 shadow-[0_0_10px_rgba(52,211,153,0.3)]';
         }
 
         const template = html`
@@ -115,15 +119,15 @@ export class MetricsHudComponent extends HTMLElement {
             >
                 <!-- Glass Panel -->
                 <div
-                    class="bg-slate-950/80 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl overflow-hidden"
+                    class="bg-slate-800 backdrop-blur-md border border-slate-800 rounded-xl shadow-2xl overflow-hidden"
                 >
                     <!-- Header: Res & Badges -->
                     <div
-                        class="flex justify-between items-start p-3 border-b border-white/5 bg-white/[0.02]"
+                        class="flex justify-between items-start p-3 border-b border-slate-800 bg-slate-800"
                     >
                         <div>
                             <div
-                                class="text-2xl font-black text-white leading-none tracking-tight font-mono"
+                                class="text-2xl font-black text-slate-100 leading-none tracking-tight font-mono"
                             >
                                 ${playbackQuality.resolution || 'Init...'}
                             </div>
@@ -132,7 +136,8 @@ export class MetricsHudComponent extends HTMLElement {
                             >
                                 ${icons.activity}
                                 ${playbackQuality.droppedFrames > 0
-                                    ? html`<span class="text-red-400"
+                                    ? html`<span
+                                          class="text-red-400"
                                           >${playbackQuality.droppedFrames}
                                           Dropped</span
                                       >`
@@ -149,7 +154,7 @@ export class MetricsHudComponent extends HTMLElement {
                                 ${streamType}
                             </span>
                             <span
-                                class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-slate-800 text-slate-400 border border-slate-700"
+                                class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-slate-800 text-slate-400 border border-slate-800"
                             >
                                 ${codec}
                             </span>
@@ -166,7 +171,7 @@ export class MetricsHudComponent extends HTMLElement {
                                 <span>Bitrate / BW</span>
                                 <span
                                     class="${bandwidthUsage > 90
-                                        ? 'text-yellow-400'
+                                        ? 'text-amber-400'
                                         : 'text-emerald-400'}"
                                 >
                                     ${formatBitrate(abr.currentVideoBitrate)}
@@ -179,7 +184,7 @@ export class MetricsHudComponent extends HTMLElement {
                                 <div
                                     class="absolute top-0 left-0 bottom-0 rounded-full transition-all duration-500 ${bandwidthUsage >
                                     90
-                                        ? 'bg-yellow-500'
+                                        ? 'bg-amber-500'
                                         : 'bg-blue-500'}"
                                     style="width: ${Math.min(
                                         bandwidthUsage,
@@ -189,14 +194,14 @@ export class MetricsHudComponent extends HTMLElement {
                             </div>
                             <div class="flex justify-between mt-1">
                                 <span
-                                    class="text-[9px] text-slate-600 font-mono"
+                                    class="text-[9px] text-slate-400 font-mono"
                                     >EST:
                                     ${formatBitrate(
                                         abr.estimatedBandwidth
                                     )}</span
                                 >
                                 <span
-                                    class="text-[9px] text-slate-600 font-mono"
+                                    class="text-[9px] text-slate-400 font-mono"
                                     >${bandwidthUsage.toFixed(0)}% Load</span
                                 >
                             </div>
@@ -224,13 +229,13 @@ export class MetricsHudComponent extends HTMLElement {
 
                         <!-- Bottom Stats Row -->
                         <div
-                            class="grid grid-cols-2 gap-2 pt-2 border-t border-white/5"
+                            class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800"
                         >
                             <div
-                                class="bg-slate-900/50 rounded p-1.5 text-center border border-white/5"
+                                class="bg-slate-800 rounded p-1.5 text-center border border-slate-800"
                             >
                                 <div
-                                    class="text-[9px] text-slate-500 font-bold uppercase"
+                                    class="text-[9px] text-slate-400 font-bold uppercase"
                                 >
                                     Stalls
                                 </div>
@@ -238,25 +243,45 @@ export class MetricsHudComponent extends HTMLElement {
                                     class="text-sm font-mono font-bold ${playbackQuality.totalStalls >
                                     0
                                         ? 'text-red-400'
-                                        : 'text-slate-300'}"
+                                        : 'text-slate-100'}"
                                 >
                                     ${playbackQuality.totalStalls}
                                 </div>
                             </div>
                             <div
-                                class="bg-slate-900/50 rounded p-1.5 text-center border border-white/5"
+                                class="bg-slate-800 rounded p-1.5 text-center border border-slate-800"
                             >
                                 <div
-                                    class="text-[9px] text-slate-500 font-bold uppercase"
+                                    class="text-[9px] text-slate-400 font-bold uppercase"
                                 >
                                     Latency
                                 </div>
                                 <div
-                                    class="text-sm font-mono font-bold text-slate-300"
+                                    class="text-sm font-mono font-bold text-slate-100"
                                 >
                                     ${buffer.label === 'Live Latency'
                                         ? bufferSeconds.toFixed(1) + 's'
                                         : 'N/A'}
+                                </div>
+                            </div>
+                            <div
+                                class="bg-slate-800 rounded p-1.5 text-center border border-slate-800 col-span-2"
+                            >
+                                <div
+                                    class="text-[9px] text-slate-400 font-bold uppercase"
+                                >
+                                    Total Downtime
+                                </div>
+                                <div
+                                    class="text-sm font-mono font-bold ${playbackQuality.totalStalls >
+                                    0
+                                        ? 'text-red-400'
+                                        : 'text-slate-100'}"
+                                >
+                                    ${(
+                                        (playbackQuality.totalDowntime || 0) /
+                                        1000
+                                    ).toFixed(2)}s
                                 </div>
                             </div>
                         </div>
@@ -268,13 +293,13 @@ export class MetricsHudComponent extends HTMLElement {
             ${isStalling
                 ? html`
                       <div
-                          class="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-[2px] z-40 animate-fadeIn"
+                          class="absolute inset-0 flex flex-col items-center justify-center bg-slate-800/40 backdrop-blur-[2px] z-40 animate-fadeIn"
                       >
                           <div
                               class="w-12 h-12 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mb-3"
                           ></div>
                           <div
-                              class="text-xs font-bold text-blue-200 uppercase tracking-widest animate-pulse"
+                              class="text-xs font-bold text-blue-400 uppercase tracking-widest animate-pulse"
                           >
                               Buffering
                           </div>

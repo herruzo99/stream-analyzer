@@ -1,5 +1,6 @@
 import { eventBus } from '@/application/event-bus';
 import { dashTimingCalculatorTemplate } from '@/features/interactiveManifest/ui/components/dash/timing-calculator-modal.js';
+import '@/features/drm/ui/drm-inspector-modal.js'; // registers <drm-inspector-modal>
 import '@/features/manifestPatcher/ui/manifest-patcher.js';
 // We still import the file to register the custom element, but import the class to be sure (or just side effect)
 import '@/features/networkAnalysis/ui/components/network-intervention-panel.js';
@@ -94,6 +95,10 @@ function getContentTemplate(modalContent) {
             ></manifest-patcher>`;
         case 'dashCalculator':
             return dashTimingCalculatorTemplate(modalContent.data);
+        case 'drmInspector':
+            return html`<drm-inspector-modal
+                .data=${modalContent.data}
+            ></drm-inspector-modal>`;
         case 'networkIntervention':
             // Simple instantiation, logic is internal to component
             return html`<div class="h-full flex flex-col w-full">

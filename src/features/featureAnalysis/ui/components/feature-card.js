@@ -15,19 +15,27 @@ export const featureCardTemplate = (feature, onDetailsClick) => {
         border: true,
         'transition-all': true,
         'duration-200': true,
-        'bg-slate-800/40': !isUsed,
-        'border-slate-700/50': !isUsed,
-        'bg-slate-800': isUsed,
+        'bg-slate-800': !isUsed,
+        'border-slate-800': !isUsed,
+        'bg-blue-500/10': isUsed,
         'border-blue-500/30': isUsed,
         'shadow-lg': isUsed,
-        'hover:border-blue-400/50': isUsed,
+        'hover:border-blue-500/50': isUsed,
         group: true,
     });
 
-    const iconColor = isUsed ? 'text-blue-400' : 'text-slate-600';
-    const iconBg = isUsed ? 'bg-blue-500/10' : 'bg-slate-700/20';
-    const titleColor = isUsed ? 'text-slate-100' : 'text-slate-500';
-    const descColor = isUsed ? 'text-slate-400' : 'text-slate-600';
+    const iconColor = isUsed
+        ? 'text-blue-400'
+        : 'text-slate-400';
+    const iconBg = isUsed
+        ? 'bg-blue-500/10'
+        : 'bg-slate-900/20';
+    const titleColor = isUsed
+        ? 'text-slate-200'
+        : 'text-slate-400';
+    const descColor = isUsed
+        ? 'text-slate-400'
+        : 'text-slate-400/70';
 
     return html`
         <div class="${containerClasses}">
@@ -42,14 +50,15 @@ export const featureCardTemplate = (feature, onDetailsClick) => {
                         >
                             ${feature.name}
                         </h4>
-                        <span class="text-[10px] font-mono text-slate-500"
+                        <span
+                            class="text-[10px] font-mono text-slate-400"
                             >${feature.isoRef}</span
                         >
                     </div>
                 </div>
                 ${isUsed
                     ? html`<span
-                          class="flex h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"
+                          class="flex h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6]"
                       ></span>`
                     : ''}
             </div>
@@ -57,12 +66,12 @@ export const featureCardTemplate = (feature, onDetailsClick) => {
             <p class="text-xs ${descColor} mb-4 grow">${feature.desc}</p>
 
             <div
-                class="pt-3 mt-auto border-t border-slate-700/50 flex items-center justify-between"
+                class="pt-3 mt-auto border-t border-slate-800 flex items-center justify-between"
             >
                 <span
                     class="text-[10px] font-semibold uppercase tracking-wider ${isUsed
                         ? 'text-emerald-400'
-                        : 'text-slate-600'}"
+                        : 'text-slate-400'}"
                 >
                     ${isUsed ? 'Detected' : 'Not Detected'}
                 </span>
@@ -71,7 +80,7 @@ export const featureCardTemplate = (feature, onDetailsClick) => {
                     ? html`
                           <button
                               @click=${() => onDetailsClick(feature)}
-                              class="text-xs text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                              class="text-xs text-blue-400 hover:text-[#60a5fa] font-medium flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
                           >
                               Details ${icons.arrowRight}
                           </button>

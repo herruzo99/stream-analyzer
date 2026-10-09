@@ -891,6 +891,7 @@ export interface MultiPlayerState {
     globalMaxHeight: number;
     globalBandwidthCap: number;
     globalBufferingGoal: number;
+    globalRetryDelayMs: number;
 }
 
 export interface ConditionalPollingState {

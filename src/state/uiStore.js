@@ -57,6 +57,7 @@ const createInitialUiState = () => ({
     segmentExplorerSortOrder: 'desc',
     segmentExplorerTargetTime: null,
     segmentExplorerScrollToTarget: false,
+    segmentExplorerSelectedSegment: null,
     segmentMatrixClickMode: 'inspect',
     highlightedCompliancePathId: null,
     highlightedComplianceCategory: null,
@@ -328,6 +329,8 @@ export const useUiStore = createStore((set, get) => ({
         }),
     clearSegmentExplorerScrollTrigger: () =>
         set({ segmentExplorerScrollToTarget: false }),
+    setSegmentExplorerSelectedSegment: (segment) =>
+        set({ segmentExplorerSelectedSegment: segment }),
     setComplianceFilter: (filter) => set({ complianceActiveFilter: filter }),
     setComplianceStandardVersion: (version) =>
         set({ complianceStandardVersion: version }),

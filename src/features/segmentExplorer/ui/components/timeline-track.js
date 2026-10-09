@@ -9,7 +9,7 @@ import { html, render } from 'lit-html';
 import { repeat } from 'lit-html/directives/repeat.js';
 import { renderSegmentNode } from './segment-node.js';
 
-const TRACK_HEADER_WIDTH = 240;
+// const TRACK_HEADER_WIDTH = 240;
 
 const handleSegmentClick = (
     e,
@@ -54,7 +54,7 @@ const handleSegmentClick = (
             }
         }
     } else {
-        uiActions.setInteractiveSegmentSelectedItem(contextSegment);
+        uiActions.setSegmentExplorerSelectedSegment(contextSegment);
         if (!isLoaded && !isLoading && setCache) {
             triggerFetch(
                 segment.uniqueId,
@@ -200,7 +200,7 @@ const handleInspectSidx = (e, sidxInfo, trackId, setCache) => {
         sidx: sidxInfo,
     };
 
-    uiActions.setInteractiveSegmentSelectedItem(syntheticSegment);
+    uiActions.setSegmentExplorerSelectedSegment(syntheticSegment);
 };
 
 export class TimelineTrack extends HTMLElement {
@@ -216,12 +216,27 @@ export class TimelineTrack extends HTMLElement {
 
     set data(val) {
         if (!val) return;
+
+        // Shallow Compare to prevent re-render loop
+        if (
+            this._track === val.track &&
+            this._ctx === val.ctx &&
+            this._visibleStartPx === val.visibleStartPx &&
+            this._visibleEndPx === val.visibleEndPx &&
+            this._pixelsPerSecond === val.pixelsPerSecond &&
+            this._totalWidthPx === val.totalWidthPx &&
+            this._headerWidth === val.headerWidth
+        ) {
+            return;
+        }
+
         this._track = val.track;
         this._ctx = val.ctx;
         this._visibleStartPx = val.visibleStartPx || 0;
         this._visibleEndPx = val.visibleEndPx || 0;
         this._pixelsPerSecond = val.pixelsPerSecond || 1;
         this._totalWidthPx = val.totalWidthPx || 0;
+        this._headerWidth = val.headerWidth || 240;
         this.render();
     }
 
@@ -253,20 +268,20 @@ export class TimelineTrack extends HTMLElement {
             detailsHtml = html`
                 ${resolution
                     ? html`<span
-                          class="text-slate-300 bg-slate-800 px-1 rounded font-mono"
+                          class="text-slate-400 bg-slate-900 px-1 rounded font-mono"
                           >${resolution}</span
                       >`
                     : ''}
                 <span
                     class="uppercase font-semibold tracking-wider text-slate-400"
                     >${primaryCodec
-                        ? primaryCodec.split('.')[0]
-                        : 'Video'}</span
+                    ? primaryCodec.split('.')[0]
+                    : 'Video'}</span
                 >
                 ${secondaryCodec
                     ? html`
                           <span
-                              class="uppercase font-semibold tracking-wider text-purple-400 border border-purple-500/30 px-1 rounded bg-purple-500/10"
+                              class="uppercase font-semibold tracking-wider text-purple-300 border border-purple-500/30 px-1 rounded bg-slate-700"
                           >
                               + ${secondaryCodec.split('.')[0]}
                           </span>
@@ -277,7 +292,7 @@ export class TimelineTrack extends HTMLElement {
             detailsHtml = html`
                 ${lang
                     ? html`<span
-                          class="text-slate-300 bg-slate-800 px-1 rounded font-mono"
+                          class="text-slate-400 bg-slate-900 px-1 rounded font-mono"
                           >${lang.toUpperCase()}</span
                       >`
                     : ''}
@@ -294,7 +309,7 @@ export class TimelineTrack extends HTMLElement {
             detailsHtml = html`
                 ${lang
                     ? html`<span
-                          class="text-slate-300 bg-slate-800 px-1 rounded font-mono"
+                          class="text-slate-400 bg-slate-900 px-1 rounded font-mono"
                           >${lang.toUpperCase()}</span
                       >`
                     : ''}
@@ -305,7 +320,7 @@ export class TimelineTrack extends HTMLElement {
             `;
         } else {
             detailsHtml = html`<span
-                class="uppercase font-semibold tracking-wider text-slate-500"
+                class="uppercase font-semibold tracking-wider text-slate-400"
                 >Unknown Track Type</span
             >`;
         }
@@ -319,7 +334,10 @@ export class TimelineTrack extends HTMLElement {
 
         let initNode = html`
             <div class="h-10 w-10 flex items-center justify-center opacity-30">
-                <span class="text-[8px] text-slate-600 font-mono">No Init</span>
+                <span
+                    class="text-[8px] text-slate-400 font-mono"
+                    >No Init</span
+                >
             </div>
         `;
 
@@ -352,6 +370,7 @@ export class TimelineTrack extends HTMLElement {
                         ctx.compareSet,
                         useSegmentCacheStore.getState().set
                     ),
+                activeThemeId: ctx.activeThemeId,
             });
         }
 
@@ -390,19 +409,20 @@ export class TimelineTrack extends HTMLElement {
                         track.id,
                         useSegmentCacheStore.getState().set
                     ),
+                activeThemeId: ctx.activeThemeId,
             });
         }
 
         const rightColumn = html`
             <div
-                class="shrink-0 h-full flex flex-col items-center justify-center px-1 border-l border-slate-800 bg-slate-900/50 w-[50px] gap-1 py-1"
+                class="shrink-0 h-full flex flex-col items-center justify-center px-1 border-l border-slate-800 bg-slate-800 w-[60px] gap-1 py-1"
             >
                 ${sidxInfo && initSegment
-                    ? html`
+                ? html`
                           <div class="w-8 h-6">${initNode}</div>
                           <div class="w-8 h-6">${sidxNode}</div>
                       `
-                    : html`
+                : html`
                           <div class="w-10 h-10">
                               ${initSegment ? initNode : sidxNode || initNode}
                           </div>
@@ -410,36 +430,52 @@ export class TimelineTrack extends HTMLElement {
             </div>
         `;
 
+        const headerWidth = this._headerWidth || 240;
+        const isMobile = headerWidth < 200;
+
         const headerTemplate = html`
             <div
-                class="sticky left-0 z-30 flex bg-slate-900 border-r border-slate-800 shadow-[4px_0_15px_rgba(0,0,0,0.5)] group select-none h-14 w-[${TRACK_HEADER_WIDTH}px] shrink-0"
+                class="sticky left-0 z-30 flex bg-slate-800 backdrop-blur-md border-r border-slate-800 shadow-xl group select-none h-14 shrink-0"
+                style="width: ${headerWidth}px;"
             >
                 <div
-                    class="flex-1 flex flex-col justify-center px-3 py-1 min-w-0 w-[180px]"
+                    class="flex-1 flex flex-col justify-center px-3 py-1 min-w-0"
                 >
                     <div class="flex items-baseline justify-between gap-2 mb-1">
                         <span
-                            class="font-bold text-sm text-slate-100 truncate"
+                            class="font-bold text-sm text-slate-200 truncate"
                             title="${label}"
                             >${label}</span
                         >
-                        <span
-                            class="text-[10px] font-mono text-cyan-400 bg-cyan-900/20 px-1.5 rounded border border-cyan-900/30"
-                            title="${isEstimatedBitrate
-                                ? 'Estimated from segments'
-                                : 'From manifest'}"
-                            >${isEstimatedBitrate && bandwidth > 0
-                                ? '~'
-                                : ''}${formatBitrate(bandwidth)}</span
-                        >
+                        ${!isMobile
+                ? html`<span
+                                  class="text-[10px] font-mono text-blue-400 bg-slate-700 px-1.5 rounded border border-blue-500/30"
+                                  title="${isEstimatedBitrate
+                        ? 'Estimated from segments'
+                        : 'From manifest'}"
+                                  >${isEstimatedBitrate && bandwidth > 0
+                        ? '~'
+                        : ''}${formatBitrate(bandwidth)}</span
+                              >`
+                : ''}
                     </div>
-                    <div
-                        class="flex items-center gap-2 text-[10px] text-slate-500 truncate"
-                    >
-                        ${detailsHtml}
-                    </div>
+                    ${!isMobile
+                ? html`
+                              <div
+                                  class="flex items-center gap-2 text-[10px] text-slate-400 truncate"
+                              >
+                                  ${detailsHtml}
+                              </div>
+                          `
+                : html`
+                              <div
+                                  class="text-[10px] text-slate-400 truncate font-mono"
+                              >
+                                  ${formatBitrate(bandwidth)}
+                              </div>
+                          `}
                 </div>
-                ${rightColumn}
+                ${!isMobile ? rightColumn : ''}
             </div>
         `;
 
@@ -489,33 +525,34 @@ export class TimelineTrack extends HTMLElement {
                         style="position: absolute; left: ${leftPx}px; width: ${widthPx}px; height: 100%; padding: 2px;"
                     >
                         ${renderSegmentNode({
+                    segment,
+                    baselineDuration: 0,
+                    isSelected: ctx.compareSet
+                        ? ctx.compareSet.has(uniqueId)
+                        : false,
+                    isInspected,
+                    cacheStatus,
+                    hasParsedData,
+                    isStale,
+                    isNew,
+                    onClick: (e) =>
+                        handleSegmentClick(
+                            e,
                             segment,
-                            baselineDuration: 0,
-                            isSelected: ctx.compareSet
-                                ? ctx.compareSet.has(uniqueId)
-                                : false,
-                            isInspected,
-                            cacheStatus,
-                            hasParsedData,
-                            isStale,
-                            isNew,
-                            onClick: (e) =>
-                                handleSegmentClick(
-                                    e,
-                                    segment,
-                                    track.id, // Inject Track ID scope
-                                    ctx.streamId,
-                                    ctx.segmentFormat,
-                                    ctx.clickMode,
-                                    ctx.compareSet,
-                                    useSegmentCacheStore.getState().set
-                                ),
-                        })}
+                            track.id, // Inject Track ID scope
+                            ctx.streamId,
+                            ctx.segmentFormat,
+                            ctx.clickMode,
+                            ctx.compareSet,
+                            useSegmentCacheStore.getState().set
+                        ),
+                    activeThemeId: ctx.activeThemeId,
+                })}
                         ${hasSidx
-                            ? html`<div
-                                  class="absolute bottom-1 left-1/2 -translate-x-1/2 w-3 h-0.5 bg-cyan-400/50 rounded-full pointer-events-none"
+                        ? html`<div
+                                  class="absolute bottom-1 left-1/2 -translate-x-1/2 w-3 h-0.5 bg-purple-500 rounded-full pointer-events-none opacity-50"
                               ></div>`
-                            : ''}
+                        : ''}
                     </div>
                 `;
             }
@@ -525,7 +562,7 @@ export class TimelineTrack extends HTMLElement {
 
         const template = html`
             <div
-                class="flex border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors shrink-0"
+                class="flex border-b border-slate-800 hover:bg-slate-800 transition-colors shrink-0"
                 style="${rowStyle} box-sizing: border-box;"
             >
                 ${headerTemplate}

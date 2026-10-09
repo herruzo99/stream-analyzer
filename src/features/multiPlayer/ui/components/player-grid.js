@@ -33,15 +33,17 @@ class PlayerGridComponent extends HTMLElement {
             render(
                 html`
                     <div
-                        class="flex flex-col items-center justify-center h-full text-slate-500 gap-4 animate-fadeIn"
+                        class="flex flex-col items-center justify-center h-full text-slate-400 gap-4 animate-fadeIn"
                     >
                         <div
-                            class="p-6 bg-slate-900 rounded-full border border-slate-800 shadow-xl"
+                            class="p-6 bg-slate-800 backdrop-blur-md rounded-full border border-slate-800 shadow-2xl"
                         >
                             ${icons.grid}
                         </div>
                         <div class="text-center">
-                            <p class="text-lg font-bold text-slate-300">
+                            <p
+                                class="text-lg font-bold text-slate-100"
+                            >
                                 Multi-View Empty
                             </p>
                             <p class="text-sm mt-1">
@@ -69,8 +71,8 @@ class PlayerGridComponent extends HTMLElement {
                 display: grid;
                 grid-template-columns: 1fr 320px;
                 grid-template-rows: 100%;
-                gap: 1rem;
-                padding: 1rem;
+                gap: 0.75rem;
+                padding: 0.75rem;
                 height: 100%;
                 overflow: hidden;
             `;
@@ -81,22 +83,18 @@ class PlayerGridComponent extends HTMLElement {
                 columnsStyle = `repeat(${gridColumns}, 1fr)`;
             }
 
-            // ARCHITECTURAL FIX:
-            // Changed grid-auto-rows from 'minmax(250px, 1fr)' to 'max-content'.
-            // '1fr' was causing rows to stretch and fill the viewport height if there were few items.
-            // 'max-content' allows the aspect-ratio of the card to dictate the height naturally.
             containerStyle = `
                 display: grid;
                 grid-template-columns: ${columnsStyle};
                 grid-auto-rows: max-content; 
-                gap: 1rem;
-                padding: 1rem;
+                gap: 0.75rem;
+                padding: 0.75rem;
                 height: 100%;
                 overflow-y: auto;
             `;
         }
 
-        // SPLIT LAYOUT LOGIC (Made safe by Video Portal architecture)
+        // SPLIT LAYOUT LOGIC
 
         if (isFocusMode) {
             const otherPlayerIds = playerIds.filter(
@@ -105,12 +103,12 @@ class PlayerGridComponent extends HTMLElement {
 
             const template = html`
                 <div
-                    class="h-full w-full bg-slate-950 flex overflow-hidden animate-fadeIn"
+                    class="h-full w-full bg-slate-900 flex overflow-hidden animate-fadeIn"
                 >
                     <!-- Main Stage -->
-                    <div class="grow relative p-4 flex flex-col min-w-0">
+                    <div class="grow relative flex flex-col min-w-0" style="padding: 0.75rem">
                         <div
-                            class="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl border border-slate-800 bg-black"
+                            class="relative w-full h-full rounded-xl overflow-hidden shadow-[0 8px 30px rgb(0 0 0 / 0.35)] border  bg-slate-800"
                         >
                             <!-- Force height 100% and reset aspect ratio for the focused player -->
                             <player-card-component
@@ -123,12 +121,12 @@ class PlayerGridComponent extends HTMLElement {
 
                     <!-- Sidebar (List View) -->
                     ${otherPlayerIds.length > 0
-                        ? html`
+                    ? html`
                               <div
-                                  class="w-80 shrink-0 border-l border-slate-800 bg-slate-900/50 flex flex-col"
+                                  class="w-80 shrink-0 border-l border-slate-700 bg-slate-800 flex flex-col"
                               >
                                   <div
-                                      class="p-3 border-b border-slate-800 text-xs font-bold text-slate-500 uppercase tracking-wider flex justify-between"
+                                      class="p-3 border-b border-slate-800 text-xs font-bold text-slate-400 uppercase tracking-wider flex justify-between"
                                   >
                                       <span
                                           >Queue
@@ -139,21 +137,20 @@ class PlayerGridComponent extends HTMLElement {
                                       class="grow overflow-y-auto p-3 space-y-3 custom-scrollbar"
                                   >
                                       ${repeat(
-                                          otherPlayerIds,
-                                          (id) => id,
-                                          (id) => html`
-                                              <!-- Explicit height for sidebar items to override aspect-video if needed, or let aspect-video work -->
+                        otherPlayerIds,
+                        (id) => id,
+                        (id) => html`
                                               <div class="w-full">
                                                   <player-card-component
                                                       stream-id="${id}"
                                                   ></player-card-component>
                                               </div>
                                           `
-                                      )}
+                    )}
                                   </div>
                               </div>
                           `
-                        : ''}
+                    : ''}
                 </div>
             `;
             render(template, this);
@@ -162,17 +159,19 @@ class PlayerGridComponent extends HTMLElement {
 
         // Grid Mode Template
         const template = html`
-            <div class="h-full w-full bg-slate-950 animate-fadeIn">
+            <div
+                class="h-full w-full bg-slate-900 animate-fadeIn"
+            >
                 <div style="${containerStyle}" class="custom-scrollbar">
                     ${repeat(
-                        playerIds,
-                        (id) => id,
-                        (id) => html`
+            playerIds,
+            (id) => id,
+            (id) => html`
                             <player-card-component
                                 stream-id="${id}"
                             ></player-card-component>
                         `
-                    )}
+        )}
                 </div>
             </div>
         `;

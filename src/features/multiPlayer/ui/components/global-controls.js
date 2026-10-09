@@ -29,7 +29,7 @@ const globalControlsTemplate = ({
     isAutoResetEnabled,
 }) => {
     const selectClasses =
-        'bg-slate-700 text-white rounded-md p-1 text-sm border border-slate-600 w-full max-w-[10rem] disabled:opacity-50 disabled:cursor-not-allowed';
+        'bg-slate-800 text-slate-100 rounded-md p-1 text-sm border border-slate-800 w-full max-w-[10rem] disabled:opacity-50 disabled:cursor-not-allowed';
 
     const isDisabled = selectedCount === 0;
     const headerText = `Selection Settings (${selectedCount})`;
@@ -45,16 +45,22 @@ const globalControlsTemplate = ({
     return html`
         <div class="space-y-4">
             <div>
-                <h4 class="text-md font-bold text-slate-300">${headerText}</h4>
-                <p class="text-xs text-slate-500">${subText}</p>
+                <h4 class="text-md font-bold text-slate-100">
+                    ${headerText}
+                </h4>
+                <p class="text-xs text-slate-400">
+                    ${subText}
+                </p>
             </div>
 
             <div
-                class="space-y-3 p-3 bg-slate-900/50 rounded-md ${isDisabled
+                class="space-y-3 p-3 bg-slate-800 rounded-md ${isDisabled
                     ? 'opacity-50 pointer-events-none'
                     : ''}"
             >
-                <h5 class="text-sm font-semibold text-slate-400 mb-2">
+                <h5
+                    class="text-sm font-semibold text-slate-400 mb-2"
+                >
                     Video Quality
                 </h5>
                 <labeled-control-component
@@ -68,8 +74,8 @@ const globalControlsTemplate = ({
                     >
                         <span
                             class="absolute inset-0 rounded-full ${state.globalAbrEnabled
-                                ? 'bg-blue-600'
-                                : 'bg-slate-600'}"
+                                ? 'bg-blue-500'
+                                : 'bg-slate-800'}"
                         ></span>
                         <span
                             class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${state.globalAbrEnabled
@@ -116,7 +122,8 @@ const globalControlsTemplate = ({
                                       e
                                   )}
                               ?disabled=${isDisabled}
-                              class="bg-slate-700 hover:bg-slate-600 text-white rounded-md p-1 text-sm border border-slate-600 w-full max-w-[10rem] flex justify-between items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                              ?disabled=${isDisabled}
+                              class="bg-slate-800 hover:bg-slate-800 text-slate-100 rounded-md p-1 text-sm border border-slate-800 w-full max-w-[10rem] flex justify-between items-center disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                               <span>Select Quality...</span>
                               <svg
@@ -156,11 +163,13 @@ const globalControlsTemplate = ({
             </div>
 
             <div
-                class="space-y-3 p-3 bg-slate-900/50 rounded-md ${isDisabled
+                class="space-y-3 p-3 bg-slate-800 rounded-md ${isDisabled
                     ? 'opacity-50 pointer-events-none'
                     : ''}"
             >
-                <h5 class="text-sm font-semibold text-slate-400 mb-2">
+                <h5
+                    class="text-sm font-semibold text-slate-400 mb-2"
+                >
                     Network Simulation
                 </h5>
                 <labeled-control-component label="Bandwidth Cap">
@@ -186,8 +195,10 @@ const globalControlsTemplate = ({
                 </labeled-control-component>
             </div>
 
-            <div class="space-y-3 p-3 bg-slate-900/50 rounded-md">
-                <h5 class="text-sm font-semibold text-slate-400 mb-2">
+            <div class="space-y-3 p-3 bg-slate-800 rounded-md">
+                <h5
+                    class="text-sm font-semibold text-slate-400 mb-2"
+                >
                     System
                 </h5>
                 <labeled-control-component
@@ -203,8 +214,8 @@ const globalControlsTemplate = ({
                     >
                         <span
                             class="absolute inset-0 rounded-full ${isAutoResetEnabled
-                                ? 'bg-blue-600'
-                                : 'bg-slate-600'}"
+                                ? 'bg-blue-500'
+                                : 'bg-slate-800'}"
                         ></span>
                         <span
                             class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isAutoResetEnabled

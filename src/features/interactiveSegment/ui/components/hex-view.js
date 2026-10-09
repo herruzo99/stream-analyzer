@@ -1,4 +1,4 @@
-import { useUiStore } from '@/state/uiStore';
+import { useUiStore, uiActions } from '@/state/uiStore';
 import '@/ui/components/virtualized-list';
 import * as icons from '@/ui/icons';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
@@ -23,6 +23,20 @@ const getCachedRows = (buffer) => {
     return rows;
 };
 
+// Static color map to avoid recreation on every render
+const THEME_COLOR_MAP = {
+    1: 'bg-blue-500/30 text-blue-300',
+    2: 'bg-emerald-500/30 text-emerald-300',
+    3: 'bg-amber-500/30 text-amber-300',
+    4: 'bg-purple-500/30 text-purple-300',
+    5: 'bg-slate-500/30 text-[#64748b]',
+    6: 'bg-rose-500/30 text-[#f43f5e]',
+    7: 'bg-cyan-500/30 text-[#06b6d4]',
+    8: 'bg-slate-500/30 text-[#64748b]',
+    9: 'bg-cyan-500/30 text-[#06b6d4]',
+    10: 'bg-orange-500/30 text-[#f97316]',
+};
+
 export class HexViewComponent extends HTMLElement {
     constructor() {
         super();
@@ -37,10 +51,12 @@ export class HexViewComponent extends HTMLElement {
             selEnd: -1,
             hovOffset: -1,
             hovEnd: -1,
+            isFieldHover: false, // NEW: Track if hover is for a specific field
             rangeStart: -1,
             rangeEnd: -1,
         };
         this.unsubscribe = null;
+        this._handleMouseLeave = this._handleMouseLeave.bind(this);
     }
 
     connectedCallback() {
@@ -49,9 +65,7 @@ export class HexViewComponent extends HTMLElement {
             'flex-col',
             'h-full',
             'overflow-hidden',
-            'bg-slate-950',
-            'border-x',
-            'border-slate-800',
+            'bg-slate-900',
             'relative'
         );
         this.renderStructure();
@@ -112,6 +126,10 @@ export class HexViewComponent extends HTMLElement {
             }
         }
 
+        const isFieldHover =
+            newHovOffset !== -1 &&
+            interactiveSegmentHighlightedItem?.field !== undefined;
+
         const newRangeStart = activeSegmentHighlightRange?.start ?? -1;
         const newRangeEnd = activeSegmentHighlightRange?.end ?? -1;
 
@@ -120,6 +138,7 @@ export class HexViewComponent extends HTMLElement {
             this._state.selEnd !== newSelEnd ||
             this._state.hovOffset !== newHovOffset ||
             this._state.hovEnd !== newHovEnd ||
+            this._state.isFieldHover !== isFieldHover ||
             this._state.rangeStart !== newRangeStart ||
             this._state.rangeEnd !== newRangeEnd
         ) {
@@ -128,6 +147,7 @@ export class HexViewComponent extends HTMLElement {
                 selEnd: newSelEnd,
                 hovOffset: newHovOffset,
                 hovEnd: newHovEnd,
+                isFieldHover,
                 rangeStart: newRangeStart,
                 rangeEnd: newRangeEnd,
             };
@@ -185,6 +205,11 @@ export class HexViewComponent extends HTMLElement {
         );
     }
 
+    _handleMouseLeave() {
+        // Clear hover state when mouse leaves the grid
+        uiActions.setInteractiveSegmentHighlightedItem(null, null);
+    }
+
     _computeRowStyles(rowStart) {
         const cache = this._buffer ? metadataCache.get(this._buffer) : null;
         if (cache && cache.has(rowStart)) {
@@ -193,9 +218,10 @@ export class HexViewComponent extends HTMLElement {
 
         const rowEnd = rowStart + 16;
         const rowColors = new Int8Array(16).fill(-1);
+        const rowIds = new Float64Array(16).fill(-1);
 
         if (!this._maps) {
-            const result = { rowColors };
+            const result = { rowColors, rowIds };
             if (cache) cache.set(rowStart, result);
             return result;
         }
@@ -208,9 +234,10 @@ export class HexViewComponent extends HTMLElement {
                 const packetIndex = Math.floor(byteOffset / TS_SIZE);
                 if (packetIndex < packetMap.length) {
                     rowColors[i] = packetMap[packetIndex];
+                    rowIds[i] = packetIndex;
                 }
             }
-            const result = { rowColors };
+            const result = { rowColors, rowIds };
             if (cache) cache.set(rowStart, result);
             return result;
         }
@@ -237,20 +264,22 @@ export class HexViewComponent extends HTMLElement {
 
                 if (drawEnd > drawStart) {
                     const color = boxLayout[base + 2];
+                    const id = boxLayout[base + 3];
                     const relStart = drawStart - rowStart;
                     const relEnd = drawEnd - rowStart;
                     for (let k = relStart; k < relEnd; k++) {
                         rowColors[k] = color;
+                        rowIds[k] = id;
                     }
                 }
             }
 
-            const result = { rowColors };
+            const result = { rowColors, rowIds };
             if (cache) cache.set(rowStart, result);
             return result;
         }
 
-        return { rowColors };
+        return { rowColors, rowIds };
     }
 
     _renderRow(rowOffset) {
@@ -258,16 +287,28 @@ export class HexViewComponent extends HTMLElement {
 
         const rowStartOffset = rowOffset;
         const endOffset = Math.min(rowStartOffset + 16, this._view.length);
-        const { selOffset, selEnd, hovOffset, hovEnd, rangeStart, rangeEnd } =
-            this._state;
-        const palette = this._maps?.palette || [];
-        const { rowColors } = this._computeRowStyles(rowStartOffset);
+        const {
+            selOffset,
+            selEnd,
+            hovOffset,
+            hovEnd,
+            isFieldHover,
+            rangeStart,
+            rangeEnd,
+        } = this._state;
+        // const palette = this._maps?.palette || [];
+        const { rowColors, rowIds } = this._computeRowStyles(rowStartOffset);
 
         const byteNodes = new Array(16);
         const asciiNodes = new Array(16);
 
-        const isByteSelected = (idx) => idx >= selOffset && idx < selEnd;
-        const isByteHovered = (idx) => idx >= hovOffset && idx < hovEnd;
+        // Pre-calculate range checks for the whole row to avoid repeated checks
+        const rowSelStart = Math.max(0, selOffset - rowStartOffset);
+        const rowSelEnd = Math.min(16, selEnd - rowStartOffset);
+        const rowHovStart = Math.max(0, hovOffset - rowStartOffset);
+        const rowHovEnd = Math.min(16, hovEnd - rowStartOffset);
+        const rowRangeStart = Math.max(0, rangeStart - rowStartOffset);
+        const rowRangeEnd = Math.min(16, rangeEnd - rowStartOffset);
 
         for (let i = 0; i < 16; i++) {
             const byteOffset = rowStartOffset + i;
@@ -275,12 +316,12 @@ export class HexViewComponent extends HTMLElement {
             if (byteOffset >= endOffset) {
                 const paddingClass =
                     i > 0
-                        ? 'inline-block w-6 h-5 text-center text-slate-800 border border-transparent -ml-px'
-                        : 'inline-block w-6 h-5 text-center text-slate-800 border border-transparent';
+                        ? 'inline-block w-6 h-5 text-center text-slate-400/20 border border-transparent -ml-px'
+                        : 'inline-block w-6 h-5 text-center text-slate-400/20 border border-transparent';
 
                 byteNodes[i] = html`<span class="${paddingClass}">..</span>`;
                 asciiNodes[i] = html`<span
-                    class="inline-block w-4 h-5 text-center text-slate-800 border border-transparent"
+                    class="inline-block w-4 h-5 text-center text-slate-400/20 border border-transparent"
                     >.</span
                 >`;
                 continue;
@@ -289,45 +330,57 @@ export class HexViewComponent extends HTMLElement {
             const byte = this._view[byteOffset];
             const colorIdx = rowColors[i];
 
-            const isSelected = isByteSelected(byteOffset);
-            const isHovered = !isSelected && isByteHovered(byteOffset);
+            // Optimized checks using local indices
+            const isSelected = i >= rowSelStart && i < rowSelEnd;
+            const isHovered = i >= rowHovStart && i < rowHovEnd;
             const isRange =
                 !isSelected &&
                 !isHovered &&
                 rangeStart !== -1 &&
-                byteOffset >= rangeStart &&
-                byteOffset <= rangeEnd;
+                i >= rowRangeStart &&
+                i <= rowRangeEnd;
 
             let bgClass = '';
             let textClass = 'text-slate-400';
             let borderClass = 'border-transparent';
 
-            if (isSelected) {
-                bgClass = 'bg-blue-600';
-                textClass = 'text-white font-bold';
+            // Precedence: Field Hover > Selection > Box Hover
+            if (isHovered && isFieldHover) {
+                // Field Hover (Highest Priority)
+                bgClass = 'bg-slate-800';
+                textClass = 'text-slate-100 font-bold';
+            } else if (isSelected) {
+                // Selection (Medium Priority)
+                bgClass = 'bg-[#3b82f6] z-10';
+                textClass = 'text-slate-100 font-bold';
             } else if (isHovered) {
-                bgClass = 'bg-slate-600';
-                textClass = 'text-white font-bold';
+                // Box Hover (Lowest Priority)
+                bgClass = 'bg-slate-800';
+                textClass = 'text-slate-100 font-bold';
             } else if (isRange) {
-                bgClass = 'bg-yellow-500/30';
-                textClass = 'text-yellow-100';
-            } else if (colorIdx !== -1 && palette[colorIdx]) {
-                const colorName = palette[colorIdx];
-                if (colorName === 'slate') {
-                    bgClass = 'bg-slate-800/60';
-                } else {
-                    bgClass = `bg-${colorName}-900/40`;
-                    textClass = 'text-slate-300';
-                }
+                bgClass = 'bg-[var(--secondary-500)]/20';
+                textClass = 'text-slate-200';
+            } else if (colorIdx !== -1 && THEME_COLOR_MAP[colorIdx]) {
+                const styles = THEME_COLOR_MAP[colorIdx].split(' ');
+                bgClass = styles[0];
+                textClass = 'text-slate-200';
             }
 
             const isActive = isSelected || isHovered;
+            let style = '';
 
             if (isActive) {
-                const checkNeighbor = (idx) => {
-                    if (isSelected) return isByteSelected(idx);
+                const checkNeighbor = (offset) => {
+                    if (isHovered && isFieldHover)
+                        return offset >= hovOffset && offset < hovEnd;
+                    if (isSelected)
+                        return offset >= selOffset && offset < selEnd;
                     if (isHovered)
-                        return isByteHovered(idx) && !isByteSelected(idx);
+                        return (
+                            offset >= hovOffset &&
+                            offset < hovEnd &&
+                            !(offset >= selOffset && offset < selEnd)
+                        );
                     return false;
                 };
 
@@ -336,48 +389,74 @@ export class HexViewComponent extends HTMLElement {
                 const isLeftSame = i > 0 && checkNeighbor(byteOffset - 1);
                 const isRightSame = i < 15 && checkNeighbor(byteOffset + 1);
 
-                const borderColor = isSelected ? 'white/60' : 'white/40';
+                // Strong border for outer edges, subtle border for inner edges
+                const strongAlpha =
+                    isHovered && isFieldHover ? 0.8 : isSelected ? 0.6 : 0.4;
+                const subtleAlpha = 0.1;
 
-                const t = !isTopSame
-                    ? `border-t-${borderColor}`
-                    : 'border-t-transparent';
-                const b = !isBottomSame
-                    ? `border-b-${borderColor}`
-                    : 'border-b-transparent';
-                const l = !isLeftSame
-                    ? `border-l-${borderColor}`
-                    : 'border-l-transparent';
-                const r = !isRightSame
-                    ? `border-r-${borderColor}`
-                    : 'border-r-transparent';
+                const t = !isTopSame ? strongAlpha : subtleAlpha;
+                const b = !isBottomSame ? strongAlpha : subtleAlpha;
+                const l = !isLeftSame ? strongAlpha : subtleAlpha;
+                const r = !isRightSame ? strongAlpha : subtleAlpha;
 
-                borderClass = `${t} ${b} ${l} ${r}`;
+                style = `border-color: rgba(255, 255, 255, ${t}) rgba(255, 255, 255, ${r}) rgba(255, 255, 255, ${b}) rgba(255, 255, 255, ${l});`;
+            } else if (colorIdx !== -1) {
+                const currentId = rowIds[i];
+                const subtleAlpha = 0.2;
+
+                // Left/Right check within the row
+                const l =
+                    i > 0 && rowIds[i - 1] !== currentId ? subtleAlpha : 0;
+                const r =
+                    i < 15 && rowIds[i + 1] !== currentId ? subtleAlpha : 0;
+
+                // Top/Bottom check using cached rows
+                let t = 0;
+                if (rowStartOffset >= 16) {
+                    const prevRow = this._computeRowStyles(rowStartOffset - 16);
+                    if (prevRow && prevRow.rowIds[i] !== currentId)
+                        t = subtleAlpha;
+                }
+
+                let b = 0;
+                if (rowStartOffset + 16 < this._view.length) {
+                    const nextRow = this._computeRowStyles(rowStartOffset + 16);
+                    if (nextRow && nextRow.rowIds[i] !== currentId)
+                        b = subtleAlpha;
+                }
+
+                if (t || r || b || l) {
+                    style = `border-color: rgba(255, 255, 255, ${t}) rgba(255, 255, 255, ${r}) rgba(255, 255, 255, ${b}) rgba(255, 255, 255, ${l});`;
+                }
             }
 
             const hexByte = byte.toString(16).padStart(2, '0').toUpperCase();
             const char =
                 byte >= 32 && byte <= 126 ? String.fromCharCode(byte) : '.';
 
-            const spacingClass = i > 0 ? '-ml-px' : '';
+            const spacingClass = '';
 
             byteNodes[i] = html`<span
                 class="inline-block text-center w-6 h-5 leading-5 text-[11px] cursor-crosshair relative border ${bgClass} ${textClass} ${borderClass} ${spacingClass}"
+                style="${style}"
                 data-byte-offset="${byteOffset}"
                 >${hexByte}</span
             >`;
             asciiNodes[i] = html`<span
-                class="inline-block text-center w-4 h-5 leading-5 text-[11px] relative border ${bgClass} ${textClass} ${borderClass} ${spacingClass}"
+                class="inline-block text-center w-4 h-5 leading-5 text-[11px] relative border ${bgClass} ${textClass} ${borderClass} ${spacingClass} cursor-crosshair"
+                style="${style}"
+                data-byte-offset="${byteOffset}"
                 >${char}</span
             >`;
         }
 
         return html`
             <div
-                class="flex font-mono h-5 hover:bg-white/[0.03] min-w-[580px]"
+                class="flex font-mono h-5 hover:bg-slate-800/30 min-w-[580px]"
                 style="contain: content; transform: translateZ(0);"
             >
                 <div
-                    class="w-24 text-right pr-4 text-slate-500 select-none bg-slate-900/50 border-r border-slate-800 shrink-0 text-[10px] leading-5"
+                    class="w-24 text-right pr-4 text-slate-400 select-none bg-slate-800/50 border-r border-slate-800 shrink-0 text-[10px] leading-5"
                 >
                     ${rowStartOffset
                         .toString(16)
@@ -385,7 +464,7 @@ export class HexViewComponent extends HTMLElement {
                         .toUpperCase()}
                 </div>
                 <div class="flex px-3 select-none shrink-0">${byteNodes}</div>
-                <div class="w-px bg-slate-800/50 mx-2 shrink-0"></div>
+                <div class="w-px bg-slate-700 mx-2 shrink-0"></div>
                 <div class="flex select-none shrink-0">${asciiNodes}</div>
             </div>
         `;
@@ -397,7 +476,7 @@ export class HexViewComponent extends HTMLElement {
             : '0.00';
         const template = html`
             <div
-                class="shrink-0 h-10 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 shadow-sm z-30 relative"
+                class="shrink-0 h-10 bg-slate-800/80 backdrop-blur-md border-b border-slate-800 flex items-center justify-between px-4 shadow-sm z-30 relative"
             >
                 <div
                     class="text-xs font-bold text-slate-400 flex items-center gap-2"
@@ -407,14 +486,14 @@ export class HexViewComponent extends HTMLElement {
                         >Bitstream Explorer</span
                     >
                     <span
-                        class="bg-slate-800 text-slate-500 px-1.5 rounded border border-slate-700/50 font-mono"
+                        class="bg-slate-800 text-slate-400 px-1.5 rounded border border-slate-800 font-mono"
                         >${fileSizeKB} KB</span
                     >
                 </div>
                 <div class="flex gap-1">
                     <button
                         @click=${() => this.handleCopy('hex')}
-                        class="p-1.5 text-slate-500 hover:text-white transition-colors rounded hover:bg-slate-800"
+                        class="p-1.5 text-slate-400 hover:text-slate-100 transition-colors rounded hover:bg-slate-800"
                         title="Copy Hex"
                     >
                         ${icons.clipboardCopy}
@@ -423,7 +502,7 @@ export class HexViewComponent extends HTMLElement {
             </div>
 
             <div
-                class="flex bg-slate-900/95 border-b border-slate-800 text-[10px] font-bold text-slate-500 uppercase py-1.5 select-none z-20 backdrop-blur font-mono min-w-[580px] overflow-hidden"
+                class="flex bg-slate-800/90 border-b border-slate-800 text-[10px] font-bold text-slate-400 uppercase py-1.5 select-none z-20 backdrop-blur font-mono min-w-[580px] overflow-hidden"
             >
                 <div class="w-24 text-right pr-4 shrink-0">Offset</div>
                 <div class="w-[384px] px-3 shrink-0">
@@ -433,8 +512,9 @@ export class HexViewComponent extends HTMLElement {
             </div>
 
             <div
-                class="grow relative bg-slate-900 overflow-auto"
+                class="grow relative bg-transparent overflow-auto custom-scrollbar"
                 id="hex-grid-content"
+                @mouseleave=${this._handleMouseLeave}
             >
                 <div class="absolute inset-0 min-w-[580px]" translate="no">
                     <virtualized-list

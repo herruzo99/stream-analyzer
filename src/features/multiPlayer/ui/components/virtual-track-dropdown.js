@@ -18,9 +18,11 @@ export const virtualTrackDropdownTemplate = () => {
     if (!players || players.size === 0) {
         return html`
             <div
-                class="dropdown-panel bg-slate-900 border border-slate-700 rounded-xl p-4 text-center text-sm text-slate-400 shadow-xl w-64"
+                class="dropdown-panel bg-slate-800 border border-slate-800 rounded-xl p-4 text-center text-sm text-slate-400 shadow-xl w-64"
             >
-                <div class="mb-2 text-slate-500">${icons.alertTriangle}</div>
+                <div class="mb-2 text-slate-400">
+                    ${icons.alertTriangle}
+                </div>
                 No active players found.
             </div>
         `;
@@ -58,10 +60,10 @@ export const virtualTrackDropdownTemplate = () => {
 
     return html`
         <div
-            class="dropdown-panel bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl w-72 p-2 ring-1 ring-black/50"
+            class="dropdown-panel bg-slate-800 backdrop-blur-xl border border-slate-800 rounded-xl shadow-2xl w-72 p-2 ring-1 ring-black/50"
         >
             <div
-                class="px-3 py-2 mb-1 border-b border-white/5 text-[10px] font-bold uppercase tracking-widest text-slate-400 flex justify-between"
+                class="px-3 py-2 mb-1 border-b border-slate-800 text-[10px] font-bold uppercase tracking-widest text-slate-400 flex justify-between"
             >
                 <span>Global Quality Target</span>
             </div>
@@ -72,7 +74,7 @@ export const virtualTrackDropdownTemplate = () => {
                 ${sortedTracks.length === 0
                     ? html`
                           <div
-                              class="p-4 text-center text-xs text-slate-500 italic"
+                              class="p-4 text-center text-xs text-slate-400 italic"
                           >
                               No video tracks available.
                           </div>
@@ -84,29 +86,29 @@ export const virtualTrackDropdownTemplate = () => {
                           return html`
                               <button
                                   @click=${() => handleSelect(track.height)}
-                                  class="w-full text-left p-2.5 rounded-lg hover:bg-white/10 transition-colors group flex items-center justify-between border border-transparent hover:border-white/5"
+                                  class="w-full text-left p-2.5 rounded-lg hover:bg-slate-800 transition-colors group flex items-center justify-between border border-transparent hover:border-slate-800"
                               >
                                   <div class="flex items-center gap-3">
                                       <div
-                                          class="p-1.5 rounded bg-slate-800 text-slate-400 group-hover:text-white group-hover:bg-slate-700 transition-colors"
+                                          class="p-1.5 rounded bg-slate-800 text-slate-400 group-hover:text-slate-100 group-hover:bg-slate-800 transition-colors"
                                       >
                                           ${icons.layers}
                                       </div>
                                       <div>
                                           <div
-                                              class="text-sm font-bold text-slate-200 group-hover:text-white"
+                                              class="text-sm font-bold text-slate-100 group-hover:text-slate-100"
                                           >
                                               ${track.height}p
                                           </div>
                                           <div
-                                              class="text-[10px] text-slate-500 font-mono"
+                                              class="text-[10px] text-slate-400 font-mono"
                                           >
                                               Up to ${bitrate}
                                           </div>
                                       </div>
                                   </div>
                                   <span
-                                      class="text-slate-600 group-hover:text-blue-400 transition-colors transform group-hover:translate-x-1"
+                                      class="text-slate-400 group-hover:text-blue-400 transition-colors transform group-hover:translate-x-1"
                                   >
                                       ${icons.arrowRight}
                                   </span>

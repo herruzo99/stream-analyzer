@@ -5,9 +5,11 @@ export const cmafWidgetTemplate = (cmafData) => {
     if (!cmafData || cmafData.status === 'idle') return '';
 
     const statusColors = {
-        pending: 'text-blue-400 border-blue-500/30 bg-blue-500/10',
-        complete: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',
-        error: 'text-red-400 border-red-500/30 bg-red-500/10',
+        pending:
+            'text-blue-400 border-blue-500/30 bg-slate-700',
+        complete:
+            'text-emerald-400 border-emerald-500/30 bg-slate-800',
+        error: 'text-red-400 border-red-500/30 bg-slate-800',
     };
 
     const statusIcons = {
@@ -38,11 +40,12 @@ export const cmafWidgetTemplate = (cmafData) => {
 
     return html`
         <div
-            class="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 shadow-sm hover:border-slate-600 transition-colors h-full flex flex-col"
+            class="relative overflow-hidden p-5 transition-colors h-full flex flex-col"
+            style=" border-radius: 0.75rem; box-shadow: 0 8px 30px rgb(0 0 0 / 0.35); backdrop-filter: blur(12px); background: #1e293b;"
         >
             <div class="flex items-center justify-between mb-4">
                 <h3
-                    class="text-lg font-bold text-white flex items-center gap-2"
+                    class="text-lg font-bold text-slate-100 flex items-center gap-2"
                 >
                     ${icons.shieldCheck} CMAF Compliance
                 </h3>
@@ -50,40 +53,46 @@ export const cmafWidgetTemplate = (cmafData) => {
                     class="flex items-center gap-2 px-2 py-1 rounded text-xs font-bold border ${statusClass}"
                 >
                     ${cmafData.status === 'pending'
-                        ? html`<span class="animate-spin">${Icon}</span>`
-                        : Icon}
+            ? html`<span class="animate-spin">${Icon}</span>`
+            : Icon}
                     ${statusLabel[cmafData.status]}
                 </div>
             </div>
 
             <div class="grid grid-cols-3 gap-2 mb-4">
                 <div
-                    class="bg-slate-900/50 rounded p-2 text-center border border-slate-800"
+                    class="bg-slate-900/20 rounded p-2 text-center border border-slate-800 backdrop-blur-sm"
                 >
                     <div class="text-emerald-400 font-bold text-lg">
                         ${passedChecks}
                     </div>
-                    <div class="text-[10px] text-slate-500 uppercase font-bold">
+                    <div
+                        class="text-[10px] text-slate-400 uppercase font-bold"
+                    >
                         Pass
                     </div>
                 </div>
                 <div
-                    class="bg-slate-900/50 rounded p-2 text-center border border-slate-800"
+                    class="bg-slate-900/20 rounded p-2 text-center border border-slate-800 backdrop-blur-sm"
                 >
-                    <div class="text-yellow-400 font-bold text-lg">
+                    <div class="text-amber-400 font-bold text-lg">
                         ${warnChecks}
                     </div>
-                    <div class="text-[10px] text-slate-500 uppercase font-bold">
+                    <div
+                        class="text-[10px] text-slate-400 uppercase font-bold"
+                    >
                         Warn
                     </div>
                 </div>
                 <div
-                    class="bg-slate-900/50 rounded p-2 text-center border border-slate-800"
+                    class="bg-slate-900/20 rounded p-2 text-center border border-slate-800 backdrop-blur-sm"
                 >
                     <div class="text-red-400 font-bold text-lg">
                         ${failedChecks}
                     </div>
-                    <div class="text-[10px] text-slate-500 uppercase font-bold">
+                    <div
+                        class="text-[10px] text-slate-400 uppercase font-bold"
+                    >
                         Fail
                     </div>
                 </div>
@@ -93,48 +102,51 @@ export const cmafWidgetTemplate = (cmafData) => {
                 class="grow overflow-y-auto custom-scrollbar space-y-2 pr-1 max-h-[200px]"
             >
                 ${cmafData.results.length === 0 && cmafData.status !== 'pending'
-                    ? html`<div
+            ? html`<div
                           class="text-center text-slate-500 text-sm py-4 italic"
                       >
                           No checks run.
                       </div>`
-                    : ''}
+            : ''}
                 ${cmafData.results.map(
-                    (result) => html`
+                (result) => html`
                         <div
-                            class="flex items-start gap-3 p-2 rounded bg-slate-900/30 border border-slate-800/50 text-sm"
+                            class="flex items-start gap-3 p-2 rounded bg-slate-800 border border-slate-800 text-sm"
                         >
                             <div class="mt-0.5 shrink-0">
                                 ${result.status === 'pass'
-                                    ? html`<span class="text-emerald-500"
+                        ? html`<span
+                                          class="text-emerald-400"
                                           >${icons.checkCircle}</span
                                       >`
-                                    : result.status === 'fail'
-                                      ? html`<span class="text-red-500"
+                        : result.status === 'fail'
+                            ? html`<span
+                                            class="text-red-400"
                                             >${icons.xCircle}</span
                                         >`
-                                      : html`<span class="text-yellow-500"
+                            : html`<span
+                                            class="text-amber-400"
                                             >${icons.alertTriangle}</span
                                         >`}
                             </div>
                             <div class="min-w-0">
                                 <div
-                                    class="font-medium text-slate-300 truncate"
+                                    class="font-medium text-slate-100 truncate"
                                     title="${result.text}"
                                 >
                                     ${result.text}
                                 </div>
                                 ${result.details
-                                    ? html`<div
-                                          class="text-xs text-slate-500 mt-0.5 break-words"
+                        ? html`<div
+                                          class="text-xs text-slate-400 mt-0.5 break-words"
                                       >
                                           ${result.details}
                                       </div>`
-                                    : ''}
+                        : ''}
                             </div>
                         </div>
                     `
-                )}
+            )}
             </div>
         </div>
     `;

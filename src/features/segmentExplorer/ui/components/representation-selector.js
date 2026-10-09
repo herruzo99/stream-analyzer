@@ -10,9 +10,10 @@ const dashRepresentationCardTemplate = (rep, activeRepId, compositeKey) => {
     const isActive = activeRepId === compositeKey;
     const baseClasses =
         'p-3 rounded-lg border-2 cursor-pointer transition-colors duration-150 ease-in-out text-left w-full';
-    const activeClasses = 'bg-blue-900/50 border-blue-600';
+    const activeClasses =
+        'bg-blue-500/50 border-blue-500';
     const inactiveClasses =
-        'bg-slate-800/50 border-slate-700 hover:border-blue-500/50 hover:bg-slate-700/50';
+        'bg-slate-800/50 border-slate-800 hover:border-blue-500/50 hover:bg-slate-800';
 
     let details;
     if (rep.contentType === 'video') {
@@ -20,16 +21,19 @@ const dashRepresentationCardTemplate = (rep, activeRepId, compositeKey) => {
             rep.width?.value && rep.height?.value
                 ? `${rep.width.value}x${rep.height.value}`
                 : 'N/A';
-        details = html`<span class="text-xs text-slate-400 font-mono"
+        details = html`<span
+            class="text-xs text-slate-400 font-mono"
             >${formatBitrate(rep.bandwidth)} | ${resolution}</span
         >`;
     } else if (rep.contentType === 'audio') {
-        details = html`<span class="text-xs text-slate-400 font-mono"
+        details = html`<span
+            class="text-xs text-slate-400 font-mono"
             >Lang: ${rep.lang || 'und'} |
             ${formatBitrate(rep.bandwidth || 0)}</span
         >`;
     } else {
-        details = html`<span class="text-xs text-slate-400 font-mono"
+        details = html`<span
+            class="text-xs text-slate-400 font-mono"
             >Lang: ${rep.lang || 'und'}</span
         >`;
     }
@@ -43,11 +47,15 @@ const dashRepresentationCardTemplate = (rep, activeRepId, compositeKey) => {
                 )}
             class="${baseClasses} ${isActive ? activeClasses : inactiveClasses}"
         >
-            <p class="font-semibold text-sm text-slate-200 truncate">
+            <p
+                class="font-semibold text-sm text-slate-200 truncate"
+            >
                 ID: ${rep.id || 'N/A'}
             </p>
             ${rep.label
-                ? html`<p class="text-xs text-slate-300 truncate">
+                ? html`<p
+                      class="text-xs text-slate-400 truncate"
+                  >
                       ${rep.label}
                   </p>`
                 : ''}
@@ -82,7 +90,9 @@ const dashAdaptationSetGroupTemplate = (
                 class="text-xs font-semibold text-slate-400 px-2 flex items-center gap-2"
             >
                 <span>${title}:</span>
-                <span class="font-mono text-slate-300">${value}</span>
+                <span class="font-mono text-slate-400"
+                    >${value}</span
+                >
             </div>
             <div class="pl-2 pt-2 space-y-2">
                 ${sortedReps.map((rep) => {
@@ -121,10 +131,13 @@ const dashPeriodGroupTemplate = (period, index, activeRepId, activeTab) => {
                     e.preventDefault();
                     uiActions.toggleSegmentExplorerGroup(groupId);
                 }}
-                class="list-none cursor-pointer flex items-center p-3 rounded-md bg-slate-800 hover:bg-slate-700/50"
+                class="list-none cursor-pointer flex items-center p-3 rounded-md bg-slate-800 hover:bg-slate-800"
             >
-                <span class="font-bold text-slate-200">Period</span>
-                <span class="font-mono text-sm text-slate-300 ml-2"
+                <span class="font-bold text-slate-200"
+                    >Period</span
+                >
+                <span
+                    class="font-mono text-sm text-slate-400 ml-2"
                     >${period.id || `(index ${index})`}</span
                 >
                 <span
@@ -133,7 +146,9 @@ const dashPeriodGroupTemplate = (period, index, activeRepId, activeTab) => {
                     ${icons.chevronDown}
                 </span>
             </summary>
-            <div class="pl-3 pt-2 space-y-2 border-l-2 border-slate-700 ml-3">
+            <div
+                class="pl-3 pt-2 space-y-2 border-l-2 border-slate-800 ml-3"
+            >
                 ${adaptationSetsForTab.map((as) => {
                     const sortedReps = [...as.representations].sort((a, b) => {
                         const heightA = a.height?.value || 0;
@@ -164,9 +179,10 @@ const hlsRepresentationCardTemplate = (rep, activeRepId) => {
     const isActive = activeRepId === rep.id;
     const baseClasses =
         'p-3 rounded-lg border-2 cursor-pointer transition-colors duration-150 ease-in-out text-left w-full';
-    const activeClasses = 'bg-blue-900/50 border-blue-600';
+    const activeClasses =
+        'bg-blue-500/50 border-blue-500';
     const inactiveClasses =
-        'bg-slate-800/50 border-slate-700 hover:border-blue-500/50 hover:bg-slate-700/50';
+        'bg-slate-800/50 border-slate-800 hover:border-blue-500/50 hover:bg-slate-800';
 
     let label = 'Unknown';
     let details = `ID: ${rep.id}`;
@@ -217,16 +233,20 @@ const hlsGroupTemplate = (groupTitle, reps, activeRepId, groupType) => {
                     e.preventDefault();
                     uiActions.toggleSegmentExplorerGroup(groupId);
                 }}
-                class="list-none cursor-pointer flex items-center p-3 rounded-md bg-slate-800 hover:bg-slate-700/50"
+                class="list-none cursor-pointer flex items-center p-3 rounded-md bg-slate-800 hover:bg-slate-800"
             >
-                <span class="font-bold text-slate-200">${groupTitle}</span>
+                <span class="font-bold text-slate-200"
+                    >${groupTitle}</span
+                >
                 <span
                     class="ml-auto text-slate-400 transition-transform duration-200 group-open:rotate-90"
                 >
                     ${icons.chevronDown}
                 </span>
             </summary>
-            <div class="pl-3 pt-2 space-y-2 border-l-2 border-slate-700 ml-3">
+            <div
+                class="pl-3 pt-2 space-y-2 border-l-2 border-slate-800 ml-3"
+            >
                 ${reps.map((rep) =>
                     hlsRepresentationCardTemplate(rep, activeRepId)
                 )}
@@ -341,7 +361,9 @@ export const representationSelectorTemplate = (stream) => {
         }
     } else {
         content = html`
-            <div class="p-4 text-sm text-slate-400 text-center">
+            <div
+                class="p-4 text-sm text-slate-400 text-center"
+            >
                 Representation selection is not applicable for this stream type.
             </div>
         `;
@@ -349,8 +371,10 @@ export const representationSelectorTemplate = (stream) => {
 
     return html`
         <div class="flex flex-col h-full">
-            <header class="p-3 border-b border-slate-700 shrink-0">
-                <h3 class="font-bold text-slate-200">Representations</h3>
+            <header class="p-3 border-b border-slate-800 shrink-0">
+                <h3 class="font-bold text-slate-200">
+                    Representations
+                </h3>
             </header>
             <div class="shrink-0 px-2 pt-2">
                 ${availableTabs.length > 0

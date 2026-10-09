@@ -1,6 +1,7 @@
 import { formattedOptionsDropdownTemplate } from '@/features/playerSimulation/ui/components/formatted-options-dropdown';
 import * as icons from '@/ui/icons';
 import { toggleDropdown } from '@/ui/services/dropdownService';
+import { useUiStore } from '@/state/uiStore';
 import { html } from 'lit-html';
 
 const HLS_VERSIONS = [
@@ -64,6 +65,20 @@ export const standardSelectorTemplate = ({
     const activeVersion =
         HLS_VERSIONS.find((v) => v.id === selectedVersion) || HLS_VERSIONS[0];
 
+    const { shell } = useUiStore.getState();
+    const isGlass = shell.config.activeThemeId.includes('glass');
+
+    // Container Classes
+    const containerRadius = isGlass ? 'rounded-xl' : 'rounded-sm';
+    const containerBlur = isGlass ? 'backdrop-blur-md' : '';
+    const containerClass = `flex items-center gap-3 p-1 border ${containerRadius} ${containerBlur}`;
+
+    // Button Classes
+    const btnRadius = isGlass ? 'rounded-lg' : 'rounded-sm';
+    const btnBg = isGlass
+        ? 'background: color-mix(in srgb, #3b82f6 5%, transparent);'
+        : 'background: #0f172a;';
+
     const handleDropdownToggle = (e) => {
         toggleDropdown(
             e.currentTarget,
@@ -79,19 +94,26 @@ export const standardSelectorTemplate = ({
 
     return html`
         <div
-            class="flex items-center gap-3 bg-slate-900/50 p-1.5 rounded-lg border border-slate-700"
+            class="${containerClass}"
+            style="background: #1e293b; border-color: #1e293b;"
         >
             <span
-                class="text-[10px] font-bold uppercase tracking-wider text-slate-500 pl-2"
+                class="text-[10px] font-bold uppercase tracking-wider pl-3 opacity-70 text-slate-400"
                 >Standard</span
             >
             <button
                 @click=${handleDropdownToggle}
-                class="flex items-center justify-between gap-3 bg-slate-800 hover:bg-slate-700 text-white rounded-md px-3 py-1.5 border border-slate-600 hover:border-slate-500 transition-all text-xs font-semibold min-w-[160px] group"
+                class="flex items-center justify-between gap-3 ${btnRadius} px-4 py-2 border transition-all duration-300 text-xs font-bold min-w-[200px] group hover:shadow-[0_0_20px_#3b82f6] relative overflow-hidden"
+                style="${btnBg} border-color: #1e293b; color: #e2e8f0;"
             >
-                <span class="truncate">${activeVersion.label}</span>
+                <div
+                    class="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-500/10 to-blue-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 pointer-events-none"
+                ></div>
+                <span class="truncate drop-shadow-sm relative z-10"
+                    >${activeVersion.label}</span
+                >
                 <span
-                    class="text-slate-500 group-hover:text-white transition-colors scale-75"
+                    class="transition-transform duration-300 group-hover:translate-y-0.5 text-slate-400 group-hover:text-blue-400 relative z-10"
                     >${icons.chevronDown}</span
                 >
             </button>

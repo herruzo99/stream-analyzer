@@ -4,9 +4,9 @@ import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 
 const highlightColors = {
-    fail: 'bg-red-900/60',
-    warn: 'bg-yellow-900/60',
-    pass: 'bg-green-900/50',
+    fail: 'background-color: color-mix(in srgb, #ef4444 30%, transparent)',
+    warn: 'background-color: color-mix(in srgb, #f59e0b 30%, transparent)',
+    pass: 'background-color: color-mix(in srgb, #10b981 30%, transparent)',
 };
 
 const formatTooltipContent = (results, filter) => {
@@ -19,27 +19,73 @@ const formatTooltipContent = (results, filter) => {
         return { b64TooltipHtml: '' };
     }
 
-    const tooltipHtml = filteredResults
+    // Header with counts
+    const counts = {
+        fail: filteredResults.filter((r) => r.status === 'fail').length,
+        warn: filteredResults.filter((r) => r.status === 'warn').length,
+        pass: filteredResults.filter((r) => r.status === 'pass').length,
+        info: filteredResults.filter((r) => r.status === 'info').length,
+    };
+
+    const header = `
+        <div class="flex items-center gap-3 mb-3 pb-2 border-b border-slate-800">
+            <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Compliance Check</span>
+            <div class="flex gap-2 ml-auto">
+                ${counts.fail > 0 ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold border" style="background: color-mix(in srgb, #ef4444 20%, transparent); color: #ef4444; border-color: color-mix(in srgb, #ef4444 30%, transparent)">${counts.fail} ERR</span>` : ''}
+                ${counts.warn > 0 ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold border" style="background: color-mix(in srgb, #f59e0b 20%, transparent); color: #f59e0b; border-color: color-mix(in srgb, #f59e0b 30%, transparent)">${counts.warn} WARN</span>` : ''}
+            </div>
+        </div>
+    `;
+
+    const rows = filteredResults
         .map((r, index) => {
-            const statusClass = {
-                fail: 'text-red-300',
-                warn: 'text-yellow-300',
-                pass: 'text-green-300',
-                info: 'text-blue-300',
+            const statusConfig = {
+                fail: {
+                    colorValue: '#ef4444',
+                    icon: '✕',
+                },
+                warn: {
+                    colorValue: '#f59e0b',
+                    icon: '⚠',
+                },
+                pass: {
+                    colorValue: '#10b981',
+                    icon: '✓',
+                },
+                info: {
+                    colorValue: '#3b82f6',
+                    icon: 'ℹ',
+                },
             }[r.status];
-            const hr = index > 0 ? '<hr class="border-gray-600 my-2">' : '';
-            return `${hr}<div class="text-left">
-            <p class="font-bold ${statusClass}">[${r.status.toUpperCase()}] ${
-                r.text
-            }</p>
-            <p class="text-xs text-gray-300 mt-1">${r.details}</p>
-            <p class="text-xs text-gray-500 font-mono mt-2">${r.isoRef}</p>
-        </div>`;
+            return `
+            <div class="mb-2 last:mb-0 p-3 rounded-lg border backdrop-blur-md relative overflow-hidden group"
+                style="background: color-mix(in srgb, ${statusConfig.colorValue} 10%, transparent); border-color: color-mix(in srgb, ${statusConfig.colorValue} 20%, transparent);">
+                <div class="absolute inset-0 opacity-50 blur-xl" style="background: color-mix(in srgb, ${statusConfig.colorValue} 10%, transparent);"></div>
+                <div class="relative z-10">
+                    <div class="flex items-start gap-2">
+                        <span class="font-mono font-bold text-lg leading-none mt-0.5 drop-shadow-md" style="color: ${statusConfig.colorValue}">${statusConfig.icon}</span>
+                        <div class="min-w-0">
+                            <p class="font-bold text-sm leading-tight mb-1" style="color: ${statusConfig.colorValue}">${r.text}</p>
+                            <p class="text-xs leading-relaxed opacity-90" style="color: #94a3b8">${r.details}</p>
+                            <div class="flex items-center gap-2 mt-2">
+                                <span class="text-[10px] font-mono px-1.5 py-0.5 rounded border"
+                                    style="background: #1e293b; border-color: #1e293b; color: #94a3b8">${r.isoRef}</span>
+                                <span class="text-[10px] font-bold uppercase tracking-wider opacity-70" style="color: ${statusConfig.colorValue}">${r.status}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            `;
         })
         .join('');
 
+    const tooltipHtml = `<div class="min-w-[300px] max-w-[400px] p-1" > ${header} <div class="space-y-2">${rows}</div></div > `;
+
     try {
-        return { b64TooltipHtml: btoa(tooltipHtml) };
+        return {
+            b64TooltipHtml: btoa(unescape(encodeURIComponent(tooltipHtml))),
+        };
     } catch (e) {
         console.error('Failed to encode tooltip', e);
         return { b64TooltipHtml: '' };
@@ -66,10 +112,12 @@ const renderDashNode = (
         (r) => r.location.path === path
     );
     let highestSeverityResult = null;
-    let highlightClass = '';
-    const elementId = `loc-path-${path.replace(/[[].]/g, '-')}`;
+    let highlightStyle = '';
+    const elementId = `loc - path - ${path.replace(/[[].]/g, '-')} `;
     const isHoverHighlighted = highlightedCompliancePathId === elementId;
-    const hoverHighlightClass = isHoverHighlighted ? 'bg-purple-500/30' : '';
+    const hoverHighlightStyle = isHoverHighlighted
+        ? 'background-color: color-mix(in srgb, #3b82f6 30%, transparent);'
+        : '';
 
     if (resultsForPath.length > 0) {
         const severityOrder = { fail: 0, warn: 1, info: 2, pass: 3 };
@@ -84,7 +132,7 @@ const renderDashNode = (
             activeFilter === 'all' ||
             activeFilter === highestSeverityResult.status
         ) {
-            highlightClass = highestSeverityResult
+            highlightStyle = highestSeverityResult
                 ? highlightColors[highestSeverityResult.status]
                 : '';
         }
@@ -106,9 +154,8 @@ const renderDashNode = (
     const attrsString = Object.entries(attributes)
         .map(([key, value]) => ` ${key}="${value}"`)
         .join('');
-    const openingTagString = `<${tagName}${attrsString}${
-        !hasChildren ? ' /' : ''
-    }>`;
+    const openingTagString = `< ${tagName}${attrsString}${!hasChildren ? ' /' : ''
+        }> `;
     const highlightedOpeningTag = highlightDash(openingTagString);
 
     const templates = [];
@@ -120,35 +167,38 @@ const renderDashNode = (
 
     // prettier-ignore
     templates.push(
-        html`<div class="flex">
+        html`<div class="flex" >
             <span
-                class="text-right text-gray-500 pr-4 select-none shrink-0 w-12"
+                class="text-right pr-4 select-none shrink-0 w-12"
+                style="color: #94a3b8"
                 >${lineCounter.count++}</span
             >
             <span
                 id=${elementId}
                 data-status=${highestSeverityResult?.status}
                 data-tooltip-html-b64=${b64TooltipHtml}
-                class="compliance-highlight text-white grow whitespace-pre-wrap break-all ${highlightClass} ${hoverHighlightClass}"
+                class="compliance-highlight grow whitespace-pre-wrap break-all"
+                style="color: #e2e8f0; ${highlightStyle} ${hoverHighlightStyle}"
                 >${unsafeHTML(indent)}${unsafeHTML(highlightedOpeningTag)}</span
             >
-        </div>`
+        </div > `
     );
 
     if (hasChildren) {
         if (textContent) {
             // prettier-ignore
             templates.push(
-                html`<div class="flex">
-                    <span class="text-right text-gray-500 pr-4 select-none w-12"
+                html`<div class="flex" >
+                    <span class="text-right pr-4 select-none w-12"
+                        style="color: #94a3b8"
                         >${lineCounter.count++}</span
                     >
                     <span class="grow whitespace-pre-wrap break-all"
-                        >${unsafeHTML(indent + '  ')}<span class="text-gray-200"
+                        >${unsafeHTML(indent + '  ')}<span style="color: #e2e8f0"
                             >${textContent}</span
                         ></span
                     >
-                </div>`
+                </div > `
             );
         }
 
@@ -161,7 +211,7 @@ const renderDashNode = (
                             childTagName,
                             item,
                             complianceResults,
-                            `${path}.${childTagName}[${index}]`,
+                            `${path}.${childTagName} [${index}]`,
                             depth + 1,
                             lineCounter,
                             activeFilter,
@@ -175,7 +225,7 @@ const renderDashNode = (
                         childTagName,
                         childValue,
                         complianceResults,
-                        `${path}.${childTagName}[0]`,
+                        `${path}.${childTagName} [0]`,
                         depth + 1,
                         lineCounter,
                         activeFilter,
@@ -185,18 +235,19 @@ const renderDashNode = (
             }
         });
 
-        const closingTagHtml = highlightDash(`</${tagName}>`);
+        const closingTagHtml = highlightDash(`</${tagName}> `);
         // prettier-ignore
         templates.push(
-            html`<div class="flex">
+            html`<div class="flex" >
                 <span
-                    class="text-right text-gray-500 pr-4 select-none shrink-0 w-12"
+                    class="text-right pr-4 select-none shrink-0 w-12"
+                    style="color: #94a3b8"
                     >${lineCounter.count++}</span
                 >
                 <span class="grow whitespace-pre-wrap break-all"
                     >${unsafeHTML(indent)}${unsafeHTML(closingTagHtml)}</span
                 >
-            </div>`
+            </div > `
         );
     }
 
@@ -242,41 +293,44 @@ export const manifestViewTemplate = (
                 activeFilter
             );
 
-            const highlightClass =
+            const highlightStyle =
                 highestSeverityResult &&
-                (activeFilter === 'all' ||
-                    activeFilter === highestSeverityResult.status)
+                    (activeFilter === 'all' ||
+                        activeFilter === highestSeverityResult.status)
                     ? highlightColors[highestSeverityResult.status]
                     : '';
 
             const locationId = `loc-line-${lineNumber}`;
             const isHoverHighlighted =
                 highlightedCompliancePathId === locationId;
-            const hoverHighlightClass = isHoverHighlighted
-                ? 'bg-purple-500/30'
+            const hoverHighlightStyle = isHoverHighlighted
+                ? 'background-color: color-mix(in srgb, #3b82f6 30%, transparent);'
                 : '';
 
             // prettier-ignore
             return html`<div class="flex">
-                <span class="text-right text-gray-500 pr-4 select-none w-12"
+                <span class="text-right pr-4 select-none w-12"
+                    style="color: #94a3b8"
                     >${lineNumber}</span
                 >
                 <span
                     id=${locationId}
                     data-status=${highestSeverityResult?.status}
                     data-tooltip-html-b64=${b64TooltipHtml}
-                    class="compliance-highlight grow whitespace-pre-wrap break-all ${highlightClass} ${hoverHighlightClass}"
+                    class="compliance-highlight grow whitespace-pre-wrap break-all"
+                    style="${highlightStyle} ${hoverHighlightStyle}"
                     >${unsafeHTML(highlightHls(line))}</span
                 >
             </div>`;
-        })}`;
+        })
+            } `;
     }
 
     // DASH Rendering Logic
     if (!serializedManifest || typeof serializedManifest !== 'object') {
-        return html`<div class="text-red-400">
-            Error rendering DASH manifest object.
-        </div>`;
+        return html`<div style = "color: #ef4444" >
+    Error rendering DASH manifest object.
+        </div > `;
     }
 
     const lineCounter = { count: 1 };
@@ -296,14 +350,19 @@ export const manifestViewTemplate = (
     return html`
         ${xmlDeclaration
             ? html`<div class="flex">
-                  <span class="text-right text-gray-500 pr-4 select-none w-12"
+                  <span
+                      class="text-right pr-4 select-none w-12"
+                      style="color: #94a3b8"
                       >${lineCounter.count++}</span
                   >
-                  <span class="grow text-white whitespace-pre-wrap break-all"
+                  <span
+                      class="grow whitespace-pre-wrap break-all"
+                      style="color: #e2e8f0"
                       >${unsafeHTML(highlightDash(xmlDeclaration[0]))}</span
                   >
               </div>`
-            : ''}
+            : ''
+        }
         ${templates}
-    `;
+`;
 };

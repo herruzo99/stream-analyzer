@@ -9,109 +9,150 @@ import { sessionDetailTemplate } from './components/session-detail.js';
 import { sessionListTemplate } from './components/session-list.js';
 import { createDrmViewModel } from './view-model.js';
 
-let container = null;
-let unsubs = [];
-
-function renderDrmView() {
-    if (!container) return;
-
-    const vm = createDrmViewModel();
-    const { streams, activeStreamId } = useAnalysisStore.getState();
-    const activeStream = streams.find((s) => s.id === activeStreamId);
-    const isEncrypted = activeStream?.manifest?.summary?.security?.isEncrypted;
-
-    // Logic: If no sessions AND stream is not encrypted, show clear content state.
-    // If no sessions but encrypted, show waiting for playback state.
-    const showEmptyState = vm.sessionList.length === 0;
-
-    let emptyStateTemplate = html``;
-
-    if (showEmptyState) {
-        if (!isEncrypted) {
-            emptyStateTemplate = html`
-                <div
-                    class="flex flex-col items-center justify-center h-full w-full text-slate-500 bg-slate-950/50"
-                >
-                    <div
-                        class="p-4 rounded-full bg-slate-800/50 mb-3 border border-slate-700"
-                    >
-                        ${icons.lockOpen}
-                    </div>
-                    <h3 class="text-lg font-medium text-slate-300">
-                        Clear Content
-                    </h3>
-                    <p class="text-sm mt-1 max-w-xs text-center text-slate-500">
-                        No DRM signaling detected in the current stream
-                        manifest.
-                    </p>
-                </div>
-            `;
-        } else {
-            emptyStateTemplate = html`
-                <div
-                    class="flex flex-col items-center justify-center h-full w-full text-slate-500 bg-slate-950/50"
-                >
-                    <div
-                        class="p-4 rounded-full bg-slate-800/50 mb-3 border border-slate-700"
-                    >
-                        ${icons.key}
-                    </div>
-                    <h3 class="text-lg font-medium text-slate-300">
-                        Waiting for Key Session
-                    </h3>
-                    <p class="text-sm mt-1 max-w-xs text-center text-slate-500">
-                        Start playback in the Player Simulation tab to generate
-                        DRM license requests.
-                    </p>
-                </div>
-            `;
-        }
+class DrmView {
+    // Port note: was `extends BaseView` (never committed). Plain class
+    // with inlined mount/unmount/subscribe; the subNav slot renders into
+    // the shell's #contextual-sidebar as in 1.2.0 (setShellConfig and
+    // setShellSlot have no 1.2.0 equivalent and were dropped).
+    constructor() {
+        this.hasContextualSidebar = true;
+        this._unsubs = [];
+        this.container = null;
+        this.stream = null;
     }
 
-    const template = html`
-        <div class="flex flex-col h-full w-full overflow-hidden bg-slate-950">
-            ${!showEmptyState || (showEmptyState && isEncrypted)
+    subscribe(store, listener) {
+        const unsubscribe = store.subscribe(listener);
+        this._unsubs.push(unsubscribe);
+        return unsubscribe;
+    }
+
+    /**
+     * @param {HTMLElement} containerElement
+     * @param {{ stream?: any }} [args]
+     */
+    mount(containerElement, { stream } = {}) {
+        this.container = containerElement;
+        this.stream = stream || null;
+        this.onMount();
+    }
+
+    unmount() {
+        for (const unsubscribe of this._unsubs.splice(0)) {
+            try {
+                unsubscribe();
+            } catch {
+                /* ignore late unsubscribe errors */
+            }
+        }
+        if (this.container) render(html``, this.container);
+        const sidebarContainer =
+            document.getElementById('contextual-sidebar');
+        if (sidebarContainer) render(html``, sidebarContainer);
+        this.container = null;
+        this.stream = null;
+    }
+
+    onMount() {
+        // Subscriptions
+        this.subscribe(useDecryptionStore, () => this.render());
+        this.subscribe(useNetworkStore, () => this.render());
+        this.subscribe(usePlayerStore, () => this.render());
+        this.subscribe(useAnalysisStore, () => this.render());
+    }
+
+    renderTemplate() {
+        const vm = createDrmViewModel();
+        const { streams, activeStreamId } = useAnalysisStore.getState();
+        const activeStream = streams.find((s) => s.id === activeStreamId);
+        const isEncrypted = activeStream?.manifest?.summary?.security?.isEncrypted;
+
+
+        // 2. Main Content Logic
+        const showEmptyState = vm.sessionList.length === 0;
+
+        let mainContent;
+
+        if (showEmptyState) {
+            if (!isEncrypted) {
+                mainContent = html`
+                    <div
+                        class="flex flex-col items-center justify-center h-full w-full text-slate-400 animate-fadeIn"
+                    >
+                        <div
+                            class="p-6 rounded-full bg-slate-800 mb-4 border border-slate-800 shadow-[0_0_20px_rgba(0,0,0,0.2)] generic-monitor-icon"
+                        >
+                            ${icons.lockOpen}
+                        </div>
+                        <h3
+                            class="text-xl font-bold text-slate-200"
+                        >
+                            Clear Content
+                        </h3>
+                        <p
+                            class="text-sm mt-2 max-w-xs text-center text-slate-400"
+                        >
+                            No DRM signaling detected in the current stream manifest.
+                        </p>
+                    </div>
+                `;
+            } else {
+                mainContent = html`
+                    <div
+                        class="flex flex-col items-center justify-center h-full w-full text-slate-400 animate-fadeIn"
+                    >
+                        <div
+                            class="p-6 rounded-full bg-slate-800 mb-4 border border-slate-800 shadow-[0_0_20px_rgba(0,0,0,0.2)] glass-pulse"
+                        >
+                            ${icons.key}
+                        </div>
+                        <h3
+                            class="text-xl font-bold text-slate-200"
+                        >
+                            Waiting for Key Session
+                        </h3>
+                        <p
+                            class="text-sm mt-2 max-w-xs text-center text-slate-400"
+                        >
+                            Start playback in the Player Simulation tab to generate
+                            DRM license requests.
+                        </p>
+                    </div>
+                `;
+            }
+        } else {
+            mainContent = sessionDetailTemplate(vm.activeSession, vm.timeline);
+        }
+
+        // Return the final template for the Main container
+        return html`
+            <div class="flex flex-col h-full w-full overflow-hidden">
+                ${!showEmptyState || (showEmptyState && isEncrypted)
                 ? playerActiveWarningTemplate('DRM Workbench')
                 : ''}
-
-            <div class="flex grow min-h-0 overflow-hidden">
-                ${showEmptyState
-                    ? emptyStateTemplate
-                    : html`
-                          <!-- Left Sidebar -->
-                          ${sessionListTemplate(
-                              vm.sessionList,
-                              vm.activeSession?.internalId
-                          )}
-
-                          <!-- Main Content -->
-                          <div class="grow min-w-0 h-full">
-                              ${sessionDetailTemplate(
-                                  vm.activeSession,
-                                  vm.timeline
-                              )}
-                          </div>
-                      `}
+                <div class="grow overflow-hidden relative">
+                    ${mainContent}
+                </div>
             </div>
-        </div>
-    `;
+        `;
+    }
 
-    render(template, container);
+    render() {
+        if (!this.container) return;
+        render(this.renderTemplate(), this.container);
+        const sidebarContainer =
+            document.getElementById('contextual-sidebar');
+        if (sidebarContainer) {
+            const vm = createDrmViewModel();
+            render(
+                sessionListTemplate(
+                    vm.sessionList,
+                    vm.activeSession?.internalId
+                ),
+                sidebarContainer
+            );
+        }
+    }
 }
 
-export const drmView = {
-    mount(containerElement) {
-        container = containerElement;
-        unsubs.push(useDecryptionStore.subscribe(renderDrmView));
-        unsubs.push(useNetworkStore.subscribe(renderDrmView));
-        unsubs.push(usePlayerStore.subscribe(renderDrmView));
-        unsubs.push(useAnalysisStore.subscribe(renderDrmView));
-        renderDrmView();
-    },
-    unmount() {
-        unsubs.forEach((u) => u());
-        unsubs = [];
-        if (container) render(html``, container);
-        container = null;
-    },
-};
+export const drmView = new DrmView();

@@ -23,7 +23,9 @@ class MultiPlayerService {
         this.videoElements = new Map();
         this.stallCalculators = new Map();
         this.tickerSubscription = null;
+        this.tickerSubscription = null;
         this.retryTimers = new Map();
+        this.errorStartTimes = new Map();
     }
 
     initialize() {
@@ -118,6 +120,72 @@ class MultiPlayerService {
             player.configure({ drm: drmConfig });
             this.applyStreamConfig(uniqueStreamId);
 
+            // --- Manifest Interception for Patched Streams ---
+            // We register the filter if there is a patch, or if we want to support dynamic patching without reload (though reload is recommended).
+            // Checking at load time is sufficient if we ensure reload on patch application.
+            // --- Manifest Interception for Patched Streams ---
+            // We always register the filter to support dynamic patching without requiring a full player reload.
+            // This ensures that if a patch is applied while the player is running (or stopped/started),
+            // the next manifest request will pick it up.
+            const networkingEngine = player.getNetworkingEngine();
+            const shaka = await getShaka(); // Ensure we have the shaka namespace
+
+            networkingEngine.registerResponseFilter((type, response) => {
+                // Check if it's a MANIFEST request
+                if (type === shaka.net.NetworkingEngine.RequestType.MANIFEST) {
+                    // Dynamic lookup to get the freshest patch rules/content
+                    const { streams } = useAnalysisStore.getState();
+                    const currentStream = streams.find(
+                        (s) => s.id === streamDef.id
+                    );
+
+                    if (!currentStream || !currentStream.patchedRawManifest)
+                        return;
+
+                    // Check if the URI matches the original stream URL
+                    // We normalize by removing query params for safer matching
+                    const requestUri = response.uri.split('?')[0];
+                    const originalUri = streamDef.originalUrl.split('?')[0];
+                    const baseUri = streamDef.baseUrl
+                        ? streamDef.baseUrl.split('?')[0]
+                        : '';
+
+                    if (
+                        requestUri === originalUri ||
+                        (baseUri && requestUri === baseUri)
+                    ) {
+                        appLog(
+                            'MultiPlayerService',
+                            'info',
+                            `[Interceptor] Intercepting manifest request for ${streamDef.name}`
+                        );
+                        console.log(
+                            '[Interceptor] MATCH FOUND. Serving patched manifest.'
+                        );
+                        console.log('[Interceptor] Request URI:', requestUri);
+                        console.log(
+                            '[Interceptor] Patched Manifest Length:',
+                            currentStream.patchedRawManifest.length
+                        );
+
+                        const encoder = new TextEncoder();
+                        const patchedData = encoder.encode(
+                            currentStream.patchedRawManifest
+                        );
+
+                        // Shaka expects ArrayBuffer
+                        response.data = patchedData.buffer;
+                    } else {
+                        console.log(
+                            '[Interceptor] No match. Request:',
+                            requestUri,
+                            'Original:',
+                            originalUri
+                        );
+                    }
+                }
+            });
+
             let startTime = initialState?.currentTime;
             await player.load(streamDef.originalUrl, startTime);
 
@@ -160,7 +228,17 @@ class MultiPlayerService {
                 .getState()
                 .updatePlayerState(streamId, { state });
         videoElement.addEventListener('play', () => updateState('playing'));
-        videoElement.addEventListener('playing', () => updateState('playing'));
+        videoElement.addEventListener('playing', () => {
+            if (this.errorStartTimes.has(streamId)) {
+                const downtime =
+                    Date.now() - this.errorStartTimes.get(streamId);
+                useMultiPlayerStore
+                    .getState()
+                    .incrementDowntime(streamId, downtime);
+                this.errorStartTimes.delete(streamId);
+            }
+            updateState('playing');
+        });
         videoElement.addEventListener('pause', () => updateState('paused'));
         videoElement.addEventListener('ended', () => updateState('ended'));
         videoElement.addEventListener('waiting', () =>
@@ -187,13 +265,32 @@ class MultiPlayerService {
         if (store.isAutoResetEnabled) {
             const currentRetries = playerState?.retryCount || 0;
             if (currentRetries < MAX_RETRIES) {
+                // Track start time
+                if (!this.errorStartTimes.has(streamId)) {
+                    this.errorStartTimes.set(streamId, Date.now());
+                }
+
                 const nextRetryCount = currentRetries + 1;
-                // Fix: Use secureRandom for jitter
-                const backoff =
-                    INITIAL_RETRY_DELAY_MS *
-                    Math.pow(2, currentRetries) *
-                    (1 + secureRandom() * JITTER_FACTOR);
-                const delay = Math.min(backoff, 30000);
+
+                // Determine effective delay
+                const globalDelay =
+                    store.globalRetryDelayMs || INITIAL_RETRY_DELAY_MS;
+                const effectiveDelayBase =
+                    playerState.retryDelayOverride ?? globalDelay;
+
+                // Intensive check
+                const isIntensive = effectiveDelayBase <= 500;
+                let delay;
+
+                if (isIntensive) {
+                    delay = effectiveDelayBase;
+                } else {
+                    const backoff =
+                        effectiveDelayBase *
+                        Math.pow(2, currentRetries) *
+                        (1 + secureRandom() * JITTER_FACTOR);
+                    delay = Math.min(backoff, 30000);
+                }
 
                 store.updatePlayerState(streamId, {
                     retryCount: nextRetryCount,
@@ -210,6 +307,14 @@ class MultiPlayerService {
                 }, delay);
                 this.retryTimers.set(streamId, timerId);
             } else {
+                // Finalize downtime
+                if (this.errorStartTimes.has(streamId)) {
+                    const downtime =
+                        Date.now() - this.errorStartTimes.get(streamId);
+                    store.incrementDowntime(streamId, downtime);
+                    this.errorStartTimes.delete(streamId);
+                }
+
                 store.logEvent({
                     streamId,
                     streamName,

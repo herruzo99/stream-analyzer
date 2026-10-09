@@ -321,10 +321,18 @@ export class SegmentExplorerEngine {
                     ? !activeUrlSet.has(seg.uniqueId)
                     : false;
 
-                const timelineId =
-                    typeof seg.number === 'number'
-                        ? `${seg.number}_${seg.uniqueId}`
-                        : `${seg.time}_${seg.uniqueId}`;
+                // FIX: Use segment time or number as the primary key for stability.
+                // This ensures that the ID remains stable across manifest updates even if the URL changes
+                // but the content position (time/number) remains the same.
+                let timelineId;
+                if (typeof seg.time === 'number') {
+                    timelineId = `t-${seg.time}`;
+                } else if (typeof seg.number === 'number') {
+                    timelineId = `n-${seg.number}`;
+                } else {
+                    // Fallback to the full uniqueId (usually URL) as a last resort
+                    timelineId = seg.uniqueId;
+                }
 
                 segmentHistory.set(timelineId, {
                     ...seg,

@@ -74,20 +74,20 @@ class PlayerRosterComponent extends HTMLElement {
             'rounded-md': true,
             'cursor-pointer': true,
             'transition-colors': true,
-            'hover:bg-slate-700/50': true,
+            'hover:bg-slate-800': true,
             'ring-2': isHovered,
             'ring-purple-500': isHovered,
-            'bg-slate-800/50': true,
+            'bg-slate-800': true,
         });
 
         const stateColors = {
-            playing: 'bg-green-500',
-            paused: 'bg-yellow-500',
+            playing: 'bg-emerald-500',
+            paused: 'bg-amber-500',
             buffering: 'bg-blue-500 animate-pulse',
-            ended: 'bg-slate-500',
+            ended: 'bg-slate-400',
             error: 'bg-red-500',
-            loading: 'bg-slate-500 animate-pulse',
-            idle: 'bg-slate-600',
+            loading: 'bg-slate-400 animate-pulse',
+            idle: 'bg-slate-800',
         };
 
         const progressPercent = player.normalizedPlayheadTime * 100;
@@ -116,27 +116,27 @@ class PlayerRosterComponent extends HTMLElement {
                         @click=${(e) => e.stopPropagation()}
                         @change=${() =>
                             this._handleToggleSelection(player.streamId)}
-                        class="rounded bg-slate-600 border-slate-500 text-blue-500 focus:ring-blue-600 h-5 w-5 shrink-0"
+                        class="rounded bg-slate-800 border-slate-400 text-blue-400 focus:ring-blue-500 h-5 w-5 shrink-0"
                     />
                     <div
-                        class="grow font-semibold text-slate-300 truncate text-sm"
+                        class="grow font-semibold text-slate-100 truncate text-sm"
                     >
                         ${player.streamName}
                     </div>
                     <div
                         class="w-3 h-3 rounded-full shrink-0 ${stateColors[
                             player.state
-                        ] || 'bg-slate-600'}"
+                        ] || 'bg-slate-800'}"
                         title="Status: ${player.state}"
                     ></div>
                 </div>
                 <div class="mt-2 pl-8">
                     <div
-                        class="w-full bg-slate-700 rounded-full h-2 cursor-pointer relative"
+                        class="w-full bg-slate-800 rounded-full h-2 cursor-pointer relative"
                         @click=${(e) => this._handleSeek(e, player)}
                     >
                         <div
-                            class="bg-slate-600 h-2 rounded-full absolute inset-0"
+                            class="bg-slate-800 h-2 rounded-full absolute inset-0"
                         ></div>
                         <div
                             class="bg-blue-500 h-2 rounded-full absolute top-0 left-0"
@@ -168,7 +168,9 @@ class PlayerRosterComponent extends HTMLElement {
         const template = html`
             <div class="space-y-3">
                 <div class="flex justify-between items-center">
-                    <h4 class="text-md font-bold text-slate-300">
+                    <h4
+                        class="text-md font-bold text-slate-100"
+                    >
                         Player Roster
                     </h4>
                     <div class="flex items-center gap-2">
@@ -182,7 +184,7 @@ class PlayerRosterComponent extends HTMLElement {
                             id="select-all-toggle"
                             .checked=${isAllSelected}
                             @change=${this._handleToggleAll}
-                            class="rounded bg-slate-600 border-slate-500 text-blue-500 focus:ring-blue-600 h-5 w-5"
+                            class="rounded bg-slate-800 border-slate-400 text-blue-400 focus:ring-blue-500 h-5 w-5"
                         />
                     </div>
                 </div>
