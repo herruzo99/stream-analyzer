@@ -1,17 +1,22 @@
-import { BaseView } from '@/ui/core/BaseView';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useTestSuiteStore } from '@/state/testSuiteStore';
-import { uiActions, useUiStore } from '@/state/uiStore';
 import { html, render } from 'lit-html';
 import { testRunnerTemplate } from './components/test-runner.js';
 import { suiteLibrarySidebarTemplate } from './components/suite-library-sidebar.js';
 import { suiteHeaderTemplate } from './components/suite-header.js';
 import './components/test-suite-manager.js';
 
-class RegressionView extends BaseView {
+class RegressionView {
+    // Port note: was `extends BaseView` (never committed). Plain class
+    // with inlined mount/unmount/subscribe; slots composed in-container
+    // (no shell slots in 1.2.0).
     constructor() {
-        super();
-        this.hasContextualSidebar = false; // We use SubNav instead
+        this.hasContextualSidebar = false;
+        this._unsubs = [];
+        this._sidebarPanel = null;
+        this._headerPanel = null;
+        this.container = null;
+        this.stream = null;
     }
 
     onMount() {
@@ -37,31 +42,48 @@ class RegressionView extends BaseView {
         this.render();
     }
 
+    subscribe(store, listener) {
+        const unsubscribe = store.subscribe(listener);
+        this._unsubs.push(unsubscribe);
+        return unsubscribe;
+    }
+
+    /**
+     * @param {HTMLElement} containerElement
+     * @param {{ stream?: any }} [args]
+     */
+    mount(containerElement, { stream } = {}) {
+        this.container = containerElement;
+        this.stream = stream || null;
+        this.onMount();
+    }
+
+    unmount() {
+        this.onUnmount();
+        for (const unsubscribe of this._unsubs.splice(0)) {
+            try {
+                unsubscribe();
+            } catch {
+                /* ignore late unsubscribe errors */
+            }
+        }
+        if (this.container) render(html``, this.container);
+        this.container = null;
+        this.stream = null;
+    }
+
     onUnmount() {
-        // BaseView cleans up subscriptions and shell slots automatically... 
-        // BUT we need to be explicit about SubNav and TopBar if the next view doesn't overwrite them immediately,
-        // although MainRenderer handles slot clearing for standard views.
-        // Good practice to clear them if we "own" them.
-        uiActions.setShellSlot('subNav', null);
-        uiActions.setShellSlot('topBar', null);
+        // Subscriptions release in unmount().
     }
 
     updateShell() {
         const { streams, activeStreamId } = useAnalysisStore.getState();
         const stream = streams.find((s) => s.id === activeStreamId);
 
-        // 1. SubNav: Test Suite Library
-        // We want a slightly wider nav than default to fit names
-        this.setShellConfig({ subNavWidth: '320px' });
-        this.setShellSlot('subNav', suiteLibrarySidebarTemplate());
-
-        // 2. TopBar: Suite Header (Contextual Actions)
-        this.setShellSlot('topBar', suiteHeaderTemplate(stream), { padding: false });
-
-        // 3. Main Padding: We want "floating" feel, so keep padding ON (default)
-        // But if we want the "Full Glass" background to be handled by the layout-card inside TestRunner,
-        // we might actually want padding=true to give it breathing room from the shell edges.
-        this.setMainPadding(true);
+        // 1. Sidebar panel + 2. header panel, composed in-container below.
+        this._sidebarPanel = suiteLibrarySidebarTemplate();
+        this._headerPanel = suiteHeaderTemplate(stream);
+        // (Port: no shell padding helper in 1.2.0; layout uses in-flow spacing.)
     }
 
     renderWithStream(stream) {
@@ -79,6 +101,9 @@ class RegressionView extends BaseView {
 
         const { streams, activeStreamId } = useAnalysisStore.getState();
         const stream = streams.find((s) => s.id === activeStreamId);
+        // Refresh panels every render (cheap templates; avoids stale
+        // sidebar/header after store updates outside subscriptions).
+        if (stream?.manifest) this.updateShell();
 
         // Re-inject shell slots on render to ensure reactivity
         // (Optimization: modify components to handle their own reactivity internally, 
@@ -88,8 +113,8 @@ class RegressionView extends BaseView {
         if (!stream || !stream.manifest) {
             render(
                 html`
-                    <div class="flex flex-col items-center justify-center h-full text-[var(--text-on-A-secondary)] animate-fadeIn">
-                        <div class="p-6 rounded-full bg-[var(--bg-glass-B-3)] mb-4">
+                    <div class="flex flex-col items-center justify-center h-full text-slate-400 animate-fadeIn">
+                        <div class="p-6 rounded-full bg-slate-800 mb-4">
                              <!-- Simple Icon Placeholders if icons not avail in scope, but we imported them in components -->
                              <span class="text-4xl opacity-50">?</span>
                         </div>
@@ -102,7 +127,28 @@ class RegressionView extends BaseView {
             return;
         }
 
-        render(this.renderWithStream(stream), this.container);
+        render(
+            html`
+            <div class="flex flex-col h-full w-full overflow-hidden">
+                ${this._headerPanel
+                    ? html`<div class="shrink-0 px-2 pt-2">${this._headerPanel}</div>`
+                    : ''}
+                <div class="grow min-h-0 flex overflow-hidden">
+                    ${this._sidebarPanel
+                        ? html`<div
+                              class="w-72 shrink-0 border-r border-slate-800 overflow-y-auto custom-scrollbar hidden md:block"
+                          >
+                              ${this._sidebarPanel}
+                          </div>`
+                        : ''}
+                    <div class="grow min-h-0 overflow-hidden">
+                        ${this.renderWithStream(stream)}
+                    </div>
+                </div>
+            </div>
+        `,
+            this.container
+        );
     }
 }
 

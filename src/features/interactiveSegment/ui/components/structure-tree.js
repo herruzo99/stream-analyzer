@@ -235,7 +235,7 @@ class StructureTree extends HTMLElement {
         if (isSelected) {
             // Neon Selection
             containerClass +=
-                'bg-gradient-to-r from-[#3b82f6]/20 to-transparent text-white border-[#3b82f6] z-10 relative rounded-r shadow-[0_0_15px_var(--primary-500-glow)]';
+                'bg-gradient-to-r from-[#3b82f6]/20 to-transparent text-white border-[#3b82f6] z-10 relative rounded-r shadow-[0_0_15px_#3b82f6]';
         } else if (isHovered) {
             // Glass Hover
             containerClass +=

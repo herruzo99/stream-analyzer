@@ -408,6 +408,16 @@ class SidebarNav extends HTMLElement {
                         </div>
                     `;
         })}
+                <button
+                    @click=${() => useUiStore.getState().toggleGlobalNavCompact?.()}
+                    class="mt-2 flex items-center gap-2 px-2 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all text-[10px] font-bold uppercase tracking-widest"
+                    title="${isGlobalNavCompact ? 'Expand navigation' : 'Collapse navigation'}"
+                >
+                    ${icons.sidebar}
+                    ${!isGlobalNavCompact
+                        ? html`<span>Collapse</span>`
+                        : ''}
+                </button>
             </div>
         `;
 

@@ -1,4 +1,3 @@
-import { BaseView } from '@/ui/core/BaseView';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { uiActions, useUiStore } from '@/state/uiStore';
@@ -9,13 +8,48 @@ import { comparisonHeaderTemplate } from './components/comparison-header.js';
 import { diffOverviewTemplate } from './components/diff-overview.js';
 import { diffTreeTemplate } from './components/diff-tree.js';
 
-class SegmentComparisonView extends BaseView {
+class SegmentComparisonView {
+    // Port note: was `extends BaseView` (never committed). Plain class
+    // with inlined mount/unmount/subscribe; slots composed in-container
+    // (no shell slots in 1.2.0).
     constructor() {
-        super();
         this.viewState = {
             lastIdA: null,
             lastIdB: null
         };
+        this._unsubs = [];
+        this.container = null;
+        this.stream = null;
+    }
+
+    subscribe(store, listener) {
+        const unsubscribe = store.subscribe(listener);
+        this._unsubs.push(unsubscribe);
+        return unsubscribe;
+    }
+
+    /**
+     * @param {HTMLElement} containerElement
+     * @param {{ stream?: any }} [args]
+     */
+    mount(containerElement, { stream } = {}) {
+        this.container = containerElement;
+        this.stream = stream || null;
+        this.onMount();
+    }
+
+    unmount() {
+        this.onUnmount();
+        for (const unsubscribe of this._unsubs.splice(0)) {
+            try {
+                unsubscribe();
+            } catch {
+                /* ignore late unsubscribe errors */
+            }
+        }
+        if (this.container) render(html``, this.container);
+        this.container = null;
+        this.stream = null;
     }
 
     onMount() {
@@ -33,15 +67,11 @@ class SegmentComparisonView extends BaseView {
             }
         });
 
-        // Initialize slots
-        // We set a slightly taller topBar to accommodate the large selectors
-        this.setShellSlot('topBar', null);
-
         this.render();
     }
 
     onUnmount() {
-        // BaseView auto-cleans slots and subscriptions
+        // Subscriptions release in unmount(); nothing else persistent.
     }
 
     // Helper to sync selection if needed
@@ -60,40 +90,38 @@ class SegmentComparisonView extends BaseView {
     render() {
         if (!this.container) return;
 
-        const { activeThemeId } = useUiStore.getState();
-        const isSolid = activeThemeId === 'pro-compact';
+        // Port: no themes in 1.2.0; solid styling throughout.
+        const isSolid = true;
 
         let state;
         try {
             state = selectSegmentComparisonState();
         } catch (error) {
             console.error('Segment Comparison Error:', error);
-            this.setShellSlot('topBar', null);
-            this.setShellSlot('bottomBar', null);
             render(
                 html`
-                <div class="fixed inset-0 z-[100] flex flex-col items-center justify-center w-full h-full bg-[var(--bg-surface-A-main)] text-[var(--color-error)]">
+                <div class="fixed inset-0 z-[100] flex flex-col items-center justify-center w-full h-full bg-slate-900 text-red-400">
                     <!-- Ambient Background Orb -->
-                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-[var(--color-error)]/5 rounded-full blur-[100px]"></div>
+                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-red-500/5 rounded-full blur-[100px]"></div>
 
-                    <div class="relative z-10 p-8 bg-[var(--bg-surface-A-elevated)]/40 rounded-full border border-[var(--color-error)]/20 shadow-2xl mb-6 backdrop-blur-2xl group transition-all duration-500 hover:border-[var(--color-error)]/30">
-                        <div class="absolute inset-0 rounded-full bg-gradient-to-br from-[var(--color-error)]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                        <div class="relative z-10 text-[var(--color-error)] group-hover:scale-110 transition-transform duration-500">
+                    <div class="relative z-10 p-8 bg-slate-800/40 rounded-full border border-red-500/20 shadow-2xl mb-6 backdrop-blur-2xl group transition-all duration-500 hover:border-red-500/30">
+                        <div class="absolute inset-0 rounded-full bg-gradient-to-br from-red-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                        <div class="relative z-10 text-red-400 group-hover:scale-110 transition-transform duration-500">
                             ${icons.alertTriangle}
                         </div>
                     </div>
 
-                    <h3 class="relative z-10 text-2xl font-bold text-[var(--color-error)] tracking-tight">
+                    <h3 class="relative z-10 text-2xl font-bold text-red-400 tracking-tight">
                         Comparison Failed
                     </h3>
 
-                    <p class="relative z-10 text-sm mt-3 max-w-sm text-center leading-relaxed text-[var(--text-on-A-secondary)]">
+                    <p class="relative z-10 text-sm mt-3 max-w-sm text-center leading-relaxed text-slate-400">
                         ${error.message || 'An unexpected error occurred during segment analysis.'}
                     </p>
                     
                     <button 
                         @click=${() => uiActions.clearSegmentComparisonSelection()}
-                        class="relative z-10 mt-8 px-6 py-2 rounded-full bg-[var(--color-error)]/10 border border-[var(--color-error)]/20 text-[var(--color-error)] text-xs font-bold uppercase tracking-widest hover:bg-[var(--color-error)]/20 transition-colors"
+                        class="relative z-10 mt-8 px-6 py-2 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold uppercase tracking-widest hover:bg-red-500/20 transition-colors"
                     >
                         Reset Selection
                     </button>
@@ -105,32 +133,27 @@ class SegmentComparisonView extends BaseView {
         }
         this.checkSelectionSync(state);
 
-        // Dynamic Layout Adjustment
-        // For Solid mode, we want edge-to-edge (no padding) on the main slot
-        this.setMainPadding(!isSolid);
-
         // --- EMPTY STATE ---
         if (state.isEmpty) {
-            this.setShellSlot('topBar', null);
             render(
                 html`
-                <div class="flex flex-col items-center justify-center h-full text-[var(--text-on-A-secondary)] relative overflow-hidden animate-fadeIn">
+                <div class="flex flex-col items-center justify-center h-full text-slate-400 relative overflow-hidden animate-fadeIn">
                     <!-- Ambient Background Orb -->
-                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-[var(--primary-accent)]/5 rounded-full blur-[100px] animate-pulse-slow"></div>
+                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-blue-500/5 rounded-full blur-[100px] animate-pulse-slow"></div>
 
-                    <div class="relative z-10 p-8 bg-[var(--bg-surface-A-elevated)]/40 rounded-full border border-[var(--border-on-A)]/20 shadow-2xl mb-6 backdrop-blur-2xl group transition-all duration-500 hover:border-[var(--primary-accent)]/30">
-                        <div class="absolute inset-0 rounded-full bg-gradient-to-br from-[var(--primary-accent)]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                        <div class="relative z-10 text-[var(--primary-accent)]/60 group-hover:text-[var(--primary-accent)] transition-colors duration-500 transform group-hover:scale-110">
+                    <div class="relative z-10 p-8 bg-slate-800/40 rounded-full border border-slate-700/20 shadow-2xl mb-6 backdrop-blur-2xl group transition-all duration-500 hover:border-blue-500/30">
+                        <div class="absolute inset-0 rounded-full bg-gradient-to-br from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                        <div class="relative z-10 text-blue-400/60 group-hover:text-blue-400 transition-colors duration-500 transform group-hover:scale-110">
                             ${icons.list}
                         </div>
                     </div>
 
-                    <h3 class="relative z-10 text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[var(--text-on-A-primary)] to-[var(--text-on-A-secondary)] tracking-tight">
+                    <h3 class="relative z-10 text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-slate-200 to-slate-300 tracking-tight">
                         Comparison Queue Empty
                     </h3>
 
                     <p class="relative z-10 text-sm mt-3 max-w-sm text-center leading-relaxed opacity-80">
-                        Visit the <strong class="text-[var(--primary-accent)] font-semibold">Segment Explorer</strong> to select playback segments and begin deep structural analysis.
+                        Visit the <strong class="text-blue-400 font-semibold">Segment Explorer</strong> to select playback segments and begin deep structural analysis.
                     </p>
                 </div>
                 `,
@@ -152,50 +175,44 @@ class SegmentComparisonView extends BaseView {
             onSelectB: (seg) => uiActions.setSegmentComparisonSelection({ idB: seg.segment.uniqueId }),
         });
 
-        // Only update slot if content effectively changes or it's empty (though BaseView/Lit usually handles diffing if referentially stable)
-        // Here we just set it every render, relying on lit-html efficiency.
-        this.setShellSlot('topBar', header, { sizeMultiplier: 1.5, padding: false });
-
-        // 2. Render Main Content (Overview Only)
-        // Structural comparison now moves to bottomBar
-        const content = html`
-            <div class="flex flex-col h-full animate-fadeIn" style="gap: var(--region-gap)">
-                
-                <!-- Stats Overview -->
-                <div class="shrink-0">
-                     ${diffOverviewTemplate(state.segmentA, state.segmentB)}
-                </div>
-            </div>
-        `;
-
-        render(content, this.container);
-
-        // 3. Render Structural Comparison in Bottom Shelf
+        // 2. Render Main Content (overview + structural diff composed
+        // in-container; 1.2.0 has no topBar/bottomBar slots)
+        // 3. Structural Comparison section (was bottomBar slot)
         const structuralContent = html`
             <div class="w-full h-full flex flex-col relative min-h-0 overflow-hidden">
                 <div class="absolute inset-x-0 -top-6 flex justify-center z-0 pointer-events-none">
-                    <div class="h-6 w-32 bg-[var(--bg-glass-B-6)] rounded-t-xl opacity-50 blur-sm"></div>
+                    <div class="h-6 w-32 bg-slate-800 rounded-t-xl opacity-50 blur-sm"></div>
                 </div>
                 
                 <div class="flex items-center gap-3 mb-2 px-4 pt-2 shrink-0 relative z-10">
-                    <span class="text-[var(--primary-accent)] drop-shadow-[0_0_8px_var(--primary-accent-glow)] scale-110">
+                    <span class="text-blue-400 drop-shadow-[0_0_8px_#3b82f6] scale-110">
                         ${icons.gitMerge}
                     </span>
-                    <h3 class="text-[11px] font-black text-[var(--text-on-A-primary)] uppercase tracking-[0.2em] opacity-80">
+                    <h3 class="text-[11px] font-black text-slate-200 uppercase tracking-[0.2em] opacity-80">
                         Structural Comparison
                     </h3>
-                    <div class="h-px grow bg-gradient-to-r from-[var(--border-on-A)]/30 to-transparent ml-4"></div>
+                    <div class="h-px grow bg-gradient-to-r from-slate-700/30 to-transparent ml-4"></div>
                 </div>
 
                 <div 
-                    class="grow min-h-0 overflow-hidden relative z-10 mx-4 mb-4 ${isSolid ? 'rounded-xl border border-[var(--border-on-A)] bg-[var(--bg-surface-B-panel)]' : 'rounded-[var(--region-radius)] border border-[var(--border-on-A)]/10 shadow-inner bg-[var(--bg-glass-B-6)] backdrop-blur-xl'}"
+                    class="grow min-h-0 overflow-hidden relative z-10 mx-4 mb-4 ${isSolid ? 'rounded-xl border border-slate-700 bg-slate-800' : 'rounded-xl border border-slate-700/10 shadow-inner bg-slate-800 backdrop-blur-xl'}"
                 >
                     ${diffTreeTemplate(state.structuralDiff)}
                 </div>
             </div>
         `;
 
-        this.setShellSlot('bottomBar', structuralContent, { sizeMultiplier: isSolid ? 18 : 14.5, padding: false });
+        const content = html`
+            <div class="flex flex-col h-full min-h-0 animate-fadeIn gap-3 overflow-hidden">
+                <div class="shrink-0 px-2 pt-2">${header}</div>
+                <div class="shrink-0 max-h-[30%] overflow-y-auto custom-scrollbar">
+                     ${diffOverviewTemplate(state.segmentA, state.segmentB)}
+                </div>
+                <div class="grow min-h-0 overflow-hidden">${structuralContent}</div>
+            </div>
+        `;
+
+        render(content, this.container);
     }
 }
 

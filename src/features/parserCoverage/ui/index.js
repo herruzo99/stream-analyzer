@@ -57,24 +57,24 @@ function renderParserCoverage() {
     }
 
     const mainTemplate = html`
-        <div class="flex flex-col h-full bg-[var(--bg-surface-A-main)] p-6">
+        <div class="flex flex-col h-full bg-slate-900 p-6">
             <header
                 class="shrink-0 mb-4 flex justify-between items-center gap-4"
             >
                 <div>
                     <h3
-                        class="text-xl font-bold text-[var(--text-on-B-primary)]"
+                        class="text-xl font-bold text-slate-100"
                     >
                         Parser Coverage Analysis
                     </h3>
-                    <p class="text-sm text-[var(--text-on-B-secondary)] mt-1">
+                    <p class="text-sm text-slate-400 mt-1">
                         Highlights manifest elements not processed by the parser
                         (Unparsed) and internal schema inconsistencies (Drift).
                     </p>
                 </div>
                 <button
                     @click=${handleDebugCopy}
-                    class="bg-[var(--primary-accent)] hover:bg-[var(--primary-accent-hover)] text-white font-bold py-2 px-3 rounded-md transition-colors shrink-0 shadow-[var(--primary-accent-glow)]"
+                    class="bg-blue-500 hover:bg-[#60a5fa] text-white font-bold py-2 px-3 rounded-md transition-colors shrink-0 shadow-[#3b82f6]"
                 >
                     Copy Debug Report
                 </button>
@@ -87,7 +87,7 @@ function renderParserCoverage() {
             )}
             ${report.length === 0
                 ? html`<div
-                      class="mt-8 p-8 bg-[var(--bg-surface-B-panel)] backdrop-blur-3xl rounded-lg text-center text-[var(--color-success)] border border-[var(--color-success)]/50"
+                      class="mt-8 p-8 bg-slate-800 backdrop-blur-3xl rounded-lg text-center text-emerald-400 border border-emerald-500/50"
                   >
                       <p class="font-bold text-lg">🎉 Full Parser Coverage!</p>
                       <p>No unparsed elements or parser drift were detected.</p>
@@ -95,7 +95,7 @@ function renderParserCoverage() {
                 : html`<div class="grid lg:grid-cols-2 gap-6 mt-6 grow min-h-0">
                       <div class="flex flex-col h-full min-h-0">
                           <h4
-                              class="font-bold text-lg mb-2 text-[var(--text-on-B-primary)]"
+                              class="font-bold text-lg mb-2 text-slate-100"
                           >
                               Findings
                           </h4>
@@ -103,7 +103,7 @@ function renderParserCoverage() {
                               ${unparsedFindings.length > 0
                                   ? html`<section>
                                         <h5
-                                            class="font-semibold text-[var(--color-warning)] mb-2"
+                                            class="font-semibold text-amber-400 mb-2"
                                         >
                                             Unparsed Items
                                         </h5>
@@ -117,7 +117,7 @@ function renderParserCoverage() {
                               ${driftFindings.length > 0
                                   ? html`<section>
                                         <h5
-                                            class="font-semibold text-[var(--color-error)] mb-2"
+                                            class="font-semibold text-red-400 mb-2"
                                         >
                                             Schema Drift
                                         </h5>
@@ -132,12 +132,12 @@ function renderParserCoverage() {
                       </div>
                       <div class="flex flex-col h-full min-h-0">
                           <h4
-                              class="font-bold text-lg mb-2 text-[var(--text-on-B-primary)]"
+                              class="font-bold text-lg mb-2 text-slate-100"
                           >
                               Manifest Source
                           </h4>
                           <div
-                              class="bg-[var(--bg-surface-B-panel)] backdrop-blur-3xl rounded-lg p-2 font-mono text-sm leading-relaxed overflow-auto grow border border-[var(--border-on-B)]"
+                              class="bg-slate-800 backdrop-blur-3xl rounded-lg p-2 font-mono text-sm leading-relaxed overflow-auto grow border border-slate-800"
                           >
                               ${manifestViewTemplate(stream, report)}
                           </div>

@@ -243,8 +243,8 @@ export const streamContextSwitcherTemplate = (streams, activeStreamId) => {
 
     if (streams.length === 0) return html``;
 
-    const { shell } = useUiStore.getState();
-    const isGlass = shell.config.activeThemeId.includes('glass');
+    // Port: no themes in 1.2.0; solid styling throughout.
+    const isGlass = false;
     const { isGlobalNavCompact } = useUiStore.getState();
 
     const activeStream =

@@ -1,5 +1,4 @@
 import { testSuiteActions } from '@/state/testSuiteStore';
-import { useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
 import { closeDropdown, toggleDropdown } from '@/ui/services/dropdownService';
 import { html } from 'lit-html';
@@ -36,22 +35,22 @@ const propertyDropdownContent = (currentPath, onSelect) => {
 
         return html`
             <div
-                class="dropdown-panel bg-[var(--bg-glass-B-6)] backdrop-blur-xl border border-[var(--border-on-B)] rounded-xl shadow-2xl w-80 ring-1 ring-black/50 flex flex-col max-h-[60vh]"
+                class="dropdown-panel bg-slate-800 backdrop-blur-xl border border-slate-800 rounded-xl shadow-2xl w-80 ring-1 ring-black/50 flex flex-col max-h-[60vh]"
             >
                 <!-- Search Header -->
                 <div
-                    class="p-3 border-b border-[var(--border-on-B)] bg-[var(--bg-surface-B-panel)] sticky top-0 z-10"
+                    class="p-3 border-b border-slate-800 bg-slate-800 sticky top-0 z-10"
                 >
                     <div class="relative">
                         <div
-                            class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-on-B-secondary)] pointer-events-none scale-75"
+                            class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none scale-75"
                         >
                             ${icons.search}
                         </div>
                         <input
                             type="text"
                             placeholder="Find property..."
-                            class="w-full bg-[var(--bg-surface-B-panel-opaque)] border border-[var(--border-on-B)] rounded-lg py-1.5 pl-8 pr-3 text-xs text-[var(--text-on-B-primary)] focus:border-[var(--primary-accent)] outline-none"
+                            class="w-full bg-slate-800 border border-slate-800 rounded-lg py-1.5 pl-8 pr-3 text-xs text-slate-100 focus:border-blue-500 outline-none"
                             @input=${(e) => {
                 searchTerm = e.target.value;
                 updateDropdown();
@@ -68,7 +67,7 @@ const propertyDropdownContent = (currentPath, onSelect) => {
                 return html`
                             <div>
                                 <div
-                                    class="px-2 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-[var(--text-on-B-secondary)] flex items-center gap-2"
+                                    class="px-2 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2"
                                 >
                                     <span class="${cat.color} scale-75"
                                         >${cat.icon}</span
@@ -86,8 +85,8 @@ const propertyDropdownContent = (currentPath, onSelect) => {
                         }}
                                                 class="w-full text-left px-3 py-2 rounded-lg text-xs transition-colors flex items-center justify-between group ${currentPath ===
                             p.path
-                            ? 'bg-[var(--primary-accent)] text-white shadow-md'
-                            : 'text-[var(--text-on-B-secondary)] hover:bg-[var(--bg-surface-B-panel)] hover:text-[var(--text-on-B-primary)]'}"
+                            ? 'bg-blue-500 text-white shadow-md'
+                            : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}"
                                             >
                                                 <span class="truncate"
                                                     >${p.label}</span
@@ -107,21 +106,21 @@ const propertyDropdownContent = (currentPath, onSelect) => {
             })}
                     ${categoryKeys.length === 0
                 ? html`<div
-                              class="p-4 text-center text-[var(--text-on-B-secondary)] text-xs italic"
+                              class="p-4 text-center text-slate-400 text-xs italic"
                           >
                               No matching properties.
                           </div>`
                 : ''}
 
                     <!-- Custom Path Fallback -->
-                    <div class="border-t border-[var(--border-on-B)] pt-2">
+                    <div class="border-t border-slate-800 pt-2">
                         <button
                             @click=${(e) => {
                 e.stopPropagation();
                 onSelect(null);
                 closeDropdown();
             }}
-                            class="w-full text-left px-3 py-2 rounded-lg text-xs text-[var(--text-on-B-secondary)] hover:bg-[var(--bg-surface-B-panel)] hover:text-[var(--text-on-B-primary)] transition-colors flex items-center gap-2 border border-transparent hover:border-[var(--border-on-B)]"
+                            class="w-full text-left px-3 py-2 rounded-lg text-xs text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-colors flex items-center gap-2 border border-transparent hover:border-slate-800"
                         >
                             ${icons.code} Use Custom JSON Path
                         </button>
@@ -183,7 +182,7 @@ const assertionRow = (assert, index, onUpdate, onRemove, isGlass) => {
     if (assert.operator === 'exists') {
         valueInput = html`
             <div
-                class="h-10 flex items-center px-4 bg-[var(--bg-surface-B-panel)] border border-[var(--border-on-B)] rounded-lg text-xs text-[var(--text-on-B-secondary)] italic select-none w-full"
+                class="h-10 flex items-center px-4 bg-slate-800 border border-slate-800 rounded-lg text-xs text-slate-400 italic select-none w-full"
             >
                 Check presence only
             </div>
@@ -194,8 +193,8 @@ const assertionRow = (assert, index, onUpdate, onRemove, isGlass) => {
             <button
                 @click=${() => onUpdate(index, { value: String(!isTrue) })}
                 class="h-10 px-4 rounded-lg text-xs font-bold border transition-all w-full flex items-center justify-center gap-2 ${isTrue
-                ? 'bg-[var(--color-success)]/20 text-[var(--color-success)] border-[var(--color-success)]/40 hover:bg-[var(--color-success)]/30 shadow-[0_0_10px_var(--color-success)]'
-                : 'bg-[var(--color-error)]/20 text-[var(--color-error)] border-[var(--color-error)]/40 hover:bg-[var(--color-error)]/30 shadow-[0_0_10px_var(--color-error)]'}"
+                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/30 shadow-[0_0_10px_#10b981]'
+                : 'bg-red-500/20 text-red-400 border-red-500/40 hover:bg-red-500/30 shadow-[0_0_10px_#ef4444]'}"
             >
                 ${isTrue ? icons.checkCircle : icons.xCircle}
                 ${isTrue ? 'TRUE' : 'FALSE'}
@@ -206,14 +205,14 @@ const assertionRow = (assert, index, onUpdate, onRemove, isGlass) => {
             <div class="relative flex items-center w-full group/input">
                 <input
                     type="number"
-                    class="h-10 bg-[var(--bg-surface-B-panel)] border border-[var(--border-on-B)] hover:border-[var(--primary-accent)]/50 rounded-lg py-1.5 pl-4 pr-10 text-xs text-[var(--text-on-B-primary)] font-mono w-full focus:border-[var(--primary-accent)] focus:bg-[var(--primary-accent)]/5 focus:ring-1 focus:ring-[var(--primary-accent)] outline-none transition-all"
+                    class="h-10 bg-slate-800 border border-slate-800 hover:border-blue-500/50 rounded-lg py-1.5 pl-4 pr-10 text-xs text-slate-100 font-mono w-full focus:border-blue-500 focus:bg-blue-500/5 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
                     .value=${assert.value}
                     @input=${(e) => onUpdate(index, { value: e.target.value })}
                     step="any"
                 />
                 ${propDef?.unit
                 ? html`<span
-                          class="absolute right-3 text-[10px] text-[var(--text-on-B-secondary)] select-none font-bold group-focus-within/input:text-[var(--primary-accent)] transition-colors"
+                          class="absolute right-3 text-[10px] text-slate-400 select-none font-bold group-focus-within/input:text-blue-400 transition-colors"
                           >${propDef.unit}</span
                       >`
                 : ''}
@@ -223,7 +222,7 @@ const assertionRow = (assert, index, onUpdate, onRemove, isGlass) => {
         valueInput = html`
             <input
                 type="text"
-                class="h-10 bg-[var(--bg-surface-B-panel)] border border-[var(--border-on-B)] hover:border-[var(--primary-accent)]/50 rounded-lg py-1.5 px-4 text-xs text-[var(--text-on-B-primary)] font-mono w-full focus:border-[var(--primary-accent)] focus:bg-[var(--primary-accent)]/5 focus:ring-1 focus:ring-[var(--primary-accent)] outline-none transition-all placeholder-[var(--text-on-B-secondary)]/50"
+                class="h-10 bg-slate-800 border border-slate-800 hover:border-blue-500/50 rounded-lg py-1.5 px-4 text-xs text-slate-100 font-mono w-full focus:border-blue-500 focus:bg-blue-500/5 focus:ring-1 focus:ring-blue-500 outline-none transition-all placeholder-slate-400/50"
                 .value=${assert.value}
                 placeholder="Expected Value..."
                 @input=${(e) => onUpdate(index, { value: e.target.value })}
@@ -232,25 +231,25 @@ const assertionRow = (assert, index, onUpdate, onRemove, isGlass) => {
     }
 
     // Row Styling Condition
-    const rowBase = "layout-card flex flex-col transition-all hover:shadow-[0_0_20px_rgba(0,0,0,0.3)] hover:border-[var(--border-on-B)] hover:bg-[var(--bg-glass-B-3)] group animate-fadeIn relative";
+    const rowBase = "layout-card flex flex-col transition-all hover:shadow-[0_0_20px_rgba(0,0,0,0.3)] hover:border-slate-800 hover:bg-slate-800 group animate-fadeIn relative";
     const rowStyle = isGlass
         ? "" // Glass: Let default flow, no border/bg overrides
-        : "bg-[var(--bg-surface-B-panel)] border border-[var(--border-on-B)]";
+        : "bg-slate-800 border border-slate-800";
 
     return html`
         <div class="${rowBase} ${rowStyle}">
             
             <!-- Header: Index, Category, Remove -->
-            <div class="flex items-center justify-between p-3 border-b border-[var(--border-on-B)] bg-[var(--bg-surface-B-panel)]/30">
+            <div class="flex items-center justify-between p-3 border-b border-slate-800 bg-slate-800/30">
                 <div class="flex items-center gap-3">
-                    <span class="text-[10px] font-mono text-[var(--text-on-B-secondary)] opacity-50 select-none">
+                    <span class="text-[10px] font-mono text-slate-400 opacity-50 select-none">
                         #${String(index + 1).padStart(2, '0')}
                     </span>
                     
                     <!-- Small Category Badge -->
-                    <div class="flex items-center gap-2 pl-2 border-l border-[var(--border-on-B)]">
+                    <div class="flex items-center gap-2 pl-2 border-l border-slate-800">
                         <span class="${category.color} scale-75">${category.icon}</span>
-                        <span class="text-[10px] font-bold text-[var(--text-on-B-secondary)] uppercase tracking-wider opacity-80">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider opacity-80">
                             ${category.label}
                         </span>
                     </div>
@@ -258,7 +257,7 @@ const assertionRow = (assert, index, onUpdate, onRemove, isGlass) => {
 
                 <button
                     @click=${() => onRemove(index)}
-                    class="p-1.5 text-[var(--text-on-B-secondary)] hover:text-[var(--color-error)] hover:bg-[var(--color-error)]/10 rounded-md transition-colors"
+                    class="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors"
                     title="Remove Rule"
                 >
                     ${icons.xCircle}
@@ -281,22 +280,22 @@ const assertionRow = (assert, index, onUpdate, onRemove, isGlass) => {
                     ),
                 e
             )}
-                        class="flex items-center justify-between w-full bg-[var(--bg-surface-B-panel)] border border-[var(--border-on-B)] hover:border-[var(--primary-accent)]/50 rounded-lg px-3 py-2 text-xs text-left transition-all shadow-inner group/btn hover:bg-[var(--bg-surface-B-panel-opaque)]"
+                        class="flex items-center justify-between w-full bg-slate-800 border border-slate-800 hover:border-blue-500/50 rounded-lg px-3 py-2 text-xs text-left transition-all shadow-inner group/btn hover:bg-slate-800"
                     >
                         <div class="flex items-center gap-2 min-w-0">
-                            <span class="text-[var(--text-on-B-secondary)] scale-75">${icons.search}</span>
-                            <span class="text-[var(--text-on-B-primary)] font-bold truncate">
+                            <span class="text-slate-400 scale-75">${icons.search}</span>
+                            <span class="text-slate-100 font-bold truncate">
                                 ${propDef ? propDef.label : assert.path || 'Select Property...'}
                             </span>
                         </div>
-                        <span class="text-[var(--text-on-B-secondary)] group-hover/btn:text-[var(--text-on-B-primary)] scale-75 transition-colors">
+                        <span class="text-slate-400 group-hover/btn:text-slate-100 scale-75 transition-colors">
                             ${icons.chevronDown}
                         </span>
                     </button>
                     ${!propDef
             ? html`<input
                               type="text"
-                              class="mt-2 w-full bg-[var(--bg-surface-B-panel)] border border-[var(--border-on-B)] rounded-lg px-3 py-2 text-[10px] font-mono text-[var(--text-on-B-secondary)] focus:border-[var(--primary-accent)]/50 outline-none transition-colors"
+                              class="mt-2 w-full bg-slate-800 border border-slate-800 rounded-lg px-3 py-2 text-[10px] font-mono text-slate-400 focus:border-blue-500/50 outline-none transition-colors"
                               .value=${assert.path}
                               @change=${(e) =>
                     onUpdate(index, { path: e.target.value })}
@@ -309,7 +308,7 @@ const assertionRow = (assert, index, onUpdate, onRemove, isGlass) => {
                 <div class="flex items-center gap-2">
                     <div class="relative w-1/3 min-w-[120px]">
                         <select
-                            class="w-full h-10 bg-[var(--bg-surface-B-panel)] border border-[var(--border-on-B)] hover:border-[var(--border-on-B)] rounded-lg px-3 text-xs text-[var(--text-on-B-primary)] appearance-none cursor-pointer focus:border-[var(--primary-accent)] outline-none transition-colors font-medium"
+                            class="w-full h-10 bg-slate-800 border border-slate-800 hover:border-slate-800 rounded-lg px-3 text-xs text-slate-100 appearance-none cursor-pointer focus:border-blue-500 outline-none transition-colors font-medium"
                             .value=${assert.operator}
                             @change=${(e) =>
             onUpdate(index, { operator: e.target.value })}
@@ -322,7 +321,7 @@ const assertionRow = (assert, index, onUpdate, onRemove, isGlass) => {
             )}
                         </select>
                         <div
-                            class="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-on-B-secondary)] pointer-events-none scale-75"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none scale-75"
                         >
                             ${icons.chevronDown}
                         </div>
@@ -338,19 +337,13 @@ const assertionRow = (assert, index, onUpdate, onRemove, isGlass) => {
 export const testSuiteManagerTemplate = (suite) => {
     if (!suite) return html``;
 
-    const { shell } = useUiStore.getState();
-
-    // Theme Logic
-    const isGlass = shell.config.activeThemeId.includes('glass');
+    // Port: no themes in 1.2.0; solid styling throughout.
+    const isGlass = false;
     const gridGap = isGlass ? 'gap-4' : 'gap-2';
 
     const emptyStateStyle = isGlass
-        ? "bg-[var(--bg-glass-B-2)] border-2 border-dashed border-[var(--border-on-A)]"
-        : "bg-[var(--bg-surface-B-panel)] border-2 border-dashed border-[var(--border-on-A)]";
-
-    const handleUpdateSuite = (field, value) => {
-        testSuiteActions.updateSuite(suite.id, { [field]: value });
-    };
+        ? "bg-slate-800 border-2 border-dashed border-slate-700"
+        : "bg-slate-800 border-2 border-dashed border-slate-700";
 
     const updateAssertion = (index, updates) => {
         const newAssertions = [...suite.assertions];
@@ -383,15 +376,15 @@ export const testSuiteManagerTemplate = (suite) => {
                 ${(suite.assertions || []).length === 0
             ? html`
                           <div
-                              class="layout-card flex flex-col items-center justify-center h-full min-h-[400px] rounded-[var(--region-radius)] text-[var(--text-on-A-secondary)] group hover:border-[var(--primary-accent)]/30 hover:bg-[var(--bg-glass-B-3)] transition-all ${emptyStateStyle}"
+                              class="layout-card flex flex-col items-center justify-center h-full min-h-[400px] rounded-xl text-slate-400 group hover:border-blue-500/30 hover:bg-slate-800 transition-all ${emptyStateStyle}"
                           >
                               <div
-                                  class="p-6 bg-[var(--bg-surface-B-panel)] rounded-full mb-6 shadow-2xl group-hover:scale-110 transition-transform duration-500"
+                                  class="p-6 bg-slate-800 rounded-full mb-6 shadow-2xl group-hover:scale-110 transition-transform duration-500"
                               >
                                   ${icons.beaker}
                               </div>
                               <h3
-                                  class="text-[var(--text-on-A-primary)] font-bold mb-2 text-lg"
+                                  class="text-slate-200 font-bold mb-2 text-lg"
                               >
                                   No Rules Yet
                               </h3>
@@ -403,7 +396,7 @@ export const testSuiteManagerTemplate = (suite) => {
                               </p>
                               <button
                                   @click=${addAssertion}
-                                  class="px-8 py-3 bg-[var(--primary-accent)] hover:bg-[var(--primary-accent-hover)] text-white text-sm font-bold rounded-xl shadow-[0_0_20px_var(--primary-accent-glow)] hover:shadow-[0_0_30px_var(--primary-accent-glow)] transition-all flex items-center gap-3 hover:-translate-y-1"
+                                  class="px-8 py-3 bg-blue-500 hover:bg-[#60a5fa] text-white text-sm font-bold rounded-xl shadow-[0_0_20px_#3b82f6] hover:shadow-[0_0_30px_#3b82f6] transition-all flex items-center gap-3 hover:-translate-y-1"
                               >
                                   ${icons.plusCircle} Add First Rule
                               </button>
@@ -425,10 +418,10 @@ export const testSuiteManagerTemplate = (suite) => {
 
                               <button
                                   @click=${addAssertion}
-                                  class="h-full min-h-[140px] border-2 border-dashed border-[var(--border-on-A)] rounded-[var(--region-radius)] text-[var(--text-on-A-secondary)] hover:text-[var(--primary-accent)] hover:border-[var(--primary-accent)]/30 hover:bg-[var(--primary-accent)]/[0.02] transition-all flex flex-col items-center justify-center gap-3 font-bold text-xs group"
+                                  class="h-full min-h-[140px] border-2 border-dashed border-slate-700 rounded-xl text-slate-400 hover:text-blue-400 hover:border-blue-500/30 hover:bg-blue-500/[0.02] transition-all flex flex-col items-center justify-center gap-3 font-bold text-xs group"
                               >
                                   <div
-                                      class="p-3 bg-[var(--bg-surface-B-panel)] rounded-full group-hover:scale-110 transition-transform border border-[var(--border-on-B)] group-hover:border-[var(--primary-accent)]/20 group-hover:bg-[var(--primary-accent)]/10"
+                                      class="p-3 bg-slate-800 rounded-full group-hover:scale-110 transition-transform border border-slate-800 group-hover:border-blue-500/20 group-hover:bg-blue-500/10"
                                   >
                                       ${icons.plusCircle}
                                   </div>

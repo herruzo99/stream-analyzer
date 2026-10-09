@@ -12,7 +12,7 @@ const diffValue = (valA, valB, formatter = (v) => v) => {
 
     if (!isDiff) {
         return html`<span
-            class="font-mono text-[var(--text-on-A-primary)] text-sm opacity-90"
+            class="font-mono text-slate-200 text-sm opacity-90"
             >${formattedA}</span
         >`;
     }
@@ -22,15 +22,15 @@ const diffValue = (valA, valB, formatter = (v) => v) => {
             class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 font-mono text-xs"
         >
             <span
-                class="text-[var(--color-error)]/40 line-through decoration-[var(--color-error)]/30 decoration-1 italic"
+                class="text-red-400/40 line-through decoration-red-500/30 decoration-1 italic"
                 >${formattedA}</span
             >
             <span
-                class="hidden sm:inline text-[var(--text-on-A-secondary)] opacity-30 px-1"
+                class="hidden sm:inline text-slate-400 opacity-30 px-1"
                 >${icons.arrowRight}</span
             >
             <span
-                class="text-[var(--primary-accent)] font-black bg-[var(--primary-accent)]/10 px-2 py-1 rounded-md border border-[var(--primary-accent)]/20 shadow-[0_0_15px_var(--primary-accent-glow)]/20"
+                class="text-blue-400 font-black bg-blue-500/10 px-2 py-1 rounded-md border border-blue-500/20 shadow-[0_0_15px_#3b82f6]/20"
             >
                 ${formattedB}
             </span>
@@ -40,12 +40,12 @@ const diffValue = (valA, valB, formatter = (v) => v) => {
 
 const statRow = (label, valA, valB, icon, formatter, isSolid) => html`
     <div
-        class="flex flex-col justify-between p-4 ${isSolid ? 'bg-[var(--bg-surface-B-panel)] border border-[var(--border-on-A)]' : 'bg-[var(--bg-glass-B-4)] backdrop-blur-xl border border-[var(--border-on-A)]/10 hover:border-[var(--primary-accent)]/20'} rounded-[var(--region-radius)] transition-all duration-300 group h-full shadow-[var(--region-shadow)] relative overflow-hidden"
+        class="flex flex-col justify-between p-4 ${isSolid ? 'bg-slate-800 border border-slate-700' : 'bg-slate-800 backdrop-blur-xl border border-slate-700/10 hover:border-blue-500/20'} rounded-xl transition-all duration-300 group h-full shadow-[0_8px_30px_rgb(0_0_0_/_0.35)] relative overflow-hidden"
     >
         <div class="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
         
         <div
-            class="flex items-center gap-2 text-[var(--text-on-A-secondary)] text-[10px] font-black uppercase tracking-[0.15em] mb-3 opacity-60 group-hover:opacity-100 group-hover:text-[var(--primary-accent)] transition-all relative z-10"
+            class="flex items-center gap-2 text-slate-400 text-[10px] font-black uppercase tracking-[0.15em] mb-3 opacity-60 group-hover:opacity-100 group-hover:text-blue-400 transition-all relative z-10"
         >
             <span class="scale-90">${icon}</span> ${label}
         </div>

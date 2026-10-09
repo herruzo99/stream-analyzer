@@ -69,6 +69,7 @@ const createInitialUiState = () => ({
     comparisonSelectorsExpanded: true,
     fabMenu: { isOpen: false, activeSubMenu: null },
     fabSideMenuOpen: false,
+    isGlobalNavCompact: false,
     adDetectionPreferences: {
         SCTE35_INBAND: true,
         SCTE35_DATERANGE: true,
@@ -151,6 +152,8 @@ export const useUiStore = createStore((set, get) => ({
         set((state) => ({ fabMenu: { ...state.fabMenu, activeSubMenu: id } })),
     toggleFabSideMenu: () =>
         set((state) => ({ fabSideMenuOpen: !state.fabSideMenuOpen })),
+    toggleGlobalNavCompact: () =>
+        set((state) => ({ isGlobalNavCompact: !state.isGlobalNavCompact })),
     setAdDetectionPreference: (method, isEnabled) =>
         set((state) => ({
             adDetectionPreferences: {

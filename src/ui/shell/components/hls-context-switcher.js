@@ -297,8 +297,9 @@ const hlsDropdownContent = (stream, isGlass) => {
 };
 
 export const hlsContextSwitcherTemplate = (stream) => {
-    const { shell, isGlobalNavCompact } = useUiStore.getState();
-    const isGlass = shell.config.activeThemeId.includes('glass');
+    const { isGlobalNavCompact } = useUiStore.getState();
+    // Port: no themes in 1.2.0; solid styling throughout.
+    const isGlass = false;
     const isMasterSelected = stream.activeMediaPlaylistId === 'master';
     const state = getLocalState(stream.id);
 
