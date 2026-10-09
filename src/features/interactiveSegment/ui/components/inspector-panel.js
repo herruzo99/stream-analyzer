@@ -8,7 +8,7 @@ const allTooltips = getTooltipData();
 
 const infoCard = (label, value, icon = null, width = 'full') => html`
     <div
-        class="bg-slate-800/40 backdrop-blur-xl rounded-xl border border-slate-800 p-3 flex flex-col shadow-sm group hover:bg-slate-800/60 transition-all duration-300 hover:shadow-[0_0_20px_var(--primary-500-glow)] hover:border-[#3b82f6]/50 ring-1 ring-white/5 ${width ===
+        class="bg-slate-800/40 backdrop-blur-xl rounded-xl border border-slate-800 p-3 flex flex-col shadow-sm group hover:bg-slate-800/60 transition-all duration-300 hover:shadow-[0_0_20px_#3b82f6] hover:border-[#3b82f6]/50 ring-1 ring-white/5 ${width ===
         'half'
             ? 'col-span-1'
             : 'col-span-2'}"
@@ -53,7 +53,7 @@ export const inspectorPanelTemplate = (parsedData) => {
                 ></div>
 
                 <div
-                    class="mb-6 p-6 bg-slate-800/40 backdrop-blur-xl rounded-full border border-slate-800 shadow-[0_0_30px_var(--primary-500-glow)] relative z-10 ring-1 ring-white/10 group"
+                    class="mb-6 p-6 bg-slate-800/40 backdrop-blur-xl rounded-full border border-slate-800 shadow-[0_0_30px_#3b82f6] relative z-10 ring-1 ring-white/10 group"
                 >
                     <div
                         class="text-blue-400 scale-150 group-hover:scale-[1.6] transition-transform duration-500"

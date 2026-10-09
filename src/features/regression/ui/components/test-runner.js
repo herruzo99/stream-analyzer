@@ -1,389 +1,243 @@
-import { runTestSuite } from '@/features/regression/domain/test-engine';
 import { testSuiteActions, useTestSuiteStore } from '@/state/testSuiteStore';
+import { useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 import { testSuiteManagerTemplate } from './test-suite-manager.js';
 
-const resultCard = (res) => {
-    const icon = res.passed ? icons.checkCircle : icons.xCircleRed;
-    const borderColor = res.passed
-        ? 'border-emerald-500/30'
-        : 'border-red-500/40';
-    const bgGradient = res.passed
-        ? 'from-emerald-900/10 to-transparent'
-        : 'from-red-900/10 to-transparent';
-    const textColor = res.passed ? 'text-emerald-400' : 'text-red-400';
+const resultCard = (res, isGlass) => {
+    const cardBase = "layout-card group flex items-center justify-between p-4 transition-all hover:border-[var(--color-success)]/30";
+    const cardStyle = isGlass
+        ? "bg-[var(--bg-glass-B-2)] border border-transparent backdrop-blur-md"
+        : "bg-[var(--bg-surface-B-panel)] border border-[var(--border-on-B)]";
 
-    return html`
-        <div
-            class="group bg-gradient-to-r ${bgGradient} border-l-4 ${borderColor} bg-slate-900/40 rounded-r-lg p-4 mb-2 transition-all hover:bg-slate-800/50"
-        >
-            <div class="flex items-start justify-between gap-4">
-                <div class="flex items-center gap-3">
-                    <div class="shrink-0 ${textColor} scale-110 mt-0.5">
-                        ${icon}
+    const failCardBase = "layout-card relative overflow-hidden border-l-[6px] border-l-[var(--color-error)] mb-2 transition-all hover:bg-[var(--color-error)]/10";
+    const failCardStyle = isGlass
+        ? "bg-[var(--color-error)]/5 backdrop-blur-md"
+        : "bg-[var(--bg-surface-B-panel)] border border-[var(--border-on-B)]"; // border-l already in base
+
+    // PASS: Sleek, minimalist, horizontal
+    if (res.passed) {
+        return html`
+            <div class="${cardBase} ${cardStyle}">
+                <div class="flex items-center gap-4 text-[var(--color-success)]">
+                     <div class="p-2 rounded-full bg-[var(--color-success)]/10 text-[var(--color-success)] shadow-[0_0_10px_var(--color-success)]/20">
+                        ${icons.check}
                     </div>
                     <div>
-                        <h4
-                            class="font-bold text-sm text-slate-200 leading-tight"
-                        >
+                        <h4 class="font-bold text-sm text-[var(--text-on-B-primary)]">
                             ${res.assertion.name}
                         </h4>
-                        <div
-                            class="text-[10px] font-mono text-slate-500 mt-1 flex items-center gap-2"
-                        >
-                            <span
-                                class="bg-slate-900 px-1.5 rounded border border-slate-700"
-                                >${res.assertion.path}</span
-                            >
-                            <span class="text-slate-600"
-                                >${res.assertion.operator}</span
-                            >
-                            <span class="text-blue-300/80"
-                                >${res.assertion.value}</span
-                            >
+                        <div class="text-[10px] font-mono opacity-60 text-[var(--text-on-B-secondary)] mt-0.5">
+                            ${res.assertion.path} ${res.assertion.operator} ${res.assertion.value}
                         </div>
                     </div>
                 </div>
+                 <div class="text-[10px] font-black uppercase tracking-widest text-[var(--color-success)]/50 group-hover:text-[var(--color-success)] transition-colors">
+                    Pass
+                </div>
+            </div>
+        `;
+    }
 
-                <div class="text-right">
-                    <span
-                        class="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded ${res.passed
-                            ? 'bg-emerald-900/20 text-emerald-400'
-                            : 'bg-red-900/20 text-red-400'}"
-                    >
-                        ${res.passed ? 'PASS' : 'FAIL'}
-                    </span>
+    // FAIL: Bold, Vertical, "Terminal" Style
+    return html`
+        <div class="${failCardBase} ${failCardStyle}">
+            <!-- Header -->
+            <div class="flex items-start justify-between p-4 border-b border-[var(--color-error)]/10">
+                 <div class="flex items-center gap-3">
+                    <div class="text-[var(--color-error)] animate-pulse">
+                        ${icons.alertTriangle}
+                    </div>
+                    <div>
+                        <h4 class="font-black text-base text-[var(--color-error)] tracking-wide">
+                            ${res.assertion.name}
+                        </h4>
+                         <div class="text-[11px] font-mono text-[var(--color-error)]/70 mt-1">
+                            ${res.assertion.path}
+                        </div>
+                    </div>
+                </div>
+                <div class="px-3 py-1 rounded bg-[var(--color-error)] text-[var(--bg-surface-B-panel)] text-[10px] font-black uppercase tracking-widest ">
+                    Failed
                 </div>
             </div>
 
-            ${!res.passed
-                ? html`
-                      <div
-                          class="mt-3 pt-2 border-t border-white/5 flex items-start gap-2"
-                      >
-                          <span class="text-red-400 scale-75 mt-0.5"
-                              >${icons.alertTriangle}</span
-                          >
-                          <p
-                              class="text-xs font-mono text-red-200/80 leading-relaxed break-all"
-                          >
-                              ${res.details}
-                          </p>
-                      </div>
-                  `
-                : ''}
+            <!-- Terminal Error Block -->
+            <div class="p-4 font-mono text-xs bg-[var(--bg-surface-B-panel)]/50 text-[var(--text-on-B-primary)]">
+                 <div class="flex items-center gap-2 text-[var(--color-error)]/80 mb-2 text-[10px] uppercase font-bold tracking-wider">
+                    ${icons.info} Diagnostic Output
+                </div>
+                <div class="p-3 rounded border border-[var(--color-error)]/20 bg-black/40 text-[var(--color-error)] shadow-inner break-all leading-relaxed">
+                     > ${res.details}
+                </div>
+            </div>
         </div>
     `;
 };
 
+// ... (layoutStyles can be removed if unused, or kept)
+
 export const testRunnerTemplate = (stream) => {
-    const { suites, activeSuiteId, lastRunResult } =
-        useTestSuiteStore.getState();
+    const { suites, activeSuiteId, lastRunResult } = useTestSuiteStore.getState();
+    const { shell } = useUiStore.getState();
     const activeSuite = suites.find((s) => s.id === activeSuiteId);
 
-    const handleRun = () => {
-        if (!activeSuite) return;
-        const result = runTestSuite(stream, activeSuite);
-        testSuiteActions.setLastRunResult(result);
-    };
+    const isGlass = shell.config.activeThemeId.includes('glass');
+    const metricCardStyle = isGlass
+        ? "bg-[var(--bg-glass-B-3)] shadow-[var(--region-shadow)] backdrop-blur-md border border-[var(--border-on-B)]" // Keep border even in glass for metrics? No, user said "border must be gone".
+        : "bg-[var(--bg-surface-B-panel)] border border-[var(--border-on-B)]";
 
-    const handleCreate = () => {
-        testSuiteActions.addSuite({ name: 'New Test Suite', assertions: [] });
-    };
+    // Override for metrics in glass mode to match request "transparencies appear"
+    // Actually, user said "border must be gone". 
+    // Let's make glass style: bg-[var(--bg-glass-B-3)] border-transparent/none
 
-    const handleExport = (e) => {
-        e.stopPropagation();
-        if (!activeSuite) return;
-        const dataStr = JSON.stringify(activeSuite, null, 2);
-        const blob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${activeSuite.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    };
+    const finalMetricStyle = isGlass
+        ? "bg-[var(--bg-glass-B-3)] shadow-[var(--region-shadow)] backdrop-blur-md border border-transparent"
+        : "bg-[var(--bg-surface-B-panel)] border border-[var(--border-on-B)]";
 
-    const handleImport = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            try {
-                const result = event.target?.result;
-                if (typeof result === 'string') {
-                    const json = JSON.parse(result);
-                    testSuiteActions.importSuite(json);
-                }
-            } catch (err) {
-                console.error('Import failed', err);
-            }
-        };
-        reader.readAsText(file);
-        e.target.value = '';
-    };
 
-    const triggerImport = () =>
-        document.getElementById('suite-import-input')?.click();
+    // Empty state - No suite selected
+    if (!activeSuite) {
+        const emptyStateStyle = isGlass
+            ? "bg-[var(--bg-surface-B-panel)] backdrop-blur-sm" // Icon circle
+            : "bg-[var(--bg-surface-B-panel)]";
 
-    const suiteListItem = (suite) => {
-        const isActive = activeSuiteId === suite.id;
         return html`
-            <button
-                @click=${() => testSuiteActions.setActiveSuiteId(suite.id)}
-                class="w-full text-left p-3 rounded-xl transition-all flex items-center justify-between group border ${isActive
-                    ? 'bg-blue-600 border-blue-500 shadow-lg shadow-blue-900/20'
-                    : 'bg-slate-800/30 border-transparent hover:bg-slate-800 hover:border-slate-700'}"
-            >
-                <div class="min-w-0">
-                    <div
-                        class="font-bold text-sm truncate ${isActive
-                            ? 'text-white'
-                            : 'text-slate-300 group-hover:text-white'}"
-                    >
-                        ${suite.name}
-                    </div>
-                    <div
-                        class="text-[10px] truncate ${isActive
-                            ? 'text-blue-200'
-                            : 'text-slate-500 group-hover:text-slate-400'}"
-                    >
-                        ${suite.description || 'No description'}
-                    </div>
+            <div class="flex flex-col items-center justify-center h-full text-[var(--text-on-A-secondary)] opacity-60">
+                <div class="scale-150 mb-6 p-8 rounded-full border border-[var(--border-on-A)] shadow-2xl ${emptyStateStyle}">
+                    ${icons.beaker}
                 </div>
-                <div
-                    class="shrink-0 w-6 h-6 flex items-center justify-center rounded-full ${isActive
-                        ? 'bg-white/20 text-white'
-                        : 'bg-slate-900 text-slate-600'}"
-                >
-                    ${icons.chevronRight}
-                </div>
-            </button>
+                <p class="text-sm font-bold uppercase tracking-widest">
+                    Select or create a test suite
+                </p>
+            </div>
         `;
-    };
+    }
 
+    // Results View
+    if (lastRunResult && lastRunResult.suiteId === activeSuite.id) {
+        const passedPercentage = Math.round(
+            (lastRunResult.passedCount / lastRunResult.totalCount) * 100
+        );
+
+        // Grading System
+        let grade = 'F';
+        let gradeColor = 'var(--color-error)';
+        if (passedPercentage === 100) { grade = 'A+'; gradeColor = 'var(--color-success)'; }
+        else if (passedPercentage >= 90) { grade = 'A'; gradeColor = 'var(--color-success)'; }
+        else if (passedPercentage >= 80) { grade = 'B'; gradeColor = 'var(--color-warning)'; }
+        else if (passedPercentage >= 70) { grade = 'C'; gradeColor = 'var(--color-warning)'; }
+        else if (passedPercentage >= 60) { grade = 'D'; gradeColor = 'var(--color-error)'; }
+
+        return html`
+            <div class="flex flex-col h-full relative z-10 p-6 overflow-hidden">
+                
+                <!-- Dashboard Header (Bold) -->
+                <div class="shrink-0 mb-8 flex items-center justify-between">
+                     <div class="flex items-center gap-6">
+                        <!-- Grade Circle -->
+                        <div class="relative w-16 h-16 flex items-center justify-center rounded-full border-4 shadow-[0_0_30px_rgba(0,0,0,0.3)] backdrop-blur-xl bg-[var(--bg-glass-B-6)]" style="border-color: ${gradeColor}; box-shadow: 0 0 20px ${gradeColor}40;">
+                             <span class="text-2xl font-black tracking-tighter" style="color: ${gradeColor}">
+                                 ${grade}
+                            </span>
+                        </div>
+
+                        <div>
+                            <h2 class="text-3xl font-black text-[var(--text-on-A-primary)] tracking-tight drop-shadow-lg">
+                                Results
+                            </h2>
+                            <div class="text-xs font-bold uppercase tracking-widest text-[var(--text-on-A-secondary)] opacity-70">
+                                ${activeSuite.name}
+                            </div>
+                        </div>
+                     </div>
+                     
+                     <button
+                        @click=${() => testSuiteActions.setLastRunResult(null)}
+                         class="group flex items-center gap-3 text-xs font-bold text-[var(--text-on-A-secondary)] hover:text-[var(--text-on-A-primary)] transition-colors pr-6 pl-4 py-3 rounded-full hover:bg-[var(--bg-surface-B-panel)] border border-[var(--border-on-A)]/10 hover:border-[var(--border-on-A)]"
+                    >
+                        <span class="transform group-hover:-translate-x-1 transition-transform">${icons.arrowLeft}</span> 
+                        <span>Back to Rules</span>
+                    </button>
+                </div>
+
+                <!-- Metrics Grid -->
+                <div class="grid grid-cols-3 gap-6 mb-8 shrink-0">
+                    <!-- Passed Metric -->
+                     <div 
+                        class="layout-card relative overflow-hidden p-5 transition-all hover:border-[var(--color-success)]/30 group ${finalMetricStyle}"
+                    >
+                        <div class="absolute top-0 right-0 p-4 opacity-10 scale-150 group-hover:scale-125 transition-transform duration-500 text-[var(--color-success)]">
+                            ${icons.checkCircle}
+                        </div>
+                        <div class="text-[10px] uppercase tracking-widest text-[var(--text-on-B-secondary)] font-bold mb-1">
+                            Passing Rules
+                        </div>
+                        <div class="text-3xl font-black text-[var(--color-success)] drop-shadow-sm flex items-end gap-2">
+                             ${lastRunResult.passedCount}
+                             <span class="text-xs font-bold text-[var(--text-on-B-secondary)] mb-1 opacity-60">
+                                / ${lastRunResult.totalCount}
+                             </span>
+                        </div>
+                    </div>
+
+                    <!-- Failed Metric -->
+                    <div 
+                        class="layout-card relative overflow-hidden p-5 transition-all hover:border-[var(--color-error)]/30 group ${finalMetricStyle}"
+                    >
+                         <div class="absolute top-0 right-0 p-4 opacity-10 scale-150 group-hover:scale-125 transition-transform duration-500 text-[var(--color-error)]">
+                            ${icons.alertTriangle}
+                        </div>
+                        <div class="text-[10px] uppercase tracking-widest text-[var(--text-on-B-secondary)] font-bold mb-1">
+                            Failing Rules
+                        </div>
+                        <div class="text-3xl font-black text-[var(--color-error)] drop-shadow-sm">
+                             ${lastRunResult.totalCount - lastRunResult.passedCount}
+                        </div>
+                    </div>
+
+                     <!-- Score Metric -->
+                     <div 
+                        class="layout-card relative overflow-hidden p-5 ${finalMetricStyle}"
+                    >
+                        <div class="text-[10px] uppercase tracking-widest text-[var(--text-on-B-secondary)] font-bold mb-1">
+                            Success Rate
+                        </div>
+                        <div class="flex items-center gap-3">
+                             <div class="text-3xl font-black text-[var(--text-on-B-primary)]">
+                                ${passedPercentage}%
+                            </div>
+                            <!-- Mini Progress Bar -->
+                            <div class="h-2 flex-grow bg-[var(--bg-surface-B-panel)] rounded-full overflow-hidden max-w-[100px]">
+                                <div class="h-full bg-[var(--primary-accent)]" style="width: ${passedPercentage}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="h-px w-full bg-[var(--border-on-A)]/10 mb-6 shrink-0"></div>
+
+                <!-- List Header -->
+                <div class="flex justify-between items-center mb-4 px-1 shrink-0">
+                     <h4 class="text-xs font-black text-[var(--text-on-A-secondary)] uppercase tracking-[0.2em] flex items-center gap-2">
+                        ${icons.list} Detailed Breakdown
+                    </h4>
+                </div>
+
+                <!-- Scrollable List -->
+                <div class="grow overflow-y-auto custom-scrollbar space-y-3 pb-8 pr-2">
+                    ${lastRunResult.results.map(r => resultCard(r, isGlass))}
+                </div>
+            </div>
+        `;
+    }
+
+    // Default Editor View
     return html`
-        <div class="flex h-full bg-slate-950 overflow-hidden">
-            <!-- Sidebar -->
-            <div
-                class="w-72 flex flex-col shrink-0 border-r border-slate-800 bg-slate-950/50"
-            >
-                <div class="p-4 border-b border-slate-800">
-                    <div class="flex justify-between items-center mb-3">
-                        <h3
-                            class="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"
-                        >
-                            ${icons.library} Test Library
-                        </h3>
-                        <button
-                            @click=${handleCreate}
-                            class="p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors shadow-md"
-                            title="New Suite"
-                        >
-                            ${icons.plusCircle}
-                        </button>
-                    </div>
-                    <input
-                        id="suite-import-input"
-                        type="file"
-                        accept=".json"
-                        class="hidden"
-                        @change=${handleImport}
-                    />
-                    <div class="flex gap-2">
-                        <button
-                            @click=${triggerImport}
-                            class="flex-1 py-1.5 text-[10px] font-bold bg-slate-800 border border-slate-700 hover:bg-slate-700 hover:border-slate-600 text-slate-300 rounded-lg transition-colors flex items-center justify-center gap-1"
-                        >
-                            ${icons.upload} Import
-                        </button>
-                        <button
-                            @click=${() => testSuiteActions.resetDefaults()}
-                            class="px-2 py-1.5 text-[10px] font-bold bg-slate-800 border border-slate-700 hover:bg-slate-700 hover:border-slate-600 text-slate-400 hover:text-white rounded-lg transition-colors"
-                            title="Reset Factory Defaults"
-                        >
-                            ${icons.refresh}
-                        </button>
-                    </div>
-                </div>
-
-                <div
-                    class="grow overflow-y-auto custom-scrollbar p-3 space-y-2"
-                >
-                    ${suites.map(suiteListItem)}
-                </div>
-            </div>
-
-            <!-- Main Content -->
-            <div class="grow flex flex-col min-w-0 bg-slate-900">
-                ${!activeSuite
-                    ? html`
-                          <div
-                              class="flex flex-col items-center justify-center h-full text-slate-600 opacity-60"
-                          >
-                              <div
-                                  class="scale-150 mb-4 p-6 bg-slate-800 rounded-full shadow-inner"
-                              >
-                                  ${icons.beaker}
-                              </div>
-                              <p class="text-sm font-medium">
-                                  Select or create a test suite
-                              </p>
-                          </div>
-                      `
-                    : html`
-                          ${lastRunResult &&
-                          lastRunResult.suiteId === activeSuite.id
-                              ? html`
-                                    <!-- Results View -->
-                                    <div class="flex flex-col h-full">
-                                        <!-- Report Header -->
-                                        <div
-                                            class="shrink-0 p-6 border-b border-slate-800 bg-slate-900 shadow-sm z-10"
-                                        >
-                                            <div
-                                                class="flex items-center justify-between mb-6"
-                                            >
-                                                <button
-                                                    @click=${() =>
-                                                        testSuiteActions.setLastRunResult(
-                                                            null
-                                                        )}
-                                                    class="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800"
-                                                >
-                                                    ${icons.arrowLeft} Edit
-                                                    Rules
-                                                </button>
-                                                <h2
-                                                    class="text-lg font-bold text-white"
-                                                >
-                                                    ${activeSuite.name}
-                                                </h2>
-                                                <button
-                                                    @click=${handleRun}
-                                                    class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold border border-slate-700 flex items-center gap-2 transition-colors"
-                                                >
-                                                    ${icons.refresh} Rerun
-                                                </button>
-                                            </div>
-
-                                            <div
-                                                class="flex items-stretch gap-4"
-                                            >
-                                                <!-- Score Card -->
-                                                <div
-                                                    class="flex items-center gap-6 px-6 py-4 rounded-xl border ${lastRunResult.status ===
-                                                    'pass'
-                                                        ? 'bg-emerald-900/10 border-emerald-500/30'
-                                                        : 'bg-red-900/10 border-red-500/30'}"
-                                                >
-                                                    <div class="text-center">
-                                                        <div
-                                                            class="text-3xl font-black ${lastRunResult.status ===
-                                                            'pass'
-                                                                ? 'text-emerald-400'
-                                                                : 'text-red-400'} leading-none"
-                                                        >
-                                                            ${lastRunResult.status ===
-                                                            'pass'
-                                                                ? 'PASSED'
-                                                                : 'FAILED'}
-                                                        </div>
-                                                        <div
-                                                            class="text-[10px] font-bold uppercase tracking-widest text-slate-500 mt-1"
-                                                        >
-                                                            Status
-                                                        </div>
-                                                    </div>
-                                                    <div
-                                                        class="w-px h-10 bg-white/10"
-                                                    ></div>
-                                                    <div
-                                                        class="text-sm font-mono"
-                                                    >
-                                                        <div
-                                                            class="text-emerald-400 flex justify-between gap-4"
-                                                        >
-                                                            <span>Passing</span>
-                                                            <b
-                                                                >${lastRunResult.passedCount}</b
-                                                            >
-                                                        </div>
-                                                        <div
-                                                            class="text-red-400 flex justify-between gap-4"
-                                                        >
-                                                            <span>Failing</span>
-                                                            <b
-                                                                >${lastRunResult.totalCount -
-                                                                lastRunResult.passedCount}</b
-                                                            >
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <!-- List -->
-                                        <div
-                                            class="grow overflow-y-auto p-6 custom-scrollbar bg-slate-950/30"
-                                        >
-                                            <h4
-                                                class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4"
-                                            >
-                                                Assertion Details
-                                            </h4>
-                                            ${lastRunResult.results.map(
-                                                resultCard
-                                            )}
-                                        </div>
-                                    </div>
-                                `
-                              : html`
-                                    <!-- Editor Mode -->
-                                    <div class="flex flex-col h-full">
-                                        <div
-                                            class="shrink-0 p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900 z-10"
-                                        >
-                                            <div
-                                                class="flex gap-2 text-xs font-mono text-slate-500 bg-black/20 px-2 py-1 rounded border border-white/5"
-                                            >
-                                                <span
-                                                    >ID:
-                                                    ${activeSuite.id.slice(
-                                                        0,
-                                                        8
-                                                    )}...</span
-                                                >
-                                            </div>
-                                            <div class="flex gap-2">
-                                                <button
-                                                    @click=${handleExport}
-                                                    class="p-2 text-slate-400 hover:text-blue-300 hover:bg-blue-900/20 rounded-lg transition-colors"
-                                                    title="Export JSON"
-                                                >
-                                                    ${icons.download}
-                                                </button>
-                                                <button
-                                                    @click=${handleRun}
-                                                    class="flex items-center gap-2 px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg shadow-lg shadow-emerald-900/20 transition-all hover:scale-[1.02] active:scale-95"
-                                                >
-                                                    ${icons.play} Run Suite
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <div class="grow min-h-0">
-                                            ${testSuiteManagerTemplate(
-                                                activeSuite
-                                            )}
-                                        </div>
-                                    </div>
-                                `}
-                      `}
-            </div>
+        <div class="h-full flex flex-col relative z-10 overflow-hidden">
+             <!-- Background Ambient -->
+            <div class="absolute top-0 right-0 w-[500px] h-[500px] bg-[var(--primary-accent)]/5 rounded-full blur-[120px] pointer-events-none"></div>
+             ${testSuiteManagerTemplate(activeSuite)}
         </div>
     `;
 };

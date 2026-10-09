@@ -1,3 +1,4 @@
+import { useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
 import { formatBitrate } from '@/ui/shared/format';
 import { html } from 'lit-html';
@@ -10,24 +11,26 @@ const diffValue = (valA, valB, formatter = (v) => v) => {
     const formattedB = formatter(valB);
 
     if (!isDiff) {
-        return html`<span class="font-mono text-slate-300 text-sm"
+        return html`<span
+            class="font-mono text-[var(--text-on-A-primary)] text-sm opacity-90"
             >${formattedA}</span
         >`;
     }
 
     return html`
         <div
-            class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 font-mono text-xs"
+            class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 font-mono text-xs"
         >
             <span
-                class="text-slate-500 line-through decoration-red-500/50 decoration-2 opacity-75"
+                class="text-[var(--color-error)]/40 line-through decoration-[var(--color-error)]/30 decoration-1 italic"
                 >${formattedA}</span
             >
-            <span class="hidden sm:inline text-slate-600"
+            <span
+                class="hidden sm:inline text-[var(--text-on-A-secondary)] opacity-30 px-1"
                 >${icons.arrowRight}</span
             >
             <span
-                class="text-amber-300 font-bold bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/30 shadow-[0_0_10px_rgba(245,158,11,0.1)]"
+                class="text-[var(--primary-accent)] font-black bg-[var(--primary-accent)]/10 px-2 py-1 rounded-md border border-[var(--primary-accent)]/20 shadow-[0_0_15px_var(--primary-accent-glow)]/20"
             >
                 ${formattedB}
             </span>
@@ -35,21 +38,26 @@ const diffValue = (valA, valB, formatter = (v) => v) => {
     `;
 };
 
-const statRow = (label, valA, valB, icon, formatter) => html`
+const statRow = (label, valA, valB, icon, formatter, isSolid) => html`
     <div
-        class="flex flex-col justify-between p-3 bg-slate-800/40 rounded-xl border border-slate-700/50 hover:border-slate-600 transition-colors h-full"
+        class="flex flex-col justify-between p-4 ${isSolid ? 'bg-[var(--bg-surface-B-panel)] border border-[var(--border-on-A)]' : 'bg-[var(--bg-glass-B-4)] backdrop-blur-xl border border-[var(--border-on-A)]/10 hover:border-[var(--primary-accent)]/20'} rounded-[var(--region-radius)] transition-all duration-300 group h-full shadow-[var(--region-shadow)] relative overflow-hidden"
     >
+        <div class="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        
         <div
-            class="flex items-center gap-2 text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-2"
+            class="flex items-center gap-2 text-[var(--text-on-A-secondary)] text-[10px] font-black uppercase tracking-[0.15em] mb-3 opacity-60 group-hover:opacity-100 group-hover:text-[var(--primary-accent)] transition-all relative z-10"
         >
-            ${icon} ${label}
+            <span class="scale-90">${icon}</span> ${label}
         </div>
-        <div class="mt-auto">${diffValue(valA, valB, formatter)}</div>
+        <div class="mt-auto relative z-10">${diffValue(valA, valB, formatter)}</div>
     </div>
 `;
 
 export const diffOverviewTemplate = (segA, segB) => {
     if (!segA || !segB) return '';
+
+    const { activeThemeId } = useUiStore.getState();
+    const isSolid = activeThemeId === 'pro-compact';
 
     // Helper to extract timescale-corrected duration
     // Handle cases where segment or timescale might be missing (e.g. init segments)
@@ -92,19 +100,20 @@ export const diffOverviewTemplate = (segA, segB) => {
 
     return html`
         <div
-            class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 animate-fadeIn"
+            class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 animate-fadeIn"
         >
-            ${statRow('Duration', durA, durB, icons.clock, timeFmt)}
-            ${statRow('File Size', sizeA, sizeB, icons.hardDrive, bytesFmt)}
+            ${statRow('Duration', durA, durB, icons.clock, timeFmt, isSolid)}
+            ${statRow('File Size', sizeA, sizeB, icons.hardDrive, bytesFmt, isSolid)}
             ${statRow(
-                'Avg Bitrate',
-                bitrateA,
-                bitrateB,
-                icons.gauge,
-                formatBitrate
-            )}
-            ${statRow('Timescale', timescaleA, timescaleB, icons.timer, numFmt)}
-            ${statRow(`${countLabel} Count`, countA, countB, icons.box, numFmt)}
+        'Avg Bitrate',
+        bitrateA,
+        bitrateB,
+        icons.gauge,
+        formatBitrate,
+        isSolid
+    )}
+            ${statRow('Timescale', timescaleA, timescaleB, icons.timer, numFmt, isSolid)}
+            ${statRow(`${countLabel} Count`, countA, countB, icons.box, numFmt, isSolid)}
         </div>
     `;
 };

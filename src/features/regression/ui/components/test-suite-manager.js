@@ -1,4 +1,5 @@
 import { testSuiteActions } from '@/state/testSuiteStore';
+import { useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
 import { closeDropdown, toggleDropdown } from '@/ui/services/dropdownService';
 import { html } from 'lit-html';
@@ -35,26 +36,26 @@ const propertyDropdownContent = (currentPath, onSelect) => {
 
         return html`
             <div
-                class="dropdown-panel bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl w-80 ring-1 ring-black/50 flex flex-col max-h-[60vh]"
+                class="dropdown-panel bg-[var(--bg-glass-B-6)] backdrop-blur-xl border border-[var(--border-on-B)] rounded-xl shadow-2xl w-80 ring-1 ring-black/50 flex flex-col max-h-[60vh]"
             >
                 <!-- Search Header -->
                 <div
-                    class="p-3 border-b border-slate-800 bg-slate-900 sticky top-0 z-10"
+                    class="p-3 border-b border-[var(--border-on-B)] bg-[var(--bg-surface-B-panel)] sticky top-0 z-10"
                 >
                     <div class="relative">
                         <div
-                            class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none scale-75"
+                            class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-on-B-secondary)] pointer-events-none scale-75"
                         >
                             ${icons.search}
                         </div>
                         <input
                             type="text"
                             placeholder="Find property..."
-                            class="w-full bg-slate-950 border border-slate-700 rounded-lg py-1.5 pl-8 pr-3 text-xs text-white focus:border-blue-500 outline-none"
+                            class="w-full bg-[var(--bg-surface-B-panel-opaque)] border border-[var(--border-on-B)] rounded-lg py-1.5 pl-8 pr-3 text-xs text-[var(--text-on-B-primary)] focus:border-[var(--primary-accent)] outline-none"
                             @input=${(e) => {
-                                searchTerm = e.target.value;
-                                updateDropdown();
-                            }}
+                searchTerm = e.target.value;
+                updateDropdown();
+            }}
                             autofocus
                         />
                     </div>
@@ -63,11 +64,11 @@ const propertyDropdownContent = (currentPath, onSelect) => {
                 <!-- Scrollable List -->
                 <div class="overflow-y-auto custom-scrollbar p-2 space-y-3">
                     ${categoryKeys.map((catKey) => {
-                        const cat = PROPERTY_CATEGORIES[catKey];
-                        return html`
+                const cat = PROPERTY_CATEGORIES[catKey];
+                return html`
                             <div>
                                 <div
-                                    class="px-2 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2"
+                                    class="px-2 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-[var(--text-on-B-secondary)] flex items-center gap-2"
                                 >
                                     <span class="${cat.color} scale-75"
                                         >${cat.icon}</span
@@ -76,51 +77,51 @@ const propertyDropdownContent = (currentPath, onSelect) => {
                                 </div>
                                 <div class="grid grid-cols-1 gap-0.5">
                                     ${grouped[catKey].map(
-                                        (p) => html`
+                    (p) => html`
                                             <button
                                                 @click=${(e) => {
-                                                    e.stopPropagation();
-                                                    onSelect(p);
-                                                    closeDropdown();
-                                                }}
+                            e.stopPropagation();
+                            onSelect(p);
+                            closeDropdown();
+                        }}
                                                 class="w-full text-left px-3 py-2 rounded-lg text-xs transition-colors flex items-center justify-between group ${currentPath ===
-                                                p.path
-                                                    ? 'bg-blue-600 text-white shadow-md'
-                                                    : 'text-slate-300 hover:bg-white/10 hover:text-white'}"
+                            p.path
+                            ? 'bg-[var(--primary-accent)] text-white shadow-md'
+                            : 'text-[var(--text-on-B-secondary)] hover:bg-[var(--bg-surface-B-panel)] hover:text-[var(--text-on-B-primary)]'}"
                                             >
                                                 <span class="truncate"
                                                     >${p.label}</span
                                                 >
                                                 ${currentPath === p.path
-                                                    ? html`<span
+                            ? html`<span
                                                           class="scale-75"
                                                           >${icons.checkCircle}</span
                                                       >`
-                                                    : ''}
+                            : ''}
                                             </button>
                                         `
-                                    )}
+                )}
                                 </div>
                             </div>
                         `;
-                    })}
+            })}
                     ${categoryKeys.length === 0
-                        ? html`<div
-                              class="p-4 text-center text-slate-500 text-xs italic"
+                ? html`<div
+                              class="p-4 text-center text-[var(--text-on-B-secondary)] text-xs italic"
                           >
                               No matching properties.
                           </div>`
-                        : ''}
+                : ''}
 
                     <!-- Custom Path Fallback -->
-                    <div class="border-t border-white/10 pt-2">
+                    <div class="border-t border-[var(--border-on-B)] pt-2">
                         <button
                             @click=${(e) => {
-                                e.stopPropagation();
-                                onSelect(null);
-                                closeDropdown();
-                            }}
-                            class="w-full text-left px-3 py-2 rounded-lg text-xs text-slate-400 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2 border border-transparent hover:border-slate-700"
+                e.stopPropagation();
+                onSelect(null);
+                closeDropdown();
+            }}
+                            class="w-full text-left px-3 py-2 rounded-lg text-xs text-[var(--text-on-B-secondary)] hover:bg-[var(--bg-surface-B-panel)] hover:text-[var(--text-on-B-primary)] transition-colors flex items-center gap-2 border border-transparent hover:border-[var(--border-on-B)]"
                         >
                             ${icons.code} Use Custom JSON Path
                         </button>
@@ -145,7 +146,7 @@ const propertyDropdownContent = (currentPath, onSelect) => {
     return html`<div id="property-dropdown-container">${renderContent()}</div>`;
 };
 
-const assertionRow = (assert, index, onUpdate, onRemove) => {
+const assertionRow = (assert, index, onUpdate, onRemove, isGlass) => {
     const propDef = TESTABLE_PROPERTIES.find((p) => p.path === assert.path);
     const dataType = propDef ? propDef.type : 'string';
     const operators = OPERATORS_BY_TYPE[dataType] || OPERATORS_BY_TYPE.string;
@@ -182,7 +183,7 @@ const assertionRow = (assert, index, onUpdate, onRemove) => {
     if (assert.operator === 'exists') {
         valueInput = html`
             <div
-                class="h-9 flex items-center px-3 bg-slate-900/30 border border-slate-800 rounded-lg text-xs text-slate-500 italic select-none w-full"
+                class="h-10 flex items-center px-4 bg-[var(--bg-surface-B-panel)] border border-[var(--border-on-B)] rounded-lg text-xs text-[var(--text-on-B-secondary)] italic select-none w-full"
             >
                 Check presence only
             </div>
@@ -192,9 +193,9 @@ const assertionRow = (assert, index, onUpdate, onRemove) => {
         valueInput = html`
             <button
                 @click=${() => onUpdate(index, { value: String(!isTrue) })}
-                class="h-9 px-4 rounded-lg text-xs font-bold border transition-all w-full flex items-center justify-center gap-2 ${isTrue
-                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/30'
-                    : 'bg-red-500/20 text-red-400 border-red-500/40 hover:bg-red-500/30'}"
+                class="h-10 px-4 rounded-lg text-xs font-bold border transition-all w-full flex items-center justify-center gap-2 ${isTrue
+                ? 'bg-[var(--color-success)]/20 text-[var(--color-success)] border-[var(--color-success)]/40 hover:bg-[var(--color-success)]/30 shadow-[0_0_10px_var(--color-success)]'
+                : 'bg-[var(--color-error)]/20 text-[var(--color-error)] border-[var(--color-error)]/40 hover:bg-[var(--color-error)]/30 shadow-[0_0_10px_var(--color-error)]'}"
             >
                 ${isTrue ? icons.checkCircle : icons.xCircle}
                 ${isTrue ? 'TRUE' : 'FALSE'}
@@ -202,27 +203,27 @@ const assertionRow = (assert, index, onUpdate, onRemove) => {
         `;
     } else if (dataType === 'number') {
         valueInput = html`
-            <div class="relative flex items-center w-full">
+            <div class="relative flex items-center w-full group/input">
                 <input
                     type="number"
-                    class="h-9 bg-slate-900 border border-slate-700 hover:border-slate-600 rounded-lg py-1.5 pl-3 pr-8 text-xs text-cyan-300 font-mono w-full focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
+                    class="h-10 bg-[var(--bg-surface-B-panel)] border border-[var(--border-on-B)] hover:border-[var(--primary-accent)]/50 rounded-lg py-1.5 pl-4 pr-10 text-xs text-[var(--text-on-B-primary)] font-mono w-full focus:border-[var(--primary-accent)] focus:bg-[var(--primary-accent)]/5 focus:ring-1 focus:ring-[var(--primary-accent)] outline-none transition-all"
                     .value=${assert.value}
                     @input=${(e) => onUpdate(index, { value: e.target.value })}
                     step="any"
                 />
                 ${propDef?.unit
-                    ? html`<span
-                          class="absolute right-3 text-[10px] text-slate-500 select-none font-bold"
+                ? html`<span
+                          class="absolute right-3 text-[10px] text-[var(--text-on-B-secondary)] select-none font-bold group-focus-within/input:text-[var(--primary-accent)] transition-colors"
                           >${propDef.unit}</span
                       >`
-                    : ''}
+                : ''}
             </div>
         `;
     } else {
         valueInput = html`
             <input
                 type="text"
-                class="h-9 bg-slate-900 border border-slate-700 hover:border-slate-600 rounded-lg py-1.5 px-3 text-xs text-yellow-200 font-mono w-full focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
+                class="h-10 bg-[var(--bg-surface-B-panel)] border border-[var(--border-on-B)] hover:border-[var(--primary-accent)]/50 rounded-lg py-1.5 px-4 text-xs text-[var(--text-on-B-primary)] font-mono w-full focus:border-[var(--primary-accent)] focus:bg-[var(--primary-accent)]/5 focus:ring-1 focus:ring-[var(--primary-accent)] outline-none transition-all placeholder-[var(--text-on-B-secondary)]/50"
                 .value=${assert.value}
                 placeholder="Expected Value..."
                 @input=${(e) => onUpdate(index, { value: e.target.value })}
@@ -230,98 +231,98 @@ const assertionRow = (assert, index, onUpdate, onRemove) => {
         `;
     }
 
-    const categoryBadge = propDef
-        ? html`<div class="p-1.5 rounded-md ${category.bg} ${category.color}">
-              ${category.icon}
-          </div>`
-        : html`<div class="p-1.5 rounded-md bg-slate-800 text-slate-400">
-              ${icons.code}
-          </div>`;
+    // Row Styling Condition
+    const rowBase = "layout-card flex flex-col transition-all hover:shadow-[0_0_20px_rgba(0,0,0,0.3)] hover:border-[var(--border-on-B)] hover:bg-[var(--bg-glass-B-3)] group animate-fadeIn relative";
+    const rowStyle = isGlass
+        ? "" // Glass: Let default flow, no border/bg overrides
+        : "bg-[var(--bg-surface-B-panel)] border border-[var(--border-on-B)]";
 
     return html`
-        <div
-            class="flex gap-3 items-start p-3 bg-slate-800/40 border border-slate-700/50 rounded-xl transition-all hover:shadow-md hover:border-slate-600 hover:bg-slate-800/60 group animate-fadeIn relative"
-        >
-            <!-- Remove Button (Absolute) -->
-            <button
-                @click=${() => onRemove(index)}
-                class="absolute -top-2 -right-2 p-1 bg-slate-800 border border-slate-600 text-slate-400 hover:text-red-400 hover:border-red-500 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-all scale-90 hover:scale-100 z-10"
-                title="Remove Rule"
-            >
-                ${icons.xCircle}
-            </button>
+        <div class="${rowBase} ${rowStyle}">
+            
+            <!-- Header: Index, Category, Remove -->
+            <div class="flex items-center justify-between p-3 border-b border-[var(--border-on-B)] bg-[var(--bg-surface-B-panel)]/30">
+                <div class="flex items-center gap-3">
+                    <span class="text-[10px] font-mono text-[var(--text-on-B-secondary)] opacity-50 select-none">
+                        #${String(index + 1).padStart(2, '0')}
+                    </span>
+                    
+                    <!-- Small Category Badge -->
+                    <div class="flex items-center gap-2 pl-2 border-l border-[var(--border-on-B)]">
+                        <span class="${category.color} scale-75">${category.icon}</span>
+                        <span class="text-[10px] font-bold text-[var(--text-on-B-secondary)] uppercase tracking-wider opacity-80">
+                            ${category.label}
+                        </span>
+                    </div>
+                </div>
 
-            <!-- Index & Icon -->
-            <div class="flex flex-col items-center gap-2 mt-1">
-                <span class="text-[9px] font-mono text-slate-600 select-none"
-                    >#${index + 1}</span
+                <button
+                    @click=${() => onRemove(index)}
+                    class="p-1.5 text-[var(--text-on-B-secondary)] hover:text-[var(--color-error)] hover:bg-[var(--color-error)]/10 rounded-md transition-colors"
+                    title="Remove Rule"
                 >
-                ${categoryBadge}
+                    ${icons.xCircle}
+                </button>
             </div>
 
-            <!-- Logic Flow -->
-            <div class="flex flex-col gap-3 grow">
+            <!-- Body: Controls -->
+            <div class="p-3 flex flex-col gap-3">
+                
                 <!-- Row 1: Property Selector -->
                 <div class="relative w-full">
                     <button
                         @click=${(e) =>
-                            toggleDropdown(
-                                e.currentTarget,
-                                () =>
-                                    propertyDropdownContent(
-                                        assert.path,
-                                        handlePropSelect
-                                    ),
-                                e
-                            )}
-                        class="flex items-center justify-between w-full bg-slate-900 border border-slate-700 hover:border-blue-500/50 rounded-lg px-3 py-2 text-xs text-left transition-all shadow-sm group/btn"
+            toggleDropdown(
+                e.currentTarget,
+                () =>
+                    propertyDropdownContent(
+                        assert.path,
+                        handlePropSelect
+                    ),
+                e
+            )}
+                        class="flex items-center justify-between w-full bg-[var(--bg-surface-B-panel)] border border-[var(--border-on-B)] hover:border-[var(--primary-accent)]/50 rounded-lg px-3 py-2 text-xs text-left transition-all shadow-inner group/btn hover:bg-[var(--bg-surface-B-panel-opaque)]"
                     >
-                        <div class="flex flex-col min-w-0">
-                            <span
-                                class="text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-0.5 group-hover/btn:text-blue-400"
-                                >Property</span
-                            >
-                            <span class="text-slate-200 font-medium truncate"
-                                >${propDef
-                                    ? propDef.label
-                                    : assert.path || 'Select...'}</span
-                            >
+                        <div class="flex items-center gap-2 min-w-0">
+                            <span class="text-[var(--text-on-B-secondary)] scale-75">${icons.search}</span>
+                            <span class="text-[var(--text-on-B-primary)] font-bold truncate">
+                                ${propDef ? propDef.label : assert.path || 'Select Property...'}
+                            </span>
                         </div>
-                        <span
-                            class="text-slate-500 group-hover/btn:text-white scale-75 transition-colors"
-                            >${icons.chevronDown}</span
-                        >
+                        <span class="text-[var(--text-on-B-secondary)] group-hover/btn:text-[var(--text-on-B-primary)] scale-75 transition-colors">
+                            ${icons.chevronDown}
+                        </span>
                     </button>
                     ${!propDef
-                        ? html`<input
+            ? html`<input
                               type="text"
-                              class="mt-2 w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] font-mono text-slate-400 focus:border-blue-500/50 outline-none"
+                              class="mt-2 w-full bg-[var(--bg-surface-B-panel)] border border-[var(--border-on-B)] rounded-lg px-3 py-2 text-[10px] font-mono text-[var(--text-on-B-secondary)] focus:border-[var(--primary-accent)]/50 outline-none transition-colors"
                               .value=${assert.path}
                               @change=${(e) =>
-                                  onUpdate(index, { path: e.target.value })}
+                    onUpdate(index, { path: e.target.value })}
                               placeholder="path.to.property"
                           />`
-                        : ''}
+            : ''}
                 </div>
 
-                <!-- Row 2: Condition (Operator + Value) -->
+                <!-- Row 2: Condition -->
                 <div class="flex items-center gap-2">
-                    <div class="relative w-1/3 min-w-[110px]">
+                    <div class="relative w-1/3 min-w-[120px]">
                         <select
-                            class="w-full h-9 bg-slate-900 border border-slate-700 hover:border-slate-600 rounded-lg px-3 text-xs text-slate-300 appearance-none cursor-pointer focus:border-blue-500 outline-none transition-colors"
+                            class="w-full h-10 bg-[var(--bg-surface-B-panel)] border border-[var(--border-on-B)] hover:border-[var(--border-on-B)] rounded-lg px-3 text-xs text-[var(--text-on-B-primary)] appearance-none cursor-pointer focus:border-[var(--primary-accent)] outline-none transition-colors font-medium"
                             .value=${assert.operator}
                             @change=${(e) =>
-                                onUpdate(index, { operator: e.target.value })}
+            onUpdate(index, { operator: e.target.value })}
                         >
                             ${operators.map(
-                                (op) =>
-                                    html`<option value=${op.value}>
+                (op) =>
+                    html`<option value=${op.value}>
                                         ${op.label}
                                     </option>`
-                            )}
+            )}
                         </select>
                         <div
-                            class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none scale-75"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-on-B-secondary)] pointer-events-none scale-75"
                         >
                             ${icons.chevronDown}
                         </div>
@@ -336,6 +337,16 @@ const assertionRow = (assert, index, onUpdate, onRemove) => {
 
 export const testSuiteManagerTemplate = (suite) => {
     if (!suite) return html``;
+
+    const { shell } = useUiStore.getState();
+
+    // Theme Logic
+    const isGlass = shell.config.activeThemeId.includes('glass');
+    const gridGap = isGlass ? 'gap-4' : 'gap-2';
+
+    const emptyStateStyle = isGlass
+        ? "bg-[var(--bg-glass-B-2)] border-2 border-dashed border-[var(--border-on-A)]"
+        : "bg-[var(--bg-surface-B-panel)] border-2 border-dashed border-[var(--border-on-A)]";
 
     const handleUpdateSuite = (field, value) => {
         testSuiteActions.updateSuite(suite.id, { [field]: value });
@@ -366,106 +377,64 @@ export const testSuiteManagerTemplate = (suite) => {
     };
 
     return html`
-        <div class="flex flex-col h-full bg-slate-950">
-            <!-- Header -->
-            <div class="p-6 border-b border-slate-800 bg-slate-900/50">
-                <div class="flex justify-between items-start gap-6">
-                    <div class="grow max-w-3xl space-y-3">
-                        <div>
-                            <label
-                                class="block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-widest"
-                                >Suite Name</label
-                            >
-                            <input
-                                type="text"
-                                class="w-full bg-transparent text-2xl font-bold text-white placeholder-slate-700 focus:outline-none border-b border-transparent focus:border-blue-500 transition-all pb-1"
-                                .value=${suite.name}
-                                @change=${(e) =>
-                                    handleUpdateSuite('name', e.target.value)}
-                                placeholder="Untitled Suite"
-                            />
-                        </div>
-                        <div>
-                            <input
-                                type="text"
-                                class="w-full bg-transparent text-sm text-slate-400 placeholder-slate-600 focus:outline-none"
-                                .value=${suite.description || ''}
-                                @change=${(e) =>
-                                    handleUpdateSuite(
-                                        'description',
-                                        e.target.value
-                                    )}
-                                placeholder="Add a description..."
-                            />
-                        </div>
-                    </div>
-
-                    <div class="flex flex-col items-end gap-2">
-                        <span
-                            class="bg-slate-800 text-slate-400 text-xs font-bold px-3 py-1 rounded-full border border-slate-700"
-                        >
-                            ${suite.assertions?.length || 0} Rules
-                        </span>
-                        <button
-                            @click=${() =>
-                                testSuiteActions.deleteSuite(suite.id)}
-                            class="text-xs text-red-400 hover:text-red-300 underline decoration-red-400/30"
-                        >
-                            Delete Suite
-                        </button>
-                    </div>
-                </div>
-            </div>
-
+        <div class="flex flex-col h-full bg-transparent">
             <!-- Editor Canvas -->
-            <div class="grow overflow-y-auto custom-scrollbar p-6 bg-slate-950">
+            <div class="h-full overflow-y-auto custom-scrollbar p-4">
                 ${(suite.assertions || []).length === 0
-                    ? html`
+            ? html`
                           <div
-                              class="flex flex-col items-center justify-center h-64 border-2 border-dashed border-slate-800 rounded-2xl bg-slate-900/20 text-slate-500"
+                              class="layout-card flex flex-col items-center justify-center h-full min-h-[400px] rounded-[var(--region-radius)] text-[var(--text-on-A-secondary)] group hover:border-[var(--primary-accent)]/30 hover:bg-[var(--bg-glass-B-3)] transition-all ${emptyStateStyle}"
                           >
                               <div
-                                  class="p-4 bg-slate-800 rounded-full mb-4 shadow-lg"
+                                  class="p-6 bg-[var(--bg-surface-B-panel)] rounded-full mb-6 shadow-2xl group-hover:scale-110 transition-transform duration-500"
                               >
                                   ${icons.beaker}
                               </div>
-                              <h3 class="text-slate-300 font-bold mb-1">
+                              <h3
+                                  class="text-[var(--text-on-A-primary)] font-bold mb-2 text-lg"
+                              >
                                   No Rules Yet
                               </h3>
-                              <p class="text-xs opacity-70 mb-6">
-                                  Add an assertion to start testing.
+                              <p
+                                  class="text-xs opacity-60 mb-8 max-w-xs text-center leading-relaxed"
+                              >
+                                  Add an assertion to start testing your stream
+                                  properties against specific criteria.
                               </p>
                               <button
                                   @click=${addAssertion}
-                                  class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-lg shadow-blue-900/20 transition-all flex items-center gap-2"
+                                  class="px-8 py-3 bg-[var(--primary-accent)] hover:bg-[var(--primary-accent-hover)] text-white text-sm font-bold rounded-xl shadow-[0_0_20px_var(--primary-accent-glow)] hover:shadow-[0_0_30px_var(--primary-accent-glow)] transition-all flex items-center gap-3 hover:-translate-y-1"
                               >
                                   ${icons.plusCircle} Add First Rule
                               </button>
                           </div>
                       `
-                    : html`
+            : html`
                           <div
-                              class="grid grid-cols-1 xl:grid-cols-2 gap-4 max-w-7xl mx-auto"
+                              class="grid grid-cols-1 xl:grid-cols-2 ${gridGap} max-w-[1600px] mx-auto pb-10"
                           >
                               ${suite.assertions.map((assert, i) =>
-                                  assertionRow(
-                                      assert,
-                                      i,
-                                      updateAssertion,
-                                      removeAssertion
-                                  )
-                              )}
+                assertionRow(
+                    assert,
+                    i,
+                    updateAssertion,
+                    removeAssertion,
+                    isGlass
+                )
+            )}
 
                               <button
                                   @click=${addAssertion}
-                                  class="h-full min-h-[100px] border-2 border-dashed border-slate-800 rounded-xl text-slate-500 hover:text-blue-400 hover:border-blue-500/30 hover:bg-blue-900/5 transition-all flex flex-col items-center justify-center gap-2 font-bold text-xs group"
+                                  class="h-full min-h-[140px] border-2 border-dashed border-[var(--border-on-A)] rounded-[var(--region-radius)] text-[var(--text-on-A-secondary)] hover:text-[var(--primary-accent)] hover:border-[var(--primary-accent)]/30 hover:bg-[var(--primary-accent)]/[0.02] transition-all flex flex-col items-center justify-center gap-3 font-bold text-xs group"
                               >
                                   <div
-                                      class="p-2 bg-slate-900 rounded-full group-hover:scale-110 transition-transform border border-slate-800"
+                                      class="p-3 bg-[var(--bg-surface-B-panel)] rounded-full group-hover:scale-110 transition-transform border border-[var(--border-on-B)] group-hover:border-[var(--primary-accent)]/20 group-hover:bg-[var(--primary-accent)]/10"
                                   >
                                       ${icons.plusCircle}
                                   </div>
-                                  Add New Rule
+                                  <span class="uppercase tracking-widest"
+                                      >Add New Rule</span
+                                  >
                               </button>
                           </div>
                       `}

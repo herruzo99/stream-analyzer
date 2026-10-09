@@ -73,8 +73,15 @@ function calculateTimelineBounds(stream) {
  * Prepares data for the Advertising UI.
  * @param {import('@/types').Stream} stream
  */
-export function createAdvertisingViewModel(stream) {
-    const avails = stream.adAvails || [];
+export function createAdvertisingViewModel(stream, preferences) {
+    const allAvails = stream.adAvails || [];
+
+    // Filter based on preferences
+    const avails = allAvails.filter((a) => {
+        if (a.id === 'unconfirmed-inband-scte35') return true; // Always show placeholder
+        return preferences?.[a.detectionMethod] ?? true; // Default to true if pref missing (safety)
+    });
+
     const isLive = stream.manifest?.type === 'dynamic';
 
     // --- Dynamic Window Calculation ---
@@ -163,17 +170,17 @@ export function createAdvertisingViewModel(stream) {
 
 function getStatusColor(avail) {
     if (avail.id === 'unconfirmed-inband-scte35') {
-        return 'blue';
+        return 'info';
     }
     if (avail.detectionMethod === 'STRUCTURAL_DISCONTINUITY') {
-        return 'amber';
+        return 'warning';
     }
     if (
         avail.detectionMethod === 'SCTE35_INBAND' ||
         avail.detectionMethod === 'SCTE35_DATERANGE' ||
         avail.detectionMethod === 'SCTE224_ESNI'
     ) {
-        return avail.adManifestUrl ? 'emerald' : 'amber';
+        return avail.adManifestUrl ? 'success' : 'warning';
     }
-    return 'blue';
+    return 'info';
 }

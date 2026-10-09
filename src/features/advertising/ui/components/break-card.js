@@ -5,8 +5,8 @@ export const breakCardTemplate = (avail, isSelected, onClick) => {
     // --- Special Case for Placeholder ---
     if (avail.id === 'unconfirmed-inband-scte35') {
         const isActive = isSelected
-            ? 'ring-2 ring-blue-500 bg-slate-800'
-            : 'bg-blue-900/10 border-blue-500/20';
+            ? 'ring-2 ring-[var(--color-info)] bg-[var(--bg-surface-B-panel-opaque)]'
+            : 'bg-[var(--bg-surface-B-panel)] border-[var(--color-info)]';
 
         return html`
             <div
@@ -15,15 +15,19 @@ export const breakCardTemplate = (avail, isSelected, onClick) => {
             >
                 <div class="flex items-center gap-3">
                     <div
-                        class="p-2 rounded-full bg-blue-500/10 text-blue-400 animate-pulse"
+                        class="p-2 rounded-full text-[var(--color-info)] animate-pulse"
                     >
                         ${icons.activity}
                     </div>
                     <div>
-                        <div class="text-sm font-bold text-blue-200">
+                        <div
+                            class="text-sm font-bold text-[var(--text-on-B-primary)]"
+                        >
                             Waiting for Signal
                         </div>
-                        <div class="text-[10px] text-slate-400 mt-0.5">
+                        <div
+                            class="text-[10px] text-[var(--text-on-B-secondary)] mt-0.5"
+                        >
                             In-band SCTE-35 detected in manifest. Monitoring
                             segments...
                         </div>
@@ -50,32 +54,32 @@ export const breakCardTemplate = (avail, isSelected, onClick) => {
     };
 
     const colorMap = {
-        emerald: 'border-emerald-500/50 bg-emerald-900/10 text-emerald-400',
-        amber: 'border-amber-500/50 bg-amber-900/10 text-amber-400',
-        blue: 'border-blue-500/50 bg-blue-900/10 text-blue-400',
+        success: 'border-[var(--color-success)] text-[var(--color-success)]',
+        warning: 'border-[var(--color-warning)] text-[var(--color-warning)]',
+        info: 'border-[var(--color-info)] text-[var(--color-info)]',
     };
 
     const statusColor = colorMap[avail.statusColor];
     const isActive = isSelected
-        ? 'ring-2 ring-blue-500 bg-slate-800'
-        : 'hover:bg-slate-800/50 bg-slate-900/40';
+        ? 'ring-2 ring-[var(--color-info)] bg-[var(--bg-surface-B-panel-opaque)]'
+        : 'hover:bg-[var(--bg-surface-B-panel-opaque)] bg-[var(--bg-surface-B-panel)]';
 
     return html`
         <div
             @click=${() => onClick(avail)}
-            class="group relative p-4 rounded-xl border border-slate-700/50 cursor-pointer transition-all duration-200 ${isActive}"
+            class="group relative p-4 rounded-xl border border-[var(--border-on-B)] cursor-pointer transition-all duration-200 ${isActive}"
         >
             <div class="flex justify-between items-start mb-2">
                 <div class="flex items-center gap-2">
                     <span
-                        class="text-xs font-bold font-mono bg-slate-950 px-2 py-1 rounded border border-slate-800 text-slate-400"
+                        class="text-xs font-bold font-mono bg-[var(--bg-surface-B-panel-opaque)] px-2 py-1 rounded border border-[var(--border-on-B)] text-[var(--text-on-B-secondary)]"
                     >
-                        ${avail.startTime.toFixed(2)}s
+                        ${(avail.startTime || 0).toFixed(2)}s
                     </span>
                     <span
-                        class="text-xs font-bold text-slate-500 uppercase tracking-wider"
+                        class="text-xs font-bold text-[var(--text-on-B-secondary)] uppercase tracking-wider"
                     >
-                        +${avail.duration.toFixed(1)}s
+                        +${(avail.duration || 0).toFixed(1)}s
                     </span>
                 </div>
 
@@ -90,9 +94,11 @@ export const breakCardTemplate = (avail, isSelected, onClick) => {
 
             <div class="flex justify-between items-end">
                 <div>
-                    <div class="text-xs text-slate-400 mb-1">Ad Break ID</div>
+                    <div class="text-xs text-[var(--text-on-B-secondary)] mb-1">
+                        Ad Break ID
+                    </div>
                     <div
-                        class="font-mono text-sm text-white truncate max-w-[200px]"
+                        class="font-mono text-sm text-[var(--text-on-B-primary)] truncate max-w-[200px]"
                         title="${avail.id}"
                     >
                         ${avail.id}
@@ -104,19 +110,21 @@ export const breakCardTemplate = (avail, isSelected, onClick) => {
                     ${avail.scte35Signal
                         ? html`<span
                               title="SCTE-35 Present"
-                              class="text-emerald-400"
+                              class="text-[var(--color-success)]"
                               >${icons.binary}</span
                           >`
                         : ''}
                     ${avail.adManifestUrl
-                        ? html`<span title="VAST Resolved" class="text-blue-400"
+                        ? html`<span
+                              title="VAST Resolved"
+                              class="text-[var(--color-info)]"
                               >${icons.link}</span
                           >`
                         : ''}
                     ${avail.creatives?.length > 0
                         ? html`<span
                               title="Creatives Found"
-                              class="text-purple-400"
+                              class="text-[var(--secondary-accent)]"
                               >${icons.play}</span
                           >`
                         : ''}

@@ -69,6 +69,13 @@ const createInitialUiState = () => ({
     comparisonSelectorsExpanded: true,
     fabMenu: { isOpen: false, activeSubMenu: null },
     fabSideMenuOpen: false,
+    adDetectionPreferences: {
+        SCTE35_INBAND: true,
+        SCTE35_DATERANGE: true,
+        ASSET_IDENTIFIER: false,
+        ENCRYPTION_TRANSITION: false,
+        STRUCTURAL_DISCONTINUITY: false,
+    },
     expandedComparisonTables: new Set(),
     expandedComparisonFlags: new Set(),
     segmentComparisonActiveTab: 'tabular',
@@ -144,6 +151,13 @@ export const useUiStore = createStore((set, get) => ({
         set((state) => ({ fabMenu: { ...state.fabMenu, activeSubMenu: id } })),
     toggleFabSideMenu: () =>
         set((state) => ({ fabSideMenuOpen: !state.fabSideMenuOpen })),
+    setAdDetectionPreference: (method, isEnabled) =>
+        set((state) => ({
+            adDetectionPreferences: {
+                ...state.adDetectionPreferences,
+                [method]: isEnabled,
+            },
+        })),
     togglePlayerTelemetrySidebar: () =>
         set((state) => ({
             playerTelemetrySidebarOpen: !state.playerTelemetrySidebarOpen,
@@ -391,6 +405,8 @@ export const useUiStore = createStore((set, get) => ({
                 ...selection,
             },
         })),
+    clearSegmentComparisonSelection: () =>
+        set({ segmentComparisonSelection: { idA: null, idB: null } }),
     setPlayerControlMode: (mode) => set({ playerControlMode: mode }),
     navigateToInteractiveSegment: (
         segmentUniqueId,
