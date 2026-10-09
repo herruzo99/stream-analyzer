@@ -7,7 +7,9 @@ import * as icons from '@/ui/icons';
 import { closeDropdown, toggleDropdown } from '@/ui/services/dropdownService';
 import { toggleAllPolling } from '@/ui/services/streamActionsService';
 import { html } from 'lit-html';
+
 import { segmentPollingSelectorTemplate } from './segment-polling-selector';
+import '@/ui/core/BaseDropdown.js';
 
 const INACTIVITY_TIMEOUT_OPTIONS = [
     {
@@ -117,37 +119,37 @@ const featureSelectionPanelTemplate = (
     }, {});
 
     return html`
-        <div
-            class="dropdown-panel bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl w-80 p-3 ring-1 ring-black/50 max-h-[50vh] overflow-y-auto custom-scrollbar"
-        >
-            ${Object.entries(grouped).map(
-                ([cat, list]) => html`
-                    <div class="mb-3 last:mb-0">
-                        <h5
-                            class="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1 px-1"
-                        >
-                            ${cat}
-                        </h5>
-                        <div class="space-y-1">
-                            ${list.map(
-                                (f) => html`
-                                    <button
-                                        @click=${(e) => onSelect(f, e)}
-                                        class="w-full text-left px-2 py-1.5 rounded hover:bg-white/10 text-xs font-medium transition-colors truncate ${f.name ===
-                                        activeFeatureName
-                                            ? 'text-blue-400 bg-blue-400/10'
-                                            : 'text-slate-300'}"
-                                        title="${f.desc}"
-                                    >
-                                        ${f.name}
-                                    </button>
-                                `
-                            )}
+        <base-dropdown class="w-80 max-h-[50vh]">
+            <div class="p-3 space-y-4">
+                ${Object.entries(grouped).map(
+        ([cat, list]) => html`
+                        <div class="mb-3 last:mb-0">
+                            <h5
+                                class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1 px-1"
+                            >
+                                ${cat}
+                            </h5>
+                            <div class="space-y-1">
+                                ${list.map(
+            (f) => html`
+                                        <button
+                                            @click=${(e) => onSelect(f, e)}
+                                            class="w-full text-left px-[1rem] py-2 rounded-xl hover:bg-slate-800 border border-transparent hover:border-slate-800/30 text-xs font-semibold transition-all duration-300 truncate ${f.name ===
+                    activeFeatureName
+                    ? 'text-blue-400 bg-blue-500/15 border-blue-500/30 shadow-[0_0_10px_#3b82f6]/10'
+                    : 'text-slate-400'}"
+                                            title="${f.desc}"
+                                        >
+                                            ${f.name}
+                                        </button>
+                                    `
+        )}
+                            </div>
                         </div>
-                    </div>
-                `
-            )}
-        </div>
+                    `
+    )}
+            </div>
+        </base-dropdown>
     `;
 };
 
@@ -181,112 +183,116 @@ const conditionalPollingUI = (liveStreams) => {
 
     if (conditionalPolling.status === 'active') {
         return html`
-            <div
-                class="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-center"
-            >
+    <div
+class="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-center"
+    >
                 <div class="flex items-center justify-center gap-2 mb-2">
                     <span class="animate-spin text-blue-400"
                         >${icons.spinner}</span
                     >
-                    <span class="text-xs font-bold text-blue-200"
+                    <span class="text-xs font-bold text-blue-400"
                         >Scanning...</span
                     >
                 </div>
                 <p class="text-[10px] text-slate-400 mb-3">
                     Searching for
-                    <span class="text-white"
+                    <span class="text-slate-100"
                         >${conditionalPolling.featureName}</span
                     >
                 </p>
                 <button
                     @click=${handleCancel}
-                    class="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-red-300 text-xs font-bold rounded transition-colors"
-                >
-                    Cancel
-                </button>
-            </div>
-        `;
+class="w-full py-1.5 bg-slate-800 hover:bg-slate-800 text-red-400 text-xs font-bold rounded transition-colors"
+    >
+    Cancel
+                </button >
+            </div >
+    `;
     }
 
     if (conditionalPolling.status === 'found') {
         return html`
-            <div
-                class="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-center"
-            >
+    <div
+class="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-center"
+    >
                 <div class="flex items-center justify-center gap-2 mb-2">
-                    <span class="text-emerald-400">${icons.checkCircle}</span>
-                    <span class="text-xs font-bold text-emerald-200"
+                    <span class="text-emerald-400"
+                        >${icons.checkCircle}</span
+                    >
+                    <span class="text-xs font-bold text-emerald-400"
                         >Feature Found!</span
                     >
                 </div>
                 <button
                     @click=${() => uiActions.clearConditionalPolling()}
-                    class="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded transition-colors"
-                >
-                    Reset
-                </button>
-            </div>
-        `;
+class="w-full py-1.5 bg-slate-800 hover:bg-slate-800 text-slate-400 text-xs font-bold rounded transition-colors"
+    >
+    Reset
+                </button >
+            </div >
+    `;
     }
 
     return html`
-        <div class="space-y-2">
-            ${liveStreams.length > 1
-                ? html`
+    <div class="space-y-2" >
+        ${liveStreams.length > 1
+            ? html`
                       <select
-                          class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-xs text-white appearance-none cursor-pointer hover:border-slate-600"
+                          class="w-full bg-slate-800 border border-slate-800 rounded p-2 text-xs text-slate-100 appearance-none cursor-pointer hover:border-slate-400"
                           .value=${activeTargetId}
                           @change=${(e) =>
-                              uiActions.setConditionalPollingTarget({
-                                  targetStreamId: parseInt(e.target.value),
-                              })}
+                    uiActions.setConditionalPollingTarget({
+                        targetStreamId: parseInt(e.target.value),
+                    })}
                       >
                           ${liveStreams.map(
-                              (s) =>
-                                  html`<option value="${s.id}">
+                        (s) =>
+                            html`<option value="${s.id}">
                                       ${s.name}
                                   </option>`
-                          )}
+                    )}
                       </select>
                   `
-                : ''}
+            : ''
+        }
 
-            <button
+<button
                 @click=${(e) =>
-                    toggleDropdown(
-                        e.currentTarget,
-                        () =>
-                            featureSelectionPanelTemplate(
-                                applicableFeatures,
-                                targetFeatureName,
-                                (f, ev) => {
-                                    ev.stopPropagation();
-                                    uiActions.setConditionalPollingTarget({
-                                        targetFeatureName: f.name,
-                                    });
-                                    closeDropdown();
-                                }
-                            ),
-                        e
-                    )}
-                class="w-full flex items-center justify-between bg-slate-950 border border-slate-700 hover:border-slate-500 rounded p-2 text-xs text-slate-300 transition-colors"
-            >
+            toggleDropdown(
+                e.currentTarget,
+                () =>
+                    featureSelectionPanelTemplate(
+                        applicableFeatures,
+                        targetFeatureName,
+                        (f, ev) => {
+                            ev.stopPropagation();
+                            uiActions.setConditionalPollingTarget({
+                                targetFeatureName: f.name,
+                            });
+                            closeDropdown();
+                        }
+                    ),
+                e
+            )
+        }
+class="w-full flex items-center justify-between bg-slate-800 border border-slate-800 hover:border-slate-400 rounded p-2 text-xs text-slate-400 transition-colors"
+    >
                 <span class="truncate"
                     >${targetFeatureName || 'Select Feature...'}</span
                 >
-                <span class="text-slate-500 scale-75"
+                <span class="text-slate-400 scale-75"
                     >${icons.chevronDown}</span
                 >
-            </button>
+            </button >
 
-            <button
+    <button
                 @click=${handleStart}
-                ?disabled=${!targetFeatureName}
-                class="w-full py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/20"
-            >
-                ${icons.searchCode} Start Search
-            </button>
-        </div>
+                ?disabled = ${!targetFeatureName}
+class="w-full py-2 bg-blue-500 hover:bg-[#60a5fa] disabled:opacity-50 disabled:cursor-not-allowed text-slate-100 text-xs font-bold rounded flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-500/20"
+    >
+    ${icons.searchCode} Start Search
+            </button >
+        </div >
     `;
 };
 
@@ -314,8 +320,8 @@ export const pollingDropdownPanelTemplate = () => {
 
     const isGlobalOverride = globalPollingIntervalOverride !== null;
     const globalIntervalLabel = isGlobalOverride
-        ? `${globalPollingIntervalOverride}s`
-        : `Mixed (${globalLabelSuffix})`;
+        ? `${globalPollingIntervalOverride} s`
+        : `Mixed(${globalLabelSuffix})`;
 
     const timeoutLabel =
         INACTIVITY_TIMEOUT_OPTIONS.find(
@@ -323,63 +329,71 @@ export const pollingDropdownPanelTemplate = () => {
         )?.label || 'Default';
 
     return html`
-        <div
-            class="dropdown-panel bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl w-80 ring-1 ring-black/50 flex flex-col max-h-[85vh]"
-        >
-            <!-- Master Switch -->
-            <div class="p-4 border-b border-white/5 bg-white/[0.02] shrink-0">
-                <div class="flex items-center justify-between mb-2">
+        <base-dropdown class="w-80 max-h-[85vh]">
+            <!--Master Switch-->
+            <div
+                slot="header"
+                class="p-5 border-b border-slate-800/20 bg-slate-800 shrink-0"
+            >
+                <div class="flex items-center justify-between mb-3">
                     <h3
-                        class="text-sm font-bold text-white flex items-center gap-2"
+                        class="text-xs font-extrabold uppercase tracking-[0.2em] text-slate-100 flex items-center gap-2.5"
                     >
-                        ${icons.refresh} Live Polling
+                        <span
+                            class="text-blue-400 drop-shadow-[0_0_8px_#3b82f6]"
+                            >${icons.refresh}</span
+                        >
+                        Live Polling
                     </h3>
                     <button
                         @click=${toggleAllPolling}
-                        class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isAnyPolling
-                            ? 'bg-green-600'
-                            : 'bg-slate-600'}"
+                        class="relative inline-flex h-5 w-10 items-center rounded-full transition-all duration-500 ${isAnyPolling
+            ? 'bg-emerald-500 shadow-[0_0_12px_#10b981]/40'
+            : 'bg-slate-800 border border-slate-800/30'}"
                     >
                         <span
-                            class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow-sm ${isAnyPolling
-                                ? 'translate-x-4.5'
-                                : 'translate-x-0.5'}"
+                            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-500 shadow-sm ${isAnyPolling
+            ? 'translate-x-[22px]'
+            : 'translate-x-[2px]'}"
                         ></span>
                     </button>
                 </div>
-                <p class="text-[10px] text-slate-400">
+                <p
+                    class="text-[10px] text-slate-400/70 font-medium leading-relaxed"
+                >
                     ${isAnyPolling
-                        ? 'Analyzer is updating manifest state.'
-                        : 'Analyzer is paused.'}
+            ? 'The analyzer is actively monitoring and updating manifest state for all live sources.'
+            : 'Manifest monitoring is currently suspended for all streams.'}
                 </p>
             </div>
 
-            <div class="overflow-y-auto custom-scrollbar grow">
+            <!-- Content Area (Scrollable via BaseDropdown) -->
+            <div>
                 <!-- Active Streams List -->
                 ${liveStreams.length > 0
-                    ? html`
-                          <div class="p-2 border-b border-white/5">
+            ? html`
+                          <div class="p-2 border-b border-slate-800">
                               <div
-                                  class="flex items-center justify-between px-2 py-1 mb-1"
+                                  class="flex items-center justify-between px-3 py-2 mb-2 bg-slate-800 rounded-xl border border-slate-800/10"
                               >
                                   <span
-                                      class="text-[10px] font-bold uppercase tracking-widest text-slate-500"
+                                      class="text-[10px] font-extrabold uppercase tracking-[0.2em] text-slate-400/80"
                                       >Active Streams</span
                                   >
 
                                   <!-- Global Interval Control -->
                                   <button
                                       @click=${(e) =>
-                                          toggleDropdown(
-                                              e.currentTarget,
-                                              () =>
-                                                  intervalSelectorTemplate(
-                                                      globalPollingIntervalOverride,
-                                                      true
-                                                  ),
-                                              e
-                                          )}
-                                      class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors flex items-center gap-1"
+                    toggleDropdown(
+                        e.currentTarget,
+                        () =>
+                            intervalSelectorTemplate(
+                                globalPollingIntervalOverride,
+                                true
+                            ),
+                        e
+                    )}
+                                      class="text-[10px] font-mono font-bold px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-800 text-slate-400 border border-slate-800/30 hover:border-blue-500/30 transition-all flex items-center gap-1.5 shadow-sm"
                                       title="Set Global Interval Override"
                                   >
                                       ${globalIntervalLabel}
@@ -389,43 +403,43 @@ export const pollingDropdownPanelTemplate = () => {
 
                               <div class="space-y-1">
                                   ${liveStreams.map((stream) => {
-                                      const isPolling = stream.isPolling;
-                                      const interval =
-                                          stream.pollingIntervalOverride
-                                              ? `${stream.pollingIntervalOverride}s`
-                                              : autoLabelShort;
+                        const isPolling = stream.isPolling;
+                        const interval =
+                            stream.pollingIntervalOverride
+                                ? `${stream.pollingIntervalOverride}s`
+                                : autoLabelShort;
 
-                                      return html`
+                        return html`
                                           <div
-                                              class="flex items-center justify-between p-2 rounded hover:bg-white/5 transition-colors group"
+                                              class="flex items-center justify-between p-[1rem] mx-1 rounded-xl hover:bg-slate-800 border border-transparent hover:border-slate-800/20 transition-all duration-300 group"
                                           >
                                               <div
-                                                  class="flex items-center gap-3 min-w-0"
+                                                  class="flex items-center gap-3.5 min-w-0"
                                               >
                                                   <button
                                                       @click=${() =>
-                                                          analysisActions.setStreamPolling(
-                                                              stream.id,
-                                                              !isPolling
-                                                          )}
-                                                      class="relative flex h-2.5 w-2.5 outline-none cursor-pointer"
+                                analysisActions.setStreamPolling(
+                                    stream.id,
+                                    !isPolling
+                                )}
+                                                      class="relative flex h-3 w-3 outline-none cursor-pointer"
                                                       title="${isPolling
-                                                          ? 'Pause'
-                                                          : 'Resume'}"
+                                ? 'Pause'
+                                : 'Resume'}"
                                                   >
                                                       <span
                                                           class="animate-ping absolute inline-flex h-full w-full rounded-full ${isPolling
-                                                              ? 'bg-green-400 opacity-75'
-                                                              : 'hidden'}"
+                                ? 'bg-emerald-500 opacity-75'
+                                : 'hidden'}"
                                                       ></span>
                                                       <span
-                                                          class="relative inline-flex rounded-full h-2.5 w-2.5 ${isPolling
-                                                              ? 'bg-green-500'
-                                                              : 'bg-slate-600 group-hover:bg-slate-500'} transition-colors"
+                                                          class="relative inline-flex rounded-full h-3 w-3 ${isPolling
+                                ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]/50'
+                                : 'bg-slate-800 border border-slate-800/40 group-hover:border-slate-400'} transition-all duration-300"
                                                       ></span>
                                                   </button>
                                                   <span
-                                                      class="text-xs font-medium text-slate-300 truncate group-hover:text-white transition-colors"
+                                                      class="text-xs font-semibold text-slate-400 truncate group-hover:text-slate-100 transition-colors"
                                                       title="${stream.name}"
                                                   >
                                                       ${stream.name}
@@ -434,159 +448,163 @@ export const pollingDropdownPanelTemplate = () => {
 
                                               <button
                                                   @click=${(e) =>
-                                                      toggleDropdown(
-                                                          e.currentTarget,
-                                                          () =>
-                                                              intervalSelectorTemplate(
-                                                                  stream.pollingIntervalOverride,
-                                                                  false,
-                                                                  stream.id,
-                                                                  autoLabelLong
-                                                              ),
-                                                          e
-                                                      )}
+                                toggleDropdown(
+                                    e.currentTarget,
+                                    () =>
+                                        intervalSelectorTemplate(
+                                            stream.pollingIntervalOverride,
+                                            false,
+                                            stream.id,
+                                            autoLabelLong
+                                        ),
+                                    e
+                                )}
                                                   ?disabled=${isGlobalOverride}
-                                                  class="text-[10px] font-mono text-slate-500 hover:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors px-1.5 rounded"
+                                                  class="text-[10px] font-mono font-bold text-slate-400/60 hover:text-blue-400 disabled:opacity-30 disabled:cursor-not-allowed transition-all px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-800 border border-transparent hover:border-blue-500/20"
                                                   title="Change Stream Interval"
                                               >
                                                   ${interval}
                                               </button>
                                           </div>
                                       `;
-                                  })}
+                    })}
                               </div>
                           </div>
                       `
-                    : html`
+            : html`
                           <div
-                              class="p-6 text-center text-xs text-slate-500 italic border-b border-white/5"
+                              class="p-6 text-center text-xs text-slate-400 italic border-b border-slate-800"
                           >
                               No live streams active.
                           </div>
                       `}
 
-                <!-- Quick Settings -->
-                <div class="p-2 space-y-1 border-b border-white/5">
+                <div
+                    class="p-3 space-y-1.5 border-b border-slate-800/20 bg-slate-800/30"
+                >
                     <button
                         @click=${(e) => {
-                            e.stopPropagation();
-                            uiActions.setPollingMode(
-                                isSmart ? 'fixed' : 'smart'
-                            );
-                        }}
-                        class="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 border border-transparent hover:border-white/10 transition-all group text-left"
+            e.stopPropagation();
+            uiActions.setPollingMode(
+                isSmart ? 'fixed' : 'smart'
+            );
+        }}
+                        class="w-full flex items-center gap-2 p-[1rem] rounded-xl hover:bg-slate-800 border border-transparent hover:border-slate-800/30 transition-all duration-300 group text-left"
                     >
                         <div
-                            class="p-2 rounded-md bg-slate-800 text-slate-400 group-hover:text-white group-hover:bg-slate-700 transition-colors"
+                            class="p-2.5 rounded-xl bg-slate-800 text-slate-400 group-hover:text-blue-400 group-hover:bg-slate-800 transition-all duration-500 shadow-sm"
                         >
                             ${isSmart ? icons.activity : icons.clock}
                         </div>
                         <div class="grow">
                             <div
-                                class="font-bold text-xs text-slate-200 group-hover:text-white"
+                                class="font-extrabold text-[11px] uppercase tracking-wider text-slate-100 group-hover:text-slate-100"
                             >
                                 Polling Strategy
                             </div>
                             <div
-                                class="text-[10px] text-slate-500 group-hover:text-slate-400"
+                                class="text-[10px] text-slate-400/70 group-hover:text-slate-400 font-medium mt-0.5"
                             >
                                 ${isSmart
-                                    ? 'Smart (Adaptive Backoff)'
-                                    : 'Fixed Interval (Exact)'}
+            ? 'Smart (Adaptive Backoff)'
+            : 'Fixed Interval (Exact)'}
                             </div>
                         </div>
                         <div
-                            class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isSmart
-                                ? 'bg-blue-600'
-                                : 'bg-slate-700'}"
+                            class="relative inline-flex h-5 w-9 items-center rounded-full transition-all duration-500 ${isSmart
+            ? 'bg-blue-500 shadow-[0_0_8px_#3b82f6]/40'
+            : 'bg-slate-800 border border-slate-800/30'}"
                         >
                             <span
-                                class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow-sm ${isSmart
-                                    ? 'translate-x-4.5'
-                                    : 'translate-x-0.5'}"
+                                class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-500 shadow-sm ${isSmart
+            ? 'translate-x-[18px]'
+            : 'translate-x-[2px]'}"
                             ></span>
                         </div>
                     </button>
 
                     <button
                         @click=${(e) =>
-                            toggleDropdown(
-                                e.currentTarget,
-                                segmentPollingSelectorTemplate,
-                                e
-                            )}
-                        class="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 border border-transparent hover:border-white/10 transition-all group text-left"
+            toggleDropdown(
+                e.currentTarget,
+                segmentPollingSelectorTemplate,
+                e
+            )}
+                        class="w-full flex items-center gap-2 p-[1rem] rounded-xl hover:bg-slate-800 border border-transparent hover:border-slate-800/30 transition-all duration-300 group text-left"
                     >
                         <div
-                            class="p-2 rounded-md bg-slate-800 text-slate-400 group-hover:text-white group-hover:bg-slate-700 transition-colors"
+                            class="p-2.5 rounded-xl bg-slate-800 text-slate-400 group-hover:text-purple-300 group-hover:bg-slate-800 transition-all duration-500 shadow-sm"
                         >
                             ${icons.download}
                         </div>
                         <div class="grow">
                             <div
-                                class="font-bold text-xs text-slate-200 group-hover:text-white"
+                                class="font-extrabold text-[11px] uppercase tracking-wider text-slate-100 group-hover:text-slate-100"
                             >
                                 Segment Polling
                             </div>
                             <div
-                                class="text-[10px] text-slate-500 group-hover:text-slate-400"
+                                class="text-[10px] text-slate-400/70 group-hover:text-slate-400 font-medium mt-0.5"
                             >
                                 Auto-fetch new segments
                             </div>
                         </div>
-                        <span class="text-slate-600 group-hover:text-slate-400"
+                        <span
+                            class="text-slate-400/50 group-hover:text-purple-300 group-hover:translate-x-0.5 transition-all duration-300"
                             >${icons.chevronRight}</span
                         >
                     </button>
 
                     <button
                         @click=${(e) =>
-                            toggleDropdown(
-                                e.currentTarget,
-                                () =>
-                                    formattedOptionsDropdownTemplate(
-                                        INACTIVITY_TIMEOUT_OPTIONS,
-                                        inactivityTimeoutOverride,
-                                        (opt) =>
-                                            uiActions.setInactivityTimeoutOverride(
-                                                opt.id
-                                            )
-                                    ),
-                                e
-                            )}
-                        class="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 border border-transparent hover:border-white/10 transition-all group text-left"
+            toggleDropdown(
+                e.currentTarget,
+                () =>
+                    formattedOptionsDropdownTemplate(
+                        INACTIVITY_TIMEOUT_OPTIONS,
+                        inactivityTimeoutOverride,
+                        (opt) =>
+                            uiActions.setInactivityTimeoutOverride(
+                                opt.id
+                            )
+                    ),
+                e
+            )}
+                        class="w-full flex items-center gap-2 p-[1rem] rounded-xl hover:bg-slate-800 border border-transparent hover:border-slate-800/30 transition-all duration-300 group text-left"
                     >
                         <div
-                            class="p-2 rounded-md bg-slate-800 text-slate-400 group-hover:text-white group-hover:bg-slate-700 transition-colors"
+                            class="p-2.5 rounded-xl bg-slate-800 text-slate-400 group-hover:text-blue-400 group-hover:bg-slate-800 transition-all duration-500 shadow-sm"
                         >
                             ${icons.moon}
                         </div>
                         <div class="grow">
                             <div
-                                class="font-bold text-xs text-slate-200 group-hover:text-white"
+                                class="font-extrabold text-[11px] uppercase tracking-wider text-slate-100 group-hover:text-slate-100"
                             >
                                 Background Behavior
                             </div>
                             <div
-                                class="text-[10px] text-slate-500 group-hover:text-slate-400"
+                                class="text-[10px] text-slate-400/70 group-hover:text-slate-400 font-medium mt-0.5"
                             >
                                 Timeout: ${timeoutLabel}
                             </div>
                         </div>
-                        <span class="text-slate-600 group-hover:text-slate-400"
+                        <span
+                            class="text-slate-400/50 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all duration-300"
                             >${icons.chevronRight}</span
                         >
                     </button>
                 </div>
 
-                <!-- Conditional Polling -->
-                <div class="p-4 bg-slate-950/30">
-                    <div class="flex items-center gap-2 mb-3">
-                        <span class="text-slate-500 scale-75"
+                <!--Conditional Polling-->
+                <div class="p-5 bg-slate-800 rounded-b-2xl">
+                    <div class="flex items-center gap-2.5 mb-4">
+                        <span
+                            class="text-purple-300 scale-90 drop-shadow-[0_0_5px_#a855f7]"
                             >${icons.locateFixed}</span
                         >
                         <h4
-                            class="text-xs font-bold uppercase tracking-widest text-slate-400"
+                            class="text-[10px] font-extrabold uppercase tracking-[0.2em] text-slate-400/80"
                         >
                             Conditional Stop
                         </h4>
@@ -594,6 +612,6 @@ export const pollingDropdownPanelTemplate = () => {
                     ${conditionalPollingUI(liveStreams)}
                 </div>
             </div>
-        </div>
+        </base-dropdown>
     `;
 };

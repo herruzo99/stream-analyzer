@@ -36,14 +36,10 @@ export function renderContextSwitcher() {
     // If both are present, we stack them. The stream switcher has bottom padding.
     // The HLS switcher sits below it.
     return html`
-        <div class="flex flex-col">
+        <div class="flex flex-col gap-2">
             ${streamSwitcher}
             ${hlsSwitcher
-                ? html`
-                      <div class="px-3 pb-2 -mt-1 relative z-10">
-                          ${hlsSwitcher}
-                      </div>
-                  `
+                ? html` <div class="-mt-2 relative z-10">${hlsSwitcher}</div> `
                 : ''}
         </div>
     `;

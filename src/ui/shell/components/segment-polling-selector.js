@@ -4,6 +4,8 @@ import * as icons from '@/ui/icons';
 import { formatBitrate } from '@/ui/shared/format';
 import { html } from 'lit-html';
 
+import '@/ui/core/BaseDropdown.js';
+
 const representationToggle = (stream, rep, subtext) => {
     const isChecked = stream.segmentPollingReps.has(rep.id);
     const toggle = () =>
@@ -12,27 +14,30 @@ const representationToggle = (stream, rep, subtext) => {
     return html`
         <div
             @click=${toggle}
-            class="flex items-center justify-between p-2 rounded hover:bg-slate-800/50 cursor-pointer group transition-colors border border-transparent hover:border-slate-700"
+            class="flex items-center justify-between p-2 rounded hover:bg-slate-800/50 cursor-pointer group transition-colors border border-transparent hover:border-slate-800"
         >
             <div class="flex items-center gap-3 min-w-0">
                 <div
                     class="w-4 h-4 rounded border flex items-center justify-center transition-colors ${isChecked
-                        ? 'bg-blue-500 border-blue-500'
-                        : 'border-slate-600 group-hover:border-slate-400'}"
+            ? 'bg-blue-500 border-blue-500'
+            : 'border-slate-400 group-hover:border-slate-100'}"
                 >
                     ${isChecked
-                        ? html`<span class="text-white scale-75"
+            ? html`<span
+                              class="text-slate-100 scale-75"
                               >${icons.checkCircle}</span
                           >`
-                        : ''}
+            : ''}
                 </div>
                 <div class="min-w-0">
                     <div
-                        class="text-xs font-bold text-slate-300 group-hover:text-white truncate"
+                        class="text-xs font-bold text-slate-100 group-hover:text-slate-100 truncate"
                     >
                         ${rep.id}
                     </div>
-                    <div class="text-[10px] text-slate-500 font-mono">
+                    <div
+                        class="text-[10px] text-slate-400 font-mono"
+                    >
                         ${subtext}
                     </div>
                 </div>
@@ -78,99 +83,105 @@ const streamSection = (stream) => {
 
     return html`
         <div
-            class="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden transition-all"
+            class="bg-slate-800 rounded-xl border border-slate-800 overflow-hidden transition-all"
         >
             <button
                 @click=${toggleExpand}
                 class="w-full flex items-center justify-between p-3 bg-slate-800/50 hover:bg-slate-800 transition-colors"
             >
                 <div class="flex items-center gap-2 min-w-0">
-                    <span class="font-bold text-sm text-white truncate"
+                    <span
+                        class="font-bold text-sm text-slate-100 truncate"
                         >${stream.name}</span
                     >
                     ${activeCount > 0
-                        ? html`<span
-                              class="px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-300 border border-blue-500/30 text-[10px] font-bold"
+            ? html`<span
+                              class="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[10px] font-bold"
                               >${activeCount} Active</span
                           >`
-                        : ''}
+            : ''}
                 </div>
                 <span
-                    class="text-slate-500 transition-transform duration-200 ${isExpanded
-                        ? 'rotate-180'
-                        : ''}"
+                    class="text-slate-400 transition-transform duration-200 ${isExpanded
+            ? 'rotate-180'
+            : ''}"
                 >
                     ${icons.chevronDown}
                 </span>
             </button>
 
             ${isExpanded
-                ? html`
+            ? html`
                       <div
-                          class="p-2 border-t border-slate-700 space-y-4 bg-slate-950/30"
+                          class="p-2 border-t border-slate-800 space-y-4 bg-slate-800/30"
                       >
                           ${videoReps.length > 0
-                              ? html`
+                    ? html`
                                     <div>
                                         <h5
-                                            class="px-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1"
+                                            class="px-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1"
                                         >
                                             Video
                                         </h5>
                                         <div class="grid grid-cols-2 gap-1">
                                             ${videoReps.map((r) => {
-                                                // FIX: Handle structured height object or primitive fallback
-                                                const heightVal =
-                                                    r.height?.value ??
-                                                    r.height ??
-                                                    '?';
-                                                return representationToggle(
-                                                    stream,
-                                                    r,
-                                                    `${heightVal}p • ${formatBitrate(r.bandwidth)}`
-                                                );
-                                            })}
+                        // FIX: Handle structured height object or primitive fallback
+                        const heightVal =
+                            r.height?.value ??
+                            r.height ??
+                            '?';
+                        return representationToggle(
+                            stream,
+                            r,
+                            `${heightVal}p • ${formatBitrate(r.bandwidth)}`
+                        );
+                    })}
                                         </div>
                                     </div>
                                 `
-                              : ''}
+                    : ''}
                           ${audioReps.length > 0
-                              ? html`
+                    ? html`
                                     <div>
                                         <h5
-                                            class="px-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1"
+                                            class="px-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1"
                                         >
                                             Audio
                                         </h5>
                                         <div class="grid grid-cols-2 gap-1">
                                             ${audioReps.map((r) =>
-                                                representationToggle(
-                                                    stream,
-                                                    r,
-                                                    `${r.lang || 'und'} • ${formatBitrate(r.bandwidth)}`
-                                                )
-                                            )}
+                        representationToggle(
+                            stream,
+                            r,
+                            `${r.lang || 'und'} • ${formatBitrate(r.bandwidth)}`
+                        )
+                    )}
                                         </div>
                                     </div>
                                 `
-                              : ''}
+                    : ''}
                       </div>
                   `
-                : ''}
+            : ''}
         </div>
     `;
 };
+
+
 
 export const segmentPollingSelectorTemplate = () => {
     const { streams } = useAnalysisStore.getState();
     const liveStreams = streams.filter((s) => s.manifest?.type === 'dynamic');
 
     return html`
-        <div
-            class="dropdown-panel bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl w-[32rem] ring-1 ring-black/50 flex flex-col max-h-[70vh]"
-        >
-            <div class="p-4 border-b border-white/5 bg-white/[0.02]">
-                <h3 class="font-bold text-white flex items-center gap-2">
+        <base-dropdown class="w-[32rem] max-h-[70vh]">
+            <div
+                slot="header"
+                class="p-4 border-b border-slate-800/5 bg-slate-100/[0.02]"
+            >
+                <h3
+                    class="font-bold text-slate-100 flex items-center gap-2"
+                >
                     ${icons.download} Segment Polling
                 </h3>
                 <p class="text-xs text-slate-400 mt-1">
@@ -179,15 +190,15 @@ export const segmentPollingSelectorTemplate = () => {
                 </p>
             </div>
 
-            <div class="p-3 space-y-3 overflow-y-auto custom-scrollbar grow">
+            <div class="p-3 space-y-3">
                 ${liveStreams.length > 0
-                    ? liveStreams.map(streamSection)
-                    : html`<div
-                          class="p-8 text-center text-slate-500 italic text-sm"
+            ? liveStreams.map(streamSection)
+            : html`<div
+                          class="p-8 text-center text-slate-400 italic text-sm"
                       >
                           No live streams available.
                       </div>`}
             </div>
-        </div>
+        </base-dropdown>
     `;
 };

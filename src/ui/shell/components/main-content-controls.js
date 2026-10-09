@@ -18,7 +18,7 @@ const contextualSidebarToggle = () => {
     return html`
         <button
             @click=${handleToggle}
-            class="xl:hidden bg-gray-700/50 hover:bg-gray-600/50 text-white font-bold py-2 px-3 rounded-md transition duration-300 flex items-center text-sm"
+            class="xl:hidden bg-slate-800/50 hover:bg-slate-800/50 text-slate-100 font-bold py-2 px-3 rounded-md transition duration-300 flex items-center text-sm"
             title="Toggle contextual sidebar"
         >
             ${icons.sidebar}

@@ -41,8 +41,10 @@ export const renderTabButtons = () => {
         },
     ];
 
-    const activeClasses = 'border-blue-600 text-gray-100 bg-gray-700';
-    const inactiveClasses = 'border-transparent text-gray-400';
+    const activeClasses =
+        'border-blue-500 text-slate-200 bg-slate-800';
+    const inactiveClasses =
+        'border-transparent text-slate-400';
 
     return html`${tabs.map(
         (tab) => html`

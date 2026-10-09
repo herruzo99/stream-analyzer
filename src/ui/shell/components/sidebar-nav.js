@@ -6,6 +6,7 @@ import { uiActions, useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
 import { html, render } from 'lit-html';
 
+
 class SidebarNav extends HTMLElement {
     constructor() {
         super();
@@ -44,7 +45,8 @@ class SidebarNav extends HTMLElement {
 
     getNavGroups() {
         const { streams, activeStreamId } = useAnalysisStore.getState();
-        const { activeSegmentUrl } = useUiStore.getState();
+        const { activeSegmentUrl, adDetectionPreferences } =
+            useUiStore.getState();
         const { jobs } = useQualityStore.getState();
 
         // QC Status
@@ -54,7 +56,7 @@ class SidebarNav extends HTMLElement {
         const completedJobs = jobList.filter((j) => j.status === 'complete');
 
         let qcBadge = null;
-        let qcBadgeColor = 'bg-blue-600';
+        let qcBadgeColor = 'bg-[#60a5fa]';
         let qcProgress = 0;
 
         if (runningJobs.length > 0) {
@@ -101,7 +103,8 @@ class SidebarNav extends HTMLElement {
                         visible: streams.length > 1,
                         badge:
                             streams.length > 1 ? String(streams.length) : null,
-                        badgeColor: 'bg-slate-700',
+                        badgeColor:
+                            'bg-slate-800 border border-slate-800',
                     },
                     {
                         key: 'compliance',
@@ -152,7 +155,18 @@ class SidebarNav extends HTMLElement {
                         icon: icons.binary,
                         visible: !!activeSegmentUrl,
                         badge: activeSegmentUrl ? 'Active' : null,
-                        badgeColor: 'bg-blue-600',
+                        badgeColor: 'bg-[#60a5fa]',
+                    },
+                    {
+                        key: 'segment-comparison',
+                        label: 'Comparisons',
+                        icon: icons.comparison,
+                        visible: useUiStore.getState().segmentMatrixClickMode === 'compare' || (useAnalysisStore.getState().segmentsForCompare && useAnalysisStore.getState().segmentsForCompare.length > 0),
+                        badge: (() => {
+                            const count = useAnalysisStore.getState().segmentsForCompare?.length || 0;
+                            return count > 0 ? String(count) : '0';
+                        })(),
+                        badgeColor: 'bg-purple-500',
                     },
                     {
                         key: 'timeline',
@@ -178,7 +192,8 @@ class SidebarNav extends HTMLElement {
                         icon: icons.updates,
                         visible: activeStream?.manifest?.type === 'dynamic',
                         badge: 'LIVE',
-                        badgeColor: 'bg-red-600 animate-pulse',
+                        badgeColor:
+                            'bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse',
                     },
                 ],
             },
@@ -203,7 +218,9 @@ class SidebarNav extends HTMLElement {
                         icon: icons.activity,
                         visible: true,
                         badge: qcBadge,
-                        badgeColor: qcBadgeColor,
+                        badgeColor: qcBadge
+                            ? `${qcBadgeColor}/20 text-slate-100 border border-slate-800/30`
+                            : '',
                         progress: qcProgress,
                         hasError:
                             failedJobs.length > 0 && runningJobs.length > 0,
@@ -213,11 +230,23 @@ class SidebarNav extends HTMLElement {
                         label: 'Ad Verification',
                         icon: icons.advertising,
                         visible: true,
-                        badge:
-                            (activeStream?.adAvails || []).length > 0
-                                ? String(activeStream.adAvails.length)
-                                : null,
-                        badgeColor: 'bg-purple-600',
+                        badge: (() => {
+                            const avails = activeStream?.adAvails || [];
+                            const filtered = avails.filter((a) => {
+                                if (a.id === 'unconfirmed-inband-scte35')
+                                    return true;
+                                return (
+                                    adDetectionPreferences?.[
+                                    a.detectionMethod
+                                    ] ?? true
+                                );
+                            });
+                            return filtered.length > 0
+                                ? String(filtered.length)
+                                : null;
+                        })(),
+                        badgeColor:
+                            'bg-purple-500/20 text-purple-300 border border-purple-500/30',
                     },
                 ],
             },
@@ -236,109 +265,149 @@ class SidebarNav extends HTMLElement {
         ];
     }
 
-    renderNavItem(item, activeTab) {
+    renderNavItem(item, activeTab, isCompact) {
         const isActive = activeTab === item.key;
 
-        // Architectural Fix: Use template literals for classes to avoid DOMTokenList space error
         const baseClasses =
-            'group relative flex items-center gap-3 px-3 py-2 my-1 rounded-lg text-sm font-medium transition-all duration-200 overflow-hidden cursor-pointer select-none border';
-        const activeClasses =
-            'bg-slate-800 text-white border-slate-700 shadow-sm';
-        const inactiveClasses =
-            'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/40';
+            'group relative flex items-center gap-3 px-3 py-2.5 my-1.5 text-sm font-medium transition-all duration-300 overflow-hidden cursor-pointer select-none border';
 
-        const containerClasses = `${baseClasses} ${isActive ? activeClasses : inactiveClasses}`;
+        // Compact Mode Adjustments
+        const compactClasses = isCompact ? 'justify-center px-0' : '';
+
+        // Dynamic styles injected via styleMap in the template, but we use classes for the base structure.
+        // We need to move away from hardcoded Tailwind utility classes for things that change between Prism/Pro.
+
+        const activeClasses =
+            'text-slate-100 border-blue-500/30 ring-1 ring-blue-500/10';
+        const inactiveClasses =
+            'border-transparent text-slate-400 hover:text-slate-100 hover:border-slate-800/50';
+
+        const containerClasses = `${baseClasses} ${compactClasses} ${isActive ? activeClasses : inactiveClasses}`;
 
         const iconColorClass = isActive
-            ? 'text-blue-400'
-            : 'text-slate-500 group-hover:text-slate-400 transition-colors';
+            ? 'text-blue-400 drop-shadow-[0_0_8px_#3b82f6]'
+            : 'text-slate-400 group-hover:text-slate-100 transition-colors';
 
-        // --- Active Indicator Line (Left) ---
+        // --- Active Indicator Glow (Left) ---
         const activeIndicator = isActive
             ? html`<div
-                  class="absolute left-0 top-2 bottom-2 w-1 bg-blue-500 rounded-r-full shadow-[0_0_8px_rgba(59,130,246,0.6)]"
+                  class="absolute left-0 top-2 bottom-2 w-1 bg-gradient-to-b from-blue-500 to-[#60a5fa] rounded-r-full shadow-[0_0_12px_#3b82f6] z-20"
               ></div>`
             : '';
 
         // --- Progress Background (e.g. for QC) ---
         const progressBg =
-            item.progress && item.progress > 0
+            item.progress && item.progress > 0 && !isCompact
                 ? html`<div
-                      class="absolute bottom-0 left-0 h-[2px] bg-blue-500/80 transition-all duration-300"
+                      class="absolute bottom-0 left-0 h-[3px] bg-gradient-to-r from-blue-500 to-[#60a5fa] transition-all duration-500 rounded-full"
                       style="width: ${item.progress}%"
                   ></div>`
                 : '';
 
         // --- Status Badge ---
         let statusElement = html``;
-        if (item.badge) {
-            statusElement = html`
-                <span
-                    class="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded text-white ${item.badgeColor} shadow-sm tabular-nums tracking-wide"
-                >
-                    ${item.badge}
-                </span>
-            `;
-        } else if (item.hasError) {
-            statusElement = html`<div
-                class="ml-auto w-2 h-2 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.8)]"
-            ></div>`;
-        } else if (item.hasWarning) {
-            statusElement = html`<div
-                class="ml-auto w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.6)]"
-            ></div>`;
+        if (!isCompact) {
+            if (item.badge) {
+                statusElement = html`
+                    <span
+                        class="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-md ${item.badgeColor} shadow-sm tabular-nums tracking-wide flex items-center justify-center min-w-[20px]"
+                    >
+                        ${item.badge}
+                    </span>
+                `;
+            } else if (item.hasError) {
+                statusElement = html`<div
+                    class="ml-auto w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_10px_#ef4444] animate-pulse"
+                ></div>`;
+            } else if (item.hasWarning) {
+                statusElement = html`<div
+                    class="ml-auto w-2.5 h-2.5 rounded-full bg-amber-500 shadow-[0_0_10px_#f59e0b]"
+                ></div>`;
+            }
+        } else {
+            // Compact Mode Indicators (Dot overlay on icon)
+            if (item.hasError || item.badgeColor?.includes('error')) {
+                statusElement = html`<div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 border border-slate-800 z-10 animate-pulse"></div>`;
+            } else if (item.badge) {
+                statusElement = html`<div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-blue-500 border border-slate-800 z-10"></div>`;
+            }
         }
+
+        // Tooltip for Compact Mode
+        const tooltip = isCompact ? item.label : '';
 
         return html`
             <a
                 href="#"
                 class="${containerClasses}"
+                data-tooltip="${tooltip}"
+                data-tooltip-placement="right"
+                style="border-radius: calc(0.75rem * 0.75); backdrop-filter: blur(12px); background: ${isActive ? '#1e293b' : 'transparent'};"
                 @click=${(e) => {
-                    e.preventDefault();
-                    uiActions.setActiveTab(item.key);
-                    // On mobile, close sidebar after selection
-                    if (window.innerWidth < 1280) {
-                        uiActions.setActiveSidebar(null);
-                    }
-                }}
+                e.preventDefault();
+                uiActions.setActiveTab(item.key);
+                if (window.innerWidth < 1280) {
+                    uiActions.setActiveSidebar(null);
+                }
+            }}
             >
                 ${activeIndicator} ${progressBg}
 
-                <span class="shrink-0 ${iconColorClass}"> ${item.icon} </span>
+                ${isCompact ? statusElement : ''}
 
-                <span class="truncate z-10">${item.label}</span>
+                <div class="relative z-10 flex items-center ${isCompact ? 'justify-center w-full' : 'gap-3 w-full'}">
+                    <span
+                        class="shrink-0 ${iconColorClass} transition-all duration-300 ${isActive
+                ? 'scale-110'
+                : 'group-hover:scale-110'}"
+                    >
+                        ${item.icon}
+                    </span>
 
-                ${statusElement}
+                    ${!isCompact ? html`
+                        <span
+                            class="truncate transition-all duration-300 ${isActive
+                    ? 'translate-x-0.5 font-bold tracking-tight'
+                    : ''}"
+                            >${item.label}</span
+                        >
+                        ${statusElement}
+                    ` : ''}
+                </div>
             </a>
         `;
     }
 
     render() {
-        const { activeTab } = useUiStore.getState();
+        const { activeTab, isGlobalNavCompact } = useUiStore.getState();
         const groups = this.getNavGroups();
 
         const template = html`
-            <div class="px-3 pb-8 flex flex-col gap-6">
+            <div class="px-4 pb-8 flex flex-col gap-8">
                 ${groups.map((group) => {
-                    const visibleItems = group.items.filter((i) => i.visible);
-                    if (visibleItems.length === 0) return '';
+            const visibleItems = group.items.filter((i) => i.visible);
+            if (visibleItems.length === 0) return '';
 
-                    return html`
-                        <div>
+            return html`
+                        <div class="flex flex-col gap-1.5">
+                            ${!isGlobalNavCompact ? html`
                             <div
-                                class="px-2 mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2 select-none"
+                                class="px-2 mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400/60 flex items-center gap-3 select-none"
                             >
-                                ${group.title}
-                                <div class="h-px bg-slate-800 grow"></div>
+                                <span>${group.title}</span>
+                                <div
+                                    class="h-[1px] bg-gradient-to-r from-slate-800/40 to-transparent grow"
+                                ></div>
                             </div>
-                            <nav class="flex flex-col">
+                            ` : html`<div class="h-[1px] bg-slate-800/10 mx-2 mb-2"></div>`}
+                            <nav class="flex flex-col gap-0.5">
                                 ${visibleItems.map((item) =>
-                                    this.renderNavItem(item, activeTab)
-                                )}
+                this.renderNavItem(item, activeTab, isGlobalNavCompact)
+            )}
                             </nav>
                         </div>
                     `;
-                })}
+        })}
             </div>
         `;
 
