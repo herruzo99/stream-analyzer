@@ -1,20 +1,37 @@
+import { useUiStore } from '@/state/uiStore';
 import { disposeChart } from '@/ui/shared/charts/chart-renderer';
 import { init as initChart } from 'echarts/core';
 import { html } from 'lit-html';
 
 // --- High Contrast Neon Palette ---
-const COLORS = {
-    segment: '#38bdf8', // Sky-400
-    segment_short: '#facc15', // Yellow-400
-    period: '#a78bfa', // Violet-400
-    content: '#818cf8', // Indigo-400
-    ad: '#f472b6', // Pink-400
-    gap: '#ef4444', // Red-500
-    drift: '#fb923c', // Orange-400
-    bg_track: 'rgba(255, 255, 255, 0.05)',
+const getColors = () => {
+    const getCssVar = (name, fallback) => {
+        const val = getComputedStyle(document.documentElement)
+            .getPropertyValue(name)
+            .trim();
+        return val || fallback;
+    };
+
+    return {
+        segment: getCssVar('--primary-accent', '#60a5fa'),
+        segment_short: getCssVar('--color-warning', '#fbbf24'),
+        period: getCssVar('--secondary-accent', '#c084fc'),
+        content: getCssVar('--tertiary-accent', '#34d399'),
+        ad: getCssVar('--secondary-accent-hover', '#f472b6'),
+        gap: getCssVar('--color-error', '#f87171'),
+        drift: getCssVar('--color-warning', '#fbbf24'),
+        bg_track: getCssVar('--text-on-B-primary', '#f8fafc'),
+        textMuted: getCssVar('--text-on-B-secondary', '#94a3b8'),
+        textMain: getCssVar('--text-on-B-primary', '#f8fafc'),
+        bgPanel: getCssVar('--bg-surface-B-panel', '#1e293b'),
+        borderMain: getCssVar('--border-on-B', 'rgba(255,255,255,0.1)'),
+        primary500: getCssVar('--primary-accent', '#3b82f6'),
+        backdropFilter: getCssVar('--region-backdrop', 'blur(10px)'),
+    };
 };
 
 export class SemanticDiffChart extends HTMLElement {
+    // Port note: was `extends BaseChartComponent` (never committed).
     constructor() {
         super();
         this.chartContainer = document.createElement('div');
@@ -25,6 +42,7 @@ export class SemanticDiffChart extends HTMLElement {
     }
 
     set data(val) {
+        if (JSON.stringify(val) === JSON.stringify(this._data)) return;
         this._data = val;
         this.render();
     }
@@ -41,17 +59,28 @@ export class SemanticDiffChart extends HTMLElement {
         });
         this.resizeObserver.observe(this.chartContainer);
 
+        // Subscribe to theme changes
+        let currentTheme = useUiStore.getState().theme;
+        this.unsubTheme = useUiStore.subscribe((state) => {
+            if (state.theme !== currentTheme) {
+                currentTheme = state.theme;
+                this.render();
+            }
+        });
+
         this.render();
     }
 
     disconnectedCallback() {
         this.resizeObserver?.disconnect();
+        if (this.unsubTheme) this.unsubTheme();
         if (this.chart) disposeChart(this.chart);
     }
 
     render() {
         if (!this._data || !this.chart) return;
 
+        const COLORS = getColors();
         const { trackA, trackB, diffTrack, minTime, maxTime } = this._data;
         const categories = [trackB.name, 'Difference', trackA.name];
 
@@ -62,7 +91,7 @@ export class SemanticDiffChart extends HTMLElement {
                         text: 'No timeline data available.',
                         left: 'center',
                         top: 'center',
-                        textStyle: { color: '#94a3b8' },
+                        textStyle: { color: COLORS.textMuted },
                     },
                 },
                 true
@@ -125,7 +154,7 @@ export class SemanticDiffChart extends HTMLElement {
             // 1. Main Block
             rects.push({
                 type: 'rect',
-                shape: { x, y, width, height: barHeight, r: 4 },
+                shape: { x, y, width, height: barHeight, r: 6 },
                 style: {
                     fill: color,
                     stroke: 'rgba(0,0,0,0.2)',
@@ -136,8 +165,6 @@ export class SemanticDiffChart extends HTMLElement {
                         fill: color,
                         stroke: '#fff',
                         lineWidth: 2,
-                        shadowBlur: 10,
-                        shadowColor: color,
                     },
                 },
             });
@@ -152,11 +179,13 @@ export class SemanticDiffChart extends HTMLElement {
                         y: y + barHeight / 2,
                         align: 'center',
                         verticalAlign: 'middle',
-                        fill: '#fff',
+                        fill: '#fff', // Keep white for contrast on colored bars
                         fontSize: 10,
                         fontWeight: 'bold',
                         overflow: 'truncate',
                         width: width - 4,
+                        textShadowBlur: 2,
+                        textShadowColor: 'rgba(0,0,0,0.5)',
                     },
                     silent: true,
                 });
@@ -183,9 +212,9 @@ export class SemanticDiffChart extends HTMLElement {
                     y: start[1] - barHeight / 2,
                     width: end[0] - start[0],
                     height: barHeight,
-                    r: 4,
+                    r: 6,
                 },
-                style: { fill: COLORS.bg_track },
+                style: { fill: COLORS.bg_track, fillOpacity: 0.03 },
                 silent: true,
             };
         };
@@ -195,20 +224,22 @@ export class SemanticDiffChart extends HTMLElement {
             backgroundColor: 'transparent',
             tooltip: {
                 trigger: 'item',
-                backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                borderColor: '#334155',
-                textStyle: { color: '#f8fafc' },
-                padding: [10, 14],
+                backgroundColor: COLORS.bgPanel,
+                borderColor: COLORS.borderMain,
+                textStyle: { color: COLORS.textMain },
+                padding: [12, 16],
+                borderRadius: 12,
+                backdropFilter: COLORS.backdropFilter,
                 formatter: (params) => {
                     const d = params.data?.meta; // Tooltip usually receives the full object
                     if (!d) return '';
 
-                    let html = `<div class="font-bold text-sm mb-2 border-b border-slate-600 pb-1" style="color:${COLORS[d.type] || '#fff'}">${d.label || d.type.toUpperCase()}</div>`;
-                    html += `<div class="text-xs text-slate-300 font-mono space-y-1">
-                        <div>Start: <span class="text-blue-300">${d.start.toFixed(3)}s</span></div>
-                        <div>End:   <span class="text-blue-300">${d.end.toFixed(3)}s</span></div>
-                        <div>Dur:   <span class="text-emerald-300">${d.duration.toFixed(3)}s</span></div>
-                        <div class="text-slate-500 uppercase text-[10px] mt-1">${d.type}</div>
+                    let html = `<div class="font-bold text-sm mb-2 border-b border-slate-800 pb-2" style="color:${COLORS[d.type] || '#fff'}">${d.label || d.type.toUpperCase()}</div>`;
+                    html += `<div class="text-xs text-slate-400 font-mono space-y-1.5">
+                        <div class="flex justify-between gap-4"><span>Start:</span> <span class="text-[#60a5fa] font-bold">${d.start.toFixed(3)}s</span></div>
+                        <div class="flex justify-between gap-4"><span>End:</span>   <span class="text-[#60a5fa] font-bold">${d.end.toFixed(3)}s</span></div>
+                        <div class="flex justify-between gap-4"><span>Dur:</span>   <span class="text-emerald-400 font-bold">${d.duration.toFixed(3)}s</span></div>
+                        <div class="text-slate-400 uppercase text-[10px] mt-2 pt-1 border-t border-slate-800 tracking-wider">${d.type}</div>
                     </div>`;
                     return html;
                 },
@@ -216,8 +247,9 @@ export class SemanticDiffChart extends HTMLElement {
             grid: {
                 top: 40,
                 bottom: 60,
-                left: 120,
-                right: 40,
+                left: 80, // Reduced from 120
+                right: 20, // Reduced from 40
+                containLabel: true, // Ensure labels don't get cut off
             },
             xAxis: {
                 type: 'value',
@@ -226,24 +258,24 @@ export class SemanticDiffChart extends HTMLElement {
                 splitLine: {
                     show: true,
                     lineStyle: {
-                        color: '#334155',
+                        color: COLORS.textMain,
                         type: 'dashed',
-                        opacity: 0.3,
+                        opacity: 0.05,
                     },
                 },
                 axisLabel: {
-                    color: '#94a3b8',
+                    color: COLORS.textMuted,
                     formatter: (val) => `${val.toFixed(0)}s`,
                     margin: 14,
                     fontWeight: 'bold',
                 },
-                axisLine: { lineStyle: { color: '#475569' } },
+                axisLine: { lineStyle: { color: COLORS.borderMain } },
             },
             yAxis: {
                 type: 'category',
                 data: categories,
                 axisLabel: {
-                    color: '#e2e8f0',
+                    color: COLORS.textMain,
                     fontWeight: 'bold',
                     fontSize: 13,
                     width: 100,
@@ -261,14 +293,26 @@ export class SemanticDiffChart extends HTMLElement {
                     bottom: 10,
                     height: 24,
                     borderColor: 'transparent',
-                    backgroundColor: 'rgba(30, 41, 59, 0.5)',
-                    fillerColor: 'rgba(56, 189, 248, 0.2)',
-                    handleStyle: { color: '#38bdf8', borderColor: '#38bdf8' },
-                    textStyle: { color: '#94a3b8', fontSize: 10 },
+                    backgroundColor: COLORS.bgPanel,
+                    fillerColor: COLORS.primary500 + '1A', // 10% opacity
+                    handleStyle: {
+                        color: COLORS.primary500,
+                        borderColor: COLORS.primary500,
+                        shadowBlur: 5,
+                    },
+                    textStyle: { color: COLORS.textMuted, fontSize: 10 },
                     start: 0, // percentages
                     end: 100,
+                    brushSelect: false,
+                    borderRadius: 12,
                 },
-                { type: 'inside', filterMode: 'weakFilter' },
+                {
+                    type: 'inside',
+                    filterMode: 'weakFilter',
+                    zoomOnMouseWheel: 'ctrl',
+                    moveOnMouseWheel: true,
+                    preventDefaultMouseMove: false,
+                },
             ],
             series: [
                 // Series 0: Backgrounds

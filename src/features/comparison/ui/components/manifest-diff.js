@@ -91,12 +91,12 @@ export const manifestDiffTemplate = (
     return html`
         <div class="h-full w-full flex flex-col">
             <div
-                class="grow min-h-0 relative bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shadow-inner"
+                class="layout-card grow min-h-0 relative bg-slate-800 overflow-hidden"
             >
                 ${diffViewerTemplate(syntheticUpdate, protocol, {
-                    showControls: true,
-                    showHideDeletedControl: true,
-                })}
+        showControls: true,
+        showHideDeletedControl: false,
+    })}
             </div>
         </div>
     `;

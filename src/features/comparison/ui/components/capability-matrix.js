@@ -75,15 +75,19 @@ const renderCapabilityCell = (hasCapability) => {
     if (hasCapability) {
         return html`
             <div
-                class="flex justify-center items-center h-full text-emerald-400"
+                class="flex justify-center items-center h-full text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.5)] bg-emerald-500/10 rounded-lg"
             >
                 ${icons.checkCircle}
             </div>
         `;
     }
     return html`
-        <div class="flex justify-center items-center h-full text-slate-700/50">
-            <div class="w-1.5 h-1.5 rounded-full bg-slate-800"></div>
+        <div
+            class="flex justify-center items-center h-full text-slate-400/50"
+        >
+            <div
+                class="w-1.5 h-1.5 rounded-full bg-slate-400/20"
+            ></div>
         </div>
     `;
 };
@@ -94,61 +98,63 @@ export const capabilityMatrixTemplate = (streams) => {
 
     return html`
         <div
-            class="w-full h-full flex flex-col bg-slate-900 rounded-lg overflow-hidden border border-slate-700 shadow-lg relative"
+            class="w-full h-full flex flex-col relative"
         >
             <!-- Scrollable Container (Parent for Sticky Positioning) -->
-            <div
-                class="overflow-auto custom-scrollbar w-full h-full bg-slate-900"
-            >
-                <div class="grid gap-px" style="${gridStyle}">
+            <div class="overflow-auto custom-scrollbar w-full h-full p-4">
+                <div class="grid gap-1.5" style="${gridStyle}">
                     <!-- Top-Left Header (Sticky on X and Y axes) -->
                     <div
-                        class="sticky left-0 top-0 z-40 p-3 text-xs font-bold text-slate-400 uppercase tracking-wider flex items-end bg-slate-900 border-b border-r border-slate-800 shadow-[2px_2px_10px_rgba(0,0,0,0.2)]"
+                        class="sticky left-0 top-0 z-40 p-3 text-xs font-bold text-slate-400 uppercase tracking-wider flex items-end bg-slate-800 backdrop-blur-3xl rounded-xl shadow-[2px_2px_10px_rgba(0,0,0,0.2)] border border-slate-800/30"
+                        style="backdrop-filter: blur(12px)"
                     >
                         Capabilities
                     </div>
 
                     <!-- Stream Headers (Sticky Top) -->
                     ${streams.map(
-                        (s) => html`
+        (s) => html`
                             <div
-                                class="sticky top-0 z-30 p-3 text-center border-b border-slate-800 bg-slate-900/95 backdrop-blur-sm"
+                                class="sticky top-0 z-30 p-3 text-center bg-slate-800 backdrop-blur-3xl shadow-lg rounded-xl border border-slate-800/20"
+                                style="backdrop-filter: blur(12px)"
                             >
                                 <div
-                                    class="text-xs font-bold text-white truncate px-2"
+                                    class="text-xs font-bold text-slate-100 truncate px-2"
                                     title="${s.name}"
                                 >
                                     ${s.name}
                                 </div>
                                 <div
-                                    class="text-[10px] text-slate-500 font-mono mt-0.5"
+                                    class="text-[10px] text-slate-400 font-mono mt-0.5"
                                 >
                                     ${s.id}
                                 </div>
                             </div>
                         `
-                    )}
+    )}
 
                     <!-- Rows -->
                     ${CAPABILITIES.map((cap, idx) => {
-                        // Render row content
-                        const rowCells = streams.map((s) => {
-                            const hasCap = getValue(s.manifest?.summary, cap);
-                            return html`
+        // Render row content
+        const rowCells = streams.map((s) => {
+            const hasCap = getValue(s.manifest?.summary, cap);
+            return html`
                                 <div
-                                    class="flex items-center justify-center bg-slate-900/30 hover:bg-white/[0.02] transition-colors border-b border-slate-800/30 h-12"
+                                    class="flex items-center justify-center bg-slate-900/5 hover:bg-slate-100/[0.05] transition-colors h-12 rounded-lg"
                                 >
                                     ${renderCapabilityCell(hasCap)}
                                 </div>
                             `;
-                        });
+        });
 
-                        return html`
+        return html`
                             <!-- Row Label (Sticky Left) -->
                             <div
-                                class="sticky left-0 z-20 p-3 flex items-center gap-3 text-xs font-medium text-slate-300 bg-slate-900 border-b border-r border-slate-800 hover:bg-slate-800/50 transition-colors h-12 shadow-[2px_0_5px_rgba(0,0,0,0.1)]"
+                                class="sticky left-0 z-20 p-3 flex items-center gap-3 text-xs font-medium text-slate-100 bg-slate-800 backdrop-blur-md hover:bg-slate-800 transition-colors h-12 shadow-lg group rounded-lg border border-slate-800/20"
+                                style="backdrop-filter: blur(12px)"
                             >
-                                <span class="text-slate-500 shrink-0"
+                                <span
+                                    class="text-slate-400 shrink-0 group-hover:text-purple-300 transition-colors"
                                     >${cap.icon}</span
                                 >
                                 <span class="truncate" title="${cap.label}"
@@ -159,7 +165,7 @@ export const capabilityMatrixTemplate = (streams) => {
                             <!-- Data Cells -->
                             ${rowCells}
                         `;
-                    })}
+    })}
                 </div>
             </div>
         </div>

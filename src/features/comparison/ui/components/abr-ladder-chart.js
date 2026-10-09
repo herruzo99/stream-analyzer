@@ -2,14 +2,37 @@ import { disposeChart, renderChart } from '@/ui/shared/charts/chart-renderer';
 import { formatBitrate } from '@/ui/shared/format';
 import { html, render } from 'lit-html';
 
+const getCssVar = (name, fallback) => {
+    const val = getComputedStyle(document.documentElement)
+        .getPropertyValue(name)
+        .trim();
+    return val || fallback;
+};
+
 const abrLadderChartOptions = (abrData) => {
     const allHeights = [
         ...new Set(abrData.flatMap((d) => d.tracks.map((t) => t.height))),
     ].sort((a, b) => a - b);
 
-    const series = abrData.map((streamData) => {
+    // const primary400 = getCssVar('--primary-accent', '#60a5fa');
+    // const primary500 = getCssVar('--primary-accent', '#3b82f6');
+    // const primary300 = getCssVar('--primary-accent-hover', '#93c5fd');
+    // const primaryGlow = getCssVar(
+    //     '--primary-accent-glow',
+    //     'rgba(59, 130, 246, 0.5)'
+    // );
+    const textMuted = getCssVar('--text-on-B-secondary', '#94a3b8');
+    const textMain = getCssVar('--text-on-B-primary', '#f8fafc');
+    const borderMain = getCssVar('--border-on-B', 'rgba(255,255,255,0.1)');
+    const bgPanel = getCssVar('--bg-surface-B-panel', '#1e293b');
+    const backdropFilter = getCssVar('--region-backdrop', 'blur(10px)');
+
+    const series = abrData.map((streamData, index) => {
         const trackMap = new Map(streamData.tracks.map((t) => [t.height, t]));
-        const isRef = streamData.isReference;
+
+        // Use indexed chart colors from theme
+        const colorVar = `--chart-${(index % 10) + 1}`;
+        const seriesColor = getCssVar(colorVar, '#3b82f6'); // Fallback to blue
 
         return {
             name: streamData.name,
@@ -19,24 +42,21 @@ const abrLadderChartOptions = (abrData) => {
             emphasis: {
                 focus: 'series',
             },
-            // Highlight reference stream visually
-            itemStyle: isRef
-                ? {
-                      color: '#fbbf24', // Amber-400
-                      borderColor: '#fff',
-                      borderWidth: 1,
-                      shadowBlur: 5,
-                      shadowColor: 'rgba(251, 191, 36, 0.5)',
-                  }
-                : undefined,
-            z: isRef ? 10 : 1, // Bring reference to front
+            itemStyle: {
+                color: seriesColor,
+                borderRadius: [4, 4, 0, 0],
+                opacity: 0.9,
+                shadowBlur: 0,
+                borderColor: 'transparent',
+            },
+            z: 2,
             data: allHeights.map((height) => {
                 const track = trackMap.get(height);
                 return track
                     ? {
-                          value: track.bandwidth,
-                          trackInfo: track,
-                      }
+                        value: track.bandwidth,
+                        trackInfo: track,
+                    }
                     : null;
             }),
         };
@@ -46,10 +66,18 @@ const abrLadderChartOptions = (abrData) => {
         backgroundColor: 'transparent',
         legend: {
             data: abrData.map((d) => d.name),
-            textStyle: { color: '#9ca3af' }, // slate-400
+            textStyle: { color: textMuted },
             bottom: 0,
             type: 'scroll',
-            pageTextStyle: { color: '#9ca3af' },
+            pageTextStyle: { color: textMuted },
+        },
+        tooltip: {
+            backgroundColor: bgPanel,
+            borderColor: borderMain,
+            textStyle: { color: textMain },
+            backdropFilter: backdropFilter,
+            padding: [10, 14],
+            borderRadius: 12,
         },
         grid: {
             top: '30',
@@ -62,27 +90,31 @@ const abrLadderChartOptions = (abrData) => {
             name: 'Resolution',
             nameLocation: 'middle',
             nameGap: 30,
-            nameTextStyle: { color: '#9ca3af', fontSize: 12 },
-            axisLine: { lineStyle: { color: '#475569' } }, // slate-600
-            axisLabel: { color: '#cbd5e1', fontWeight: 'bold' }, // slate-300
+            nameTextStyle: { color: textMuted, fontSize: 12 },
+            axisLine: { lineStyle: { color: borderMain } },
+            axisLabel: { color: textMain, fontWeight: 'bold' },
             data: allHeights.map((h) => `${h}p`),
         },
         yAxis: {
             type: 'value',
             name: 'Bitrate',
-            nameTextStyle: { color: '#9ca3af' },
-            axisLine: { lineStyle: { color: '#475569' } },
+            nameTextStyle: { color: textMuted },
+            axisLine: { lineStyle: { color: borderMain } },
             axisLabel: {
                 formatter: (value) => formatBitrate(value),
-                color: '#9ca3af',
+                color: textMuted,
             },
-            splitLine: { lineStyle: { color: '#334155', type: 'dashed' } }, // slate-700
+            splitLine: {
+                lineStyle: { color: borderMain, type: 'dashed', opacity: 0.3 },
+            },
         },
         series,
     };
 };
 
 class AbrLadderChart extends HTMLElement {
+    // Port note: was `extends BaseChartComponent` (never committed);
+    // chart I/O already uses renderChart/disposeChart directly.
     _data = null;
     chartContainer = null;
 
@@ -94,7 +126,7 @@ class AbrLadderChart extends HTMLElement {
     }
 
     set data(newData) {
-        if (this._data === newData) return;
+        if (JSON.stringify(newData) === JSON.stringify(this._data)) return;
         this._data = newData;
         this.render();
     }
@@ -124,7 +156,7 @@ class AbrLadderChart extends HTMLElement {
         ) {
             render(
                 html`<div
-                    class="flex items-center justify-center h-full text-center text-slate-500 text-sm"
+                    class="flex items-center justify-center h-full text-center text-slate-400 text-sm"
                 >
                     No comparable video tracks found.
                 </div>`,

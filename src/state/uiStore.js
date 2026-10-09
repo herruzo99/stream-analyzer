@@ -66,6 +66,9 @@ const createInitialUiState = () => ({
     highlightedIssueId: null, // Specific issue UUID for precise QC highlighting
     comparisonHideSameRows: false,
     comparisonHideUnusedFeatures: true,
+    comparisonSelectorsExpanded: true,
+    fabMenu: { isOpen: false, activeSubMenu: null },
+    fabSideMenuOpen: false,
     expandedComparisonTables: new Set(),
     expandedComparisonFlags: new Set(),
     segmentComparisonActiveTab: 'tabular',
@@ -127,6 +130,20 @@ export const useUiStore = createStore((set, get) => ({
     setSignalMonitorSize: (size) => set({ signalMonitorSize: size }),
     setManifestComparisonViewMode: (mode) =>
         set({ manifestComparisonViewMode: mode }),
+    toggleComparisonSelectors: () =>
+        set((state) => ({
+            comparisonSelectorsExpanded: !state.comparisonSelectorsExpanded,
+        })),
+    setFabMenuOpen: (open) =>
+        set((state) => ({ fabMenu: { ...state.fabMenu, isOpen: open } })),
+    toggleFabMenu: () =>
+        set((state) => ({
+            fabMenu: { ...state.fabMenu, isOpen: !state.fabMenu.isOpen },
+        })),
+    setFabSubMenu: (id) =>
+        set((state) => ({ fabMenu: { ...state.fabMenu, activeSubMenu: id } })),
+    toggleFabSideMenu: () =>
+        set((state) => ({ fabSideMenuOpen: !state.fabSideMenuOpen })),
     togglePlayerTelemetrySidebar: () =>
         set((state) => ({
             playerTelemetrySidebarOpen: !state.playerTelemetrySidebarOpen,
