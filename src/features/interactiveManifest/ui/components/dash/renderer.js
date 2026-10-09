@@ -203,6 +203,10 @@ const rowRenderer = (
     now,
     isSpdActive
 ) => {
+    // Fresh clock per row render: the template closure freezes `now` at full
+    // render time, but the virtualized list invokes rows lazily on scroll.
+    // Without this, scrolled-to rows show stale ages. Null (VOD) stays null.
+    const effectiveNow = now === null ? null : Date.now();
     const indentGuides = [];
     for (let i = 0; i < line.depth; i++) {
         indentGuides.push(
@@ -258,7 +262,7 @@ const rowRenderer = (
                         : line.anchorTime, // Use parentAnchorTime for Period attributes (to correctly calc start)
                     line.pto, // Pass PTO
                     line.spd, // Pass SPD
-                    now,
+                    effectiveNow,
                     isSpdActive
                 )}`
         );
@@ -274,7 +278,7 @@ const rowRenderer = (
                 line.anchorTime,
                 line.pto,
                 line.spd,
-                now,
+                effectiveNow,
                 isSpdActive
             );
             if (badgeHtml) {
@@ -305,7 +309,7 @@ const rowRenderer = (
                 line.parentAnchorTime, // Use parentAnchorTime (MPD AST) so logic can add start offset
                 line.pto,
                 line.spd,
-                now,
+                effectiveNow,
                 isSpdActive
             );
             if (badgeHtml) {
