@@ -18,6 +18,9 @@ export const EVENTS = {
     UI: {
         SHOW_STATUS: 'ui:show-status',
         STREAM_ANALYSIS_REQUESTED: 'ui:stream-analysis-requested',
+        SHOW_INITIAL_ANALYSIS_WARNING: 'ui:show-initial-analysis-warning',
+        PROCEED_WITH_PARTIAL_ANALYSIS: 'ui:proceed-with-partial-analysis',
+        EDIT_ANALYSIS_INPUT: 'ui:edit-analysis-input',
         ADD_STREAMS_REQUESTED: 'ui:add-streams-requested',
         SAVE_PRESET_REQUESTED: 'ui:save-preset-requested',
         SHOW_SEGMENT_ANALYSIS_MODAL: 'ui:show-segment-analysis-modal',
@@ -30,6 +33,7 @@ export const EVENTS = {
         STREAM_INPUT_POPULATE_PRESET: 'ui:stream-input:populate-from-preset',
         STREAM_INPUT_REMOVE: 'ui:stream-input:remove-requested',
         STREAM_INPUT_SET_ACTIVE: 'ui:stream-input:set-active',
+        RETRY_STREAM: 'ui:retry-stream',
 
         // Compliance
         COMPLIANCE_FILTER_CHANGED: 'ui:compliance:filter-changed',

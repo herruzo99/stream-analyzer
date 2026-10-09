@@ -30,12 +30,12 @@ export function highlightDash(text) {
             // Tag names
             .replace(
                 /(&lt;\/?)([\w:-]+)/g,
-                '$1<span class="text-blue-300">$2</span>'
+                '$1<span class="text-cyan-300">$2</span>'
             )
             // Attribute names and values
             .replace(
                 /([\w:-]+)=(&quot;)(.*?)(&quot;)/g,
-                '<span class="text-emerald-300">$1</span>=$2<span class="text-yellow-300">$3</span>$4'
+                '<span class="text-sky-300">$1</span>=$2<span class="text-amber-200">$3</span>$4'
             )
     );
 }
@@ -56,9 +56,9 @@ function highlightHlsAttributes(text) {
 
             // Remove quotes for coloring if present in the capture group
             const cleanValue = isQuoted ? value.slice(6, -6) : value;
-            const valueSpan = `<span class="text-yellow-300">${cleanValue}</span>`;
+            const valueSpan = `<span class="text-amber-200">${cleanValue}</span>`;
 
-            return `<span class="text-emerald-300">${key}</span>=${
+            return `<span class="text-sky-300">${key}</span>=${
                 isQuoted ? `&quot;${valueSpan}&quot;` : valueSpan
             }`;
         }
@@ -82,9 +82,9 @@ export function highlightHls(text) {
             // Tag without value (e.g., #EXTM3U)
             const tagMatch = escaped.match(/^(\s*)(#EXT[\w-]+)(.*)$/);
             if (tagMatch) {
-                return `${tagMatch[1]}<span class="text-purple-300">${tagMatch[2]}</span>${tagMatch[3]}`;
+                return `${tagMatch[1]}<span class="text-cyan-300">${tagMatch[2]}</span>${tagMatch[3]}`;
             }
-            return `<span class="text-purple-300">${escaped}</span>`;
+            return `<span class="text-cyan-300">${escaped}</span>`;
         }
 
         const preTag = escaped.substring(0, separatorIndex);
@@ -93,7 +93,7 @@ export function highlightHls(text) {
         // Color the Tag
         const tagHtml = preTag.replace(
             /(#EXT[\w-]+)/,
-            '<span class="text-purple-300">$1</span>'
+            '<span class="text-cyan-300">$1</span>'
         );
 
         // Highlight attributes
@@ -104,7 +104,7 @@ export function highlightHls(text) {
             finalAttrs === attributesPart &&
             attributesPart.trim().length > 0 &&
             !attributesPart.includes('=')
-                ? `<span class="text-yellow-300">${attributesPart}</span>`
+                ? `<span class="text-amber-200">${attributesPart}</span>`
                 : finalAttrs;
 
         return `${tagHtml}:${renderedAttrs}`;
@@ -125,7 +125,7 @@ export function highlightHls(text) {
     // Optimization: Using explicit capture for URI matching
     const uriMatch = escaped.match(/^(\s*)(.*)$/);
     if (uriMatch) {
-        return `${uriMatch[1]}<span class="text-cyan-400">${uriMatch[2]}</span>`;
+        return `${uriMatch[1]}<span class="text-amber-200">${uriMatch[2]}</span>`;
     }
-    return `<span class="text-cyan-400">${escaped}</span>`;
+    return `<span class="text-amber-200">${escaped}</span>`;
 }

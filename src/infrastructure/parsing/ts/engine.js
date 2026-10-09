@@ -10,6 +10,7 @@ import { parsePmtPayload } from './parsers/pmt.js';
 import { parsePrivateSectionPayload } from './parsers/private-section.js';
 import { parsePsiSection } from './parsers/psi-section.js';
 import { parseTsdtPayload } from './parsers/tsdt.js';
+import { parseAnnexBNalUnits } from '../video/nal-parser.js';
 
 const TS_PACKET_SIZE = 188;
 const SYNC_BYTE = 0x47;
@@ -320,10 +321,10 @@ export function parseTsSegment(buffer) {
 
                                 // Rich metadata storage (NEW)
                                 summary.programMap[pid].streamDetails[elemPid] =
-                                    {
-                                        streamType: stream.stream_type.value,
-                                        descriptors: stream.es_descriptors,
-                                    };
+                                {
+                                    streamType: stream.stream_type.value,
+                                    descriptors: stream.es_descriptors,
+                                };
                             });
                             summary.programMap[pid].pcrPid =
                                 parsedPayload.pcr_pid.value;
@@ -396,8 +397,8 @@ export function parseTsSegment(buffer) {
                                     buffer,
                                     offset + dsmccPayloadOffset,
                                     offset +
-                                        TS_PACKET_SIZE -
-                                        (offset + dsmccPayloadOffset)
+                                    TS_PACKET_SIZE -
+                                    (offset + dsmccPayloadOffset)
                                 );
                                 packet.pes.payload = parseDsmccPayload(
                                     dsmccView,
@@ -412,33 +413,104 @@ export function parseTsSegment(buffer) {
         packets.push(packet);
     }
 
-    // Pass 3: Label packets based on the populated PMT
+    // Pass 3: Label packets and Reassemble PES for Deep Inspection
     const pidToStreamType = {};
+    const _pidToCodec = {}; // Port: populated by a later batch; kept for structure.
     Object.values(summary.programMap).forEach((program) => {
         Object.entries(program.streams).forEach(([pid, type]) => {
             pidToStreamType[pid] = type;
         });
     });
 
+    // Reassembly State
+    const videoGroups = {}; // pid -> { packets: [], chunks: [], codec: string }
+
+    // Helper to process a finished group
+    const processVideoGroup = (group) => {
+        if (!group || group.chunks.length === 0) return;
+        try {
+            // Merge chunks
+            const totalLen = group.chunks.reduce((acc, c) => acc + c.length, 0);
+            const fullData = new Uint8Array(totalLen);
+            let offset = 0;
+            group.chunks.forEach(c => { fullData.set(c, offset); offset += c.length; });
+
+            // Parse NALs (Annex B)
+            // Note: PES headers (00 00 01 E0..) might be parsed as NAL type 0 or similar, which is harmless.
+            // We specifically look for SEI (Type 6 AVC / 39-40 HEVC) and info.
+            const nalUnits = parseAnnexBNalUnits(fullData, group.codec);
+
+            if (nalUnits.length > 0) {
+                const videoDetails = { nalUnits, totalSize: totalLen };
+                // Attach structure to ALL packets in this PES
+                group.packets.forEach(p => p.videoDetails = videoDetails);
+            }
+        } catch {
+            // Ignore parsing errors
+        }
+    };
+
     packets.forEach((packet) => {
         if (pidToStreamType[packet.pid]) {
             if (packet.payloadType === 'Data' || packet.payloadType === 'PES') {
-                if (packet.payloadType === 'Data') {
-                    const typeNum = parseInt(pidToStreamType[packet.pid], 16);
-                    let label = `Stream ${pidToStreamType[packet.pid]}`;
-                    // Common mappings for quick ID
-                    if (typeNum === 0x1b) label = 'H.264 Video';
-                    else if (typeNum === 0x24) label = 'HEVC Video';
-                    else if (typeNum === 0x0f) label = 'AAC Audio';
-                    else if (typeNum === 0x15) label = 'ID3 Metadata';
-                    else if (typeNum === 0x03 || typeNum === 0x04)
-                        label = 'MPEG Audio';
+                const typeNum = parseInt(pidToStreamType[packet.pid], 16);
+                let label = `Stream ${pidToStreamType[packet.pid]}`;
+                /** @type {'avc' | 'hevc' | 'vvc' | null} */
+                let codec = null;
 
-                    packet.payloadType = label;
+                // Common mappings for quick ID
+                if (typeNum === 0x1b) {
+                    label = 'H.264 Video';
+                    codec = 'avc';
+                }
+                else if (typeNum === 0x24) {
+                    label = 'HEVC Video';
+                    codec = 'hevc';
+                }
+                else if (typeNum === 0x0f) label = 'AAC Audio';
+                else if (typeNum === 0x15) label = 'ID3 Metadata';
+                else if (typeNum === 0x03 || typeNum === 0x04)
+                    label = 'MPEG Audio';
+
+                packet.payloadType = label;
+
+                // PES Reassembly Logic
+                if (codec) {
+                    // Check for PUSI (Start of new PES)
+                    if (packet.header.payload_unit_start_indicator.value) {
+                        // Flush previous group for this PID
+                        if (videoGroups[packet.pid]) {
+                            processVideoGroup(videoGroups[packet.pid]);
+                        }
+                        // Start new group
+                        videoGroups[packet.pid] = { packets: [], chunks: [], codec };
+                    }
+
+                    const group = videoGroups[packet.pid];
+                    if (group) {
+                        group.packets.push(packet);
+                        // Extract Payload for reassembly
+                        let payloadStart = 4;
+                        // Skip Adaptation Field
+                        if (packet.header.adaptation_field_control.value & 2 && packet.fieldOffsets.adaptationField) {
+                            payloadStart = packet.fieldOffsets.adaptationField.offset - packet.offset + packet.fieldOffsets.adaptationField.length;
+                        }
+
+                        // Note: We do NOT skip PES header here because we are assembling the FULL PES packet.
+                        // The PES header is part of the first chunk. `parseAnnexBNalUnits` handles it (or we ignore the false positive).
+                        // Actually, leaving PES header is safer for offsets if we wanted them, but for NAL parsing it's fine.
+
+                        if (packet.header.adaptation_field_control.value & 1 && payloadStart < TS_PACKET_SIZE) {
+                            group.chunks.push(new Uint8Array(buffer, packet.offset + payloadStart, TS_PACKET_SIZE - payloadStart));
+                        }
+                    }
                 }
             }
         }
     });
+
+    // Flush remaining groups at end of segment
+    Object.values(videoGroups).forEach(group => processVideoGroup(group));
 
     summary.pcrList = summarizePcrList(rawPcrList);
     summary.continuityCounters = summarizeContinuityCounters(rawCcMap);

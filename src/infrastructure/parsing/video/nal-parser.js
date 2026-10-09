@@ -16,7 +16,7 @@ import { parseSei } from './sei-parser.js';
  * @param {Uint8Array} data
  * @returns {Uint8Array}
  */
-function unescapeRBSP(data) {
+export function unescapeRBSP(data) {
     const length = data.length;
     let emulationCount = 0;
     for (let i = 0; i < length - 2; i++) {
@@ -194,13 +194,9 @@ export function parseAnnexBNalUnits(buffer, codec) {
 
         let size = nextStart - current;
         // Trim trailing zeros that belong to next start code
-        while (size > 0 && buffer[current + size - 1] === 0) {
-            size--;
-        }
-
         if (size > 0) {
             const headerByte = buffer[current];
-            let { nalType, isIdr, isVcl, _isSei, isAud, _headerSize } =
+            let { nalType, isIdr, isVcl, isSei, isAud, headerSize } =
                 analyzeNalHeader(headerByte, codec);
 
             // VVC specific check
@@ -209,7 +205,7 @@ export function parseAnnexBNalUnits(buffer, codec) {
                 nalType = (byte1 >> 3) & 0x1f;
                 isVcl = nalType >= 0 && nalType <= 11;
                 isIdr = nalType >= 7 && nalType <= 10;
-                // isSei = nalType === 23 || nalType === 24;
+                isSei = nalType === 23 || nalType === 24;
                 isAud = nalType === 20;
             }
 
@@ -220,10 +216,26 @@ export function parseAnnexBNalUnits(buffer, codec) {
                 isIdr,
                 isVcl,
                 isAud,
+                isSei,
             };
 
-            // Note: SEI parsing for Annex B requires unescaping RBSP too.
-            // We can add it here if needed, but for basic GOP analysis, types are enough.
+            if (isSei) {
+                try {
+                    // Header size might be 1 or 2 bytes depending on codec/settings, but analyzeNalHeader gives guess
+                    // For Annex B, we usually just skip the header byte(s).
+                    // analyzeNalHeader returns headerSize.
+                    let payloadOffset = current + headerSize;
+                    if (codec === 'vvc') payloadOffset = current + 2;
+
+                    if (payloadOffset < current + size) {
+                        const rawPayload = buffer.subarray(payloadOffset, current + size);
+                        const rbsp = unescapeRBSP(rawPayload);
+                        unit.seiMessage = parseSei(rbsp);
+                    }
+                } catch {
+                    // Ignore parsing errors for now
+                }
+            }
 
             nalList.push(unit);
         }

@@ -172,3 +172,8 @@ export const trash = icon('trash');
 export const save = icon('save');
 export const broadcast = icon('radio');
 export const book = icon('book'); // ported: used by the manifest inspector sidebar
+export const bell = icon('bell');
+export const x = icon('x'); // ported: used by quick-win views
+// (check, hash) ported pre-emptively: same helper, used by later batches
+export const check = icon('check');
+export const hash = icon('hash');

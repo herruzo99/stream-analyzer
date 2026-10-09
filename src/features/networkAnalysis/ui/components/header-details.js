@@ -79,7 +79,9 @@ const categorizeHeaders = (headers) => {
 
 export const headerDetailsTemplate = (headers, flaggedKeys = new Set()) => {
     if (!headers || Object.keys(headers).length === 0) {
-        return html`<p class="text-xs text-slate-500 italic p-2">
+        return html`<p
+            class="text-xs text-slate-400 italic p-2"
+        >
             No headers found.
         </p>`;
     }
@@ -91,7 +93,7 @@ export const headerDetailsTemplate = (headers, flaggedKeys = new Set()) => {
                 if (Object.keys(headerGroup).length === 0) return '';
                 return html`
                     <div
-                        class="bg-slate-900/50 rounded border border-slate-700/50 overflow-hidden"
+                        class="bg-slate-800/50 rounded border border-slate-800/50 overflow-hidden"
                     >
                         <h5
                             class="font-semibold text-slate-400 p-2 bg-slate-800/50 text-xs"
@@ -99,7 +101,9 @@ export const headerDetailsTemplate = (headers, flaggedKeys = new Set()) => {
                             ${category}
                         </h5>
                         <table class="w-full text-left text-xs table-auto">
-                            <tbody class="divide-y divide-slate-700/50">
+                            <tbody
+                                class="divide-y divide-slate-800/50"
+                            >
                                 ${Object.entries(headerGroup).map(
                                     ([key, value]) => {
                                         const lowerKey = key.toLowerCase();
@@ -108,11 +112,11 @@ export const headerDetailsTemplate = (headers, flaggedKeys = new Set()) => {
                                         const isFlagged =
                                             flaggedKeys.has(lowerKey);
                                         const rowClass = isFlagged
-                                            ? 'bg-red-900/20'
-                                            : 'hover:bg-slate-700/50';
+                                            ? 'bg-red-500/20'
+                                            : 'hover:bg-slate-800/50';
                                         const textClass = isFlagged
-                                            ? 'text-red-200'
-                                            : 'text-slate-300';
+                                            ? 'text-red-400'
+                                            : 'text-slate-200';
 
                                         return html`
                                             <tr class="${rowClass}">

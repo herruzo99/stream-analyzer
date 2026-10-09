@@ -45,26 +45,31 @@ const renderHexDump = (buffer) => {
 
     return html`
         <div
-            class="font-mono text-xs bg-slate-950 p-4 rounded-lg overflow-auto custom-scrollbar h-full border border-slate-800"
+            class="font-mono text-xs bg-slate-800 p-4 rounded-lg overflow-auto custom-scrollbar h-full border border-slate-800"
         >
             ${displayRows.map(
                 (row) => html`
                     <div
-                        class="flex gap-4 border-b border-slate-900/50 hover:bg-slate-900"
+                        class="flex gap-4 border-b border-slate-800/50 hover:bg-slate-800"
                     >
-                        <span class="text-slate-500 select-none w-16 text-right"
+                        <span
+                            class="text-slate-400 select-none w-16 text-right"
                             >${row.offset.toString(16).padStart(6, '0')}</span
                         >
-                        <span class="text-blue-300 w-96">${row.hex}</span>
+                        <span class="text-blue-400 w-96"
+                            >${row.hex}</span
+                        >
                         <span
-                            class="text-emerald-200/70 border-l border-slate-800 pl-4"
+                            class="text-teal-300/70 border-l border-slate-800 pl-4"
                             >${row.ascii}</span
                         >
                     </div>
                 `
             )}
             ${isTruncated
-                ? html`<div class="text-center text-slate-500 italic p-2">
+                ? html`<div
+                      class="text-center text-slate-400 italic p-2"
+                  >
                       Output truncated. Download to view full
                       ${formatBytes(view.length)} file.
                   </div>`
@@ -368,7 +373,7 @@ class ResponseViewer extends HTMLElement {
         if (this._isLoading) {
             return html`
                 <div
-                    class="flex flex-col items-center justify-center p-10 text-slate-500 h-full"
+                    class="flex flex-col items-center justify-center p-10 text-slate-400 h-full"
                 >
                     <div class="scale-125 mb-4 animate-spin">
                         ${icons.spinner}
@@ -381,7 +386,7 @@ class ResponseViewer extends HTMLElement {
         if (this._error) {
             return html`
                 <div
-                    class="p-6 text-center text-red-400 bg-red-900/10 border border-red-900/50 rounded-lg h-full flex flex-col items-center justify-center"
+                    class="p-6 text-center text-red-400 bg-red-500/10 border border-red-500/50 rounded-lg h-full flex flex-col items-center justify-center"
                 >
                     <div class="mb-2 text-lg">${icons.alertTriangle}</div>
                     <p class="font-bold">Failed to load body</p>
@@ -426,19 +431,19 @@ class ResponseViewer extends HTMLElement {
                 if (isModal) {
                     return html`
                         <div
-                            class="h-full flex flex-col relative bg-slate-950 rounded-lg border border-slate-800 overflow-hidden"
+                            class="h-full flex flex-col relative bg-slate-800 rounded-lg border border-slate-800 overflow-hidden"
                         >
                             <div class="absolute top-3 right-4 z-10 flex gap-2">
                                 <button
                                     @click=${() => this.handleGoToExplorer()}
-                                    class="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-lg border border-slate-700 transition-colors"
+                                    class="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-800 text-slate-200 text-xs font-bold rounded-lg border border-slate-800 transition-colors"
                                     title="Open Segment Explorer"
                                 >
                                     ${icons.grid} Explorer
                                 </button>
                                 <button
                                     @click=${() => this.handleDeepInspect()}
-                                    class="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-lg transition-all hover:scale-105"
+                                    class="flex items-center gap-2 px-3 py-1.5 bg-blue-500 hover:bg-[#60a5fa] text-white text-xs font-bold rounded-lg shadow-lg transition-all hover:scale-105"
                                 >
                                     ${icons.binary} Deep Inspect
                                 </button>
@@ -461,14 +466,16 @@ class ResponseViewer extends HTMLElement {
                 else {
                     return html`
                         <div
-                            class="flex flex-col items-center justify-center p-6 text-slate-500 bg-slate-900/30 rounded-lg border border-slate-800 h-full text-center"
+                            class="flex flex-col items-center justify-center p-6 text-slate-400 bg-slate-800/30 rounded-lg border border-slate-800 h-full text-center"
                         >
                             <div
                                 class="mb-3 opacity-70 p-3 bg-slate-800 rounded-full"
                             >
                                 ${icons.binary}
                             </div>
-                            <p class="text-sm font-bold text-slate-300">
+                            <p
+                                class="text-sm font-bold text-slate-200"
+                            >
                                 Segment Parsed
                             </p>
                             <p
@@ -481,13 +488,13 @@ class ResponseViewer extends HTMLElement {
                             >
                                 <button
                                     @click=${() => this.handleMaximize()}
-                                    class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-lg transition-all hover:scale-105 flex items-center justify-center gap-2"
+                                    class="w-full px-4 py-2 bg-blue-500 hover:bg-[#60a5fa] text-white text-xs font-bold rounded-lg shadow-lg transition-all hover:scale-105 flex items-center justify-center gap-2"
                                 >
                                     ${icons.maximize} Focus View
                                 </button>
                                 <button
                                     @click=${() => this.handleDeepInspect()}
-                                    class="w-full px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold rounded-lg border border-slate-700 transition-all flex items-center justify-center gap-2"
+                                    class="w-full px-4 py-2 bg-slate-800 hover:bg-slate-800 text-slate-200 hover:text-white text-xs font-bold rounded-lg border border-slate-800 transition-all flex items-center justify-center gap-2"
                                 >
                                     ${icons.binary} Deep Inspect
                                 </button>
@@ -498,7 +505,7 @@ class ResponseViewer extends HTMLElement {
             } else if (cacheEntry?.status === -1) {
                 return html`
                     <div
-                        class="flex flex-col items-center justify-center p-10 text-blue-400 h-full border border-slate-800 rounded-lg bg-slate-900/30"
+                        class="flex flex-col items-center justify-center p-10 text-blue-400 h-full border border-slate-800 rounded-lg bg-slate-800/30"
                     >
                         <div class="scale-125 mb-4 animate-spin">
                             ${icons.spinner}
@@ -511,7 +518,7 @@ class ResponseViewer extends HTMLElement {
             } else if (resolvedBody) {
                 return html`
                     <div
-                        class="flex flex-col items-center justify-center p-8 text-slate-500 bg-slate-900/30 rounded-lg border-2 border-dashed border-slate-800 h-full"
+                        class="flex flex-col items-center justify-center p-8 text-slate-400 bg-slate-800/30 rounded-lg border-2 border-dashed border-slate-800 h-full"
                     >
                         <div class="mb-3 opacity-50 scale-125">
                             ${icons.fileScan}
@@ -526,7 +533,7 @@ class ResponseViewer extends HTMLElement {
                         </p>
                         <button
                             @click=${() => this.analyzeSegmentLocally()}
-                            class="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded transition-colors flex items-center gap-2 shadow-lg"
+                            class="mt-4 px-4 py-2 bg-teal-500 hover:bg-teal-500/80 text-white text-xs font-bold rounded transition-colors flex items-center gap-2 shadow-lg"
                         >
                             ${icons.play} Run Analysis
                         </button>
@@ -538,7 +545,7 @@ class ResponseViewer extends HTMLElement {
         if (!resolvedBody) {
             return html`
                 <div
-                    class="flex flex-col items-center justify-center p-8 text-slate-500 bg-slate-900/30 rounded-lg border-2 border-dashed border-slate-800 h-full"
+                    class="flex flex-col items-center justify-center p-8 text-slate-400 bg-slate-800/30 rounded-lg border-2 border-dashed border-slate-800 h-full"
                 >
                     <div class="mb-3 opacity-50 scale-125">
                         ${icons.hardDrive}
@@ -552,7 +559,7 @@ class ResponseViewer extends HTMLElement {
                     </p>
                     <button
                         @click=${() => this.refetchBody()}
-                        class="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded transition-colors flex items-center gap-2 shadow-lg"
+                        class="mt-4 px-4 py-2 bg-blue-500 hover:bg-[#60a5fa] text-white text-xs font-bold rounded transition-colors flex items-center gap-2 shadow-lg"
                     >
                         ${icons.download} Refetch
                     </button>
@@ -566,7 +573,7 @@ class ResponseViewer extends HTMLElement {
             const url = URL.createObjectURL(blob);
             return html`
                 <div
-                    class="flex items-center justify-center p-4 bg-checkerboard rounded-lg h-full bg-slate-900 border border-slate-800"
+                    class="flex items-center justify-center p-4 bg-checkerboard rounded-lg h-full bg-slate-800 border border-slate-800"
                 >
                     <img
                         src="${url}"
@@ -589,7 +596,7 @@ class ResponseViewer extends HTMLElement {
             try {
                 const json = JSON.parse(text);
                 return html`<div
-                    class="h-full overflow-hidden flex flex-col bg-slate-950 rounded-lg border border-slate-800"
+                    class="h-full overflow-hidden flex flex-col bg-slate-800 rounded-lg border border-slate-800"
                 >
                     ${jsonViewerTemplate(json)}
                 </div>`;
@@ -628,7 +635,7 @@ class ResponseViewer extends HTMLElement {
 
                 return html`
                     <div
-                        class="bg-slate-950 p-4 rounded-lg overflow-auto custom-scrollbar text-xs font-mono leading-relaxed text-slate-300 h-full border border-slate-800"
+                        class="bg-slate-800 p-4 rounded-lg overflow-auto custom-scrollbar text-xs font-mono leading-relaxed text-slate-200 h-full border border-slate-800"
                     >
                         <pre>${unsafeHTML(highlighted)}</pre>
                     </div>
@@ -641,7 +648,7 @@ class ResponseViewer extends HTMLElement {
             return html`
                 <textarea
                     readonly
-                    class="w-full h-full bg-slate-950 text-slate-300 font-mono text-xs p-4 rounded-lg border border-slate-800 outline-none resize-none custom-scrollbar"
+                    class="w-full h-full bg-slate-800 text-slate-200 font-mono text-xs p-4 rounded-lg border border-slate-800 outline-none resize-none custom-scrollbar"
                 >
 ${text}</textarea
                 >
@@ -667,7 +674,9 @@ ${text}</textarea
                 <div
                     class="flex justify-between items-center mb-3 pb-2 border-b border-slate-800/50 shrink-0"
                 >
-                    <div class="flex gap-1 bg-slate-800 p-0.5 rounded-lg">
+                    <div
+                        class="flex gap-1 bg-slate-800 p-0.5 rounded-lg"
+                    >
                         <button
                             @click=${() => {
                                 this._viewMode = 'smart';
@@ -675,7 +684,7 @@ ${text}</textarea
                             }}
                             class="px-3 py-1 text-xs font-bold rounded-md transition-colors ${this
                                 ._viewMode === 'smart'
-                                ? 'bg-blue-600 text-white shadow'
+                                ? 'bg-blue-500 text-white shadow'
                                 : 'text-slate-400 hover:text-white'}"
                         >
                             Smart
@@ -687,7 +696,7 @@ ${text}</textarea
                             }}
                             class="px-3 py-1 text-xs font-bold rounded-md transition-colors ${this
                                 ._viewMode === 'raw'
-                                ? 'bg-blue-600 text-white shadow'
+                                ? 'bg-blue-500 text-white shadow'
                                 : 'text-slate-400 hover:text-white'}"
                         >
                             Raw
@@ -696,11 +705,13 @@ ${text}</textarea
 
                     <div class="flex items-center gap-2">
                         <span
-                            class="text-[10px] font-mono text-slate-500 bg-slate-900 px-2 py-1 rounded border border-slate-800"
+                            class="text-[10px] font-mono text-slate-400 bg-slate-800 px-2 py-1 rounded border border-slate-800"
                         >
                             ${sizeLabel}
                         </span>
-                        <div class="h-4 w-px bg-slate-800 mx-1"></div>
+                        <div
+                            class="h-4 w-px bg-slate-800 mx-1"
+                        ></div>
                         <button
                             @click=${() => this.handleCopy()}
                             class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors"
@@ -719,7 +730,7 @@ ${text}</textarea
                             ? html`
                                   <button
                                       @click=${() => this.handleMaximize()}
-                                      class="p-1.5 text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 rounded transition-colors"
+                                      class="p-1.5 text-blue-400 hover:text-blue-400/80 hover:bg-[#3b82f6] rounded transition-colors"
                                       title="Focus View"
                                   >
                                       ${icons.maximize}

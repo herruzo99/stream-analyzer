@@ -33,14 +33,16 @@ export class LoaderFX {
         this.particleCount = 50;
         this.baseSpeed = 0.8; // Pixels per ms
 
-        // Pre-defined palette (Neon Technical)
+        // Pre-defined palette (Fallback)
         this.palette = [
             '#3b82f6', // Blue
             '#06b6d4', // Cyan
             '#8b5cf6', // Violet
             '#10b981', // Emerald
-            '#f59e0b', // Amber (Rare packet)
+            '#f59e0b', // Amber
         ];
+        this.railColor = 'rgba(148, 163, 184, 0.1)';
+        this.headerColor = '#ffffff';
 
         // --- Object Pool ---
         // Fixed array of particle objects recycled during the lifecycle
@@ -61,6 +63,26 @@ export class LoaderFX {
         // Initial setup
         this.resize();
         window.addEventListener('resize', this.resize);
+    }
+
+    updatePalette() {
+        const style = getComputedStyle(document.documentElement);
+        const getVar = (name, fallback) => {
+            const val = style.getPropertyValue(name).trim();
+            return val || fallback;
+        };
+
+        this.palette = [
+            getVar('--primary-accent', '#3b82f6'),
+            getVar('--color-info', '#06b6d4'),
+            getVar('--secondary-accent', '#8b5cf6'),
+            getVar('--color-success', '#10b981'),
+            getVar('--color-warning', '#f59e0b'),
+        ];
+
+        // Use theme border/text colors
+        this.railColor = getVar('--border-on-B', 'rgba(148, 163, 184, 0.1)');
+        this.headerColor = getVar('--text-on-B-primary', '#ffffff');
     }
 
     resize() {
@@ -109,6 +131,9 @@ export class LoaderFX {
 
     fadeIn() {
         if (this.state === 'running' || this.state === 'fading-in') return;
+
+        this.updatePalette(); // Refresh colors from theme
+
         this.state = 'fading-in';
         this.opacity = 0;
         this.initWorld();
@@ -193,7 +218,8 @@ export class LoaderFX {
         // 2. Draw Rails (Static faint lines)
         // We use a very low opacity here so they don't dominate the transparent view
         this.ctx.beginPath();
-        this.ctx.strokeStyle = 'rgba(148, 163, 184, 0.1)'; // Slate-400 very transparent
+        this.ctx.strokeStyle = this.railColor;
+        this.ctx.globalAlpha = this.opacity * 0.1; // Apply extra transparency to rails
         this.ctx.lineWidth = 1;
         for (let i = 0; i <= this.laneCount; i++) {
             const y = Math.floor(gridTop + i * this.laneSpacing) + 0.5; // Snap to pixel
@@ -201,6 +227,7 @@ export class LoaderFX {
             this.ctx.lineTo(this.width, y);
         }
         this.ctx.stroke();
+        this.ctx.globalAlpha = this.opacity; // Restore opacity
 
         // 3. Draw Packets
         for (const p of this.pool) {
@@ -220,7 +247,7 @@ export class LoaderFX {
             this.ctx.fillRect(p.x, y, p.length, p.width);
 
             // Draw "Header" bit (bright leading edge)
-            this.ctx.fillStyle = '#ffffff';
+            this.ctx.fillStyle = this.headerColor;
             this.ctx.fillRect(p.x + p.length - 2, y - 1, 2, p.width + 2);
         }
 

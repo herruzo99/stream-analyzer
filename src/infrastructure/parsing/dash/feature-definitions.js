@@ -20,7 +20,7 @@ export const dashFeatureDefinitions = [
     {
         name: 'CDN Redundancy',
         category: 'Core Streaming',
-        desc: 'Uses multiple `<BaseURL>` elements to provide failover or load balancing across Content Delivery Networks.',
+        desc: 'Uses multiple `&lt;BaseURL&gt;` elements to provide failover or load balancing across Content Delivery Networks.',
         isoRef: 'DASH: 5.6',
         isDynamic: true,
         complexityScore: 2,
@@ -66,7 +66,7 @@ export const dashFeatureDefinitions = [
     {
         name: 'Segment Timeline',
         category: 'Timeline & Segment Management',
-        desc: 'Provides explicit segment timing and duration for each segment via `<S>` elements, allowing for variable segment sizes and drift correction.',
+        desc: 'Provides explicit segment timing and duration for each segment via `&lt;S&gt;` elements, allowing for variable segment sizes and drift correction.',
         isoRef: 'DASH: 5.3.9.6',
         complexityScore: 3,
     },
@@ -119,7 +119,7 @@ export const dashFeatureDefinitions = [
     {
         name: 'MPD Events',
         category: 'Live & Dynamic',
-        desc: 'The manifest contains `<EventStream>` elements, communicating timed metadata (like SCTE-35 or app logic) directly in the manifest.',
+        desc: 'The manifest contains `&lt;EventStream&gt;` elements, communicating timed metadata (like SCTE-35 or app logic) directly in the manifest.',
         isoRef: 'DASH: 5.10.2',
         isDynamic: true,
         complexityScore: 3,

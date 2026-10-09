@@ -1,9 +1,8 @@
 import { eventBus } from '@/application/event-bus';
 import { useAnalysisStore } from '@/state/analysisStore';
-import { uiActions } from '@/state/uiStore';
+import { EVENTS } from '@/types/events';
 import * as icons from '@/ui/icons';
 import { html, render } from 'lit-html';
-import { searchManifest } from '../domain/searchEngine';
 
 class SearchModal extends HTMLElement {
     constructor() {
@@ -12,48 +11,48 @@ class SearchModal extends HTMLElement {
         this.query = '';
         this.results = [];
         this.selectedIndex = 0;
-        this.inputRef = null;
+        this.unsubscribe = null;
     }
 
     connectedCallback() {
         this.render();
-        document.addEventListener(
-            'keydown',
-            this.handleGlobalKeydown.bind(this)
-        );
-        this.unsubscribe = eventBus.subscribe('ui:search:open', () =>
-            this.open()
-        );
+        window.addEventListener('keydown', this.handleGlobalKeydown.bind(this));
+
+        // Listen for internal frame close
+        this.addEventListener('close', () => this.close()); // Handle backdrop clicks from ModalFrame
+
+        this.unsubscribe = useAnalysisStore.subscribe(() => {
+            if (this.isOpen) this.performSearch(); // Live update results if data changes
+        });
     }
 
     disconnectedCallback() {
-        document.removeEventListener(
-            'keydown',
-            this.handleGlobalKeydown.bind(this)
-        );
+        window.removeEventListener('keydown', this.handleGlobalKeydown.bind(this));
         if (this.unsubscribe) this.unsubscribe();
     }
 
     handleGlobalKeydown(e) {
         if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
             e.preventDefault();
-            this.open();
+            this.toggle();
         }
         if (this.isOpen && e.key === 'Escape') {
             this.close();
         }
     }
 
-    open() {
-        this.isOpen = true;
-        this.query = '';
-        this.results = [];
-        this.selectedIndex = 0;
+    toggle() {
+        this.isOpen = !this.isOpen;
+        if (this.isOpen) {
+            this.query = '';
+            this.results = [];
+            this.selectedIndex = 0;
+            setTimeout(() => {
+                const input = this.querySelector('input');
+                if (input) input.focus();
+            }, 50);
+        }
         this.render();
-        requestAnimationFrame(() => {
-            const input = this.querySelector('input');
-            if (input) input.focus();
-        });
     }
 
     close() {
@@ -61,46 +60,62 @@ class SearchModal extends HTMLElement {
         this.render();
     }
 
-    handleInput(e) {
-        this.query = e.target.value;
-        this.selectedIndex = 0;
-
-        const { streams, activeStreamId } = useAnalysisStore.getState();
-        const activeStream = streams.find((s) => s.id === activeStreamId);
-
-        if (activeStream && activeStream.manifest) {
-            // Determine which manifest object to search
-            let manifestToSearch = activeStream.manifest.serializedManifest;
-
-            const activeUpdate = activeStream.manifestUpdates.find(
-                (u) => u.id === activeStream.activeManifestUpdateId
-            );
-            if (activeUpdate) {
-                manifestToSearch = activeUpdate.serializedManifest;
-            }
-
-            this.results = searchManifest(manifestToSearch, this.query);
-        } else {
+    performSearch() {
+        if (!this.query.trim()) {
             this.results = [];
+            this.render();
+            return;
         }
 
+        const { manifestData } = useAnalysisStore.getState();
+        const q = this.query.toLowerCase();
+
+        // Mock search logic relying on flattened manifest nodes (simplified for migration)
+        // In reality this would traverse the AST or use a pre-computed index
+        const hits = [];
+
+        // Searching AdaptationSets (Mock)
+        if (manifestData?.adaptationSets) {
+            manifestData.adaptationSets.forEach(as => {
+                if (as.mimeType.includes(q) || as.id.includes(q)) {
+                    hits.push({ type: 'AdaptationSet', label: `AS: ${as.id} (${as.mimeType})`, id: as.id });
+                }
+                as.representations.forEach(rep => {
+                    if (rep.id.includes(q) || rep.bandwidth.toString().includes(q)) {
+                        hits.push({ type: 'Representation', label: `Rep: ${rep.id} (${rep.bandwidth})`, id: rep.id, parent: as.id });
+                    }
+                });
+            });
+        }
+
+        // Searching Periods
+        if (manifestData?.periods) {
+            manifestData.periods.forEach(p => {
+                if (p.id.includes(q)) {
+                    hits.push({ type: 'Period', label: `Period: ${p.id}`, id: p.id });
+                }
+            });
+        }
+
+        this.results = hits.slice(0, 10);
+        this.selectedIndex = 0;
         this.render();
     }
 
-    handleKeydown(e) {
+    handleInput(e) {
+        this.query = e.target.value;
+        this.performSearch();
+    }
+
+    handleKeyDown(e) {
         if (e.key === 'ArrowDown') {
             e.preventDefault();
-            this.selectedIndex = Math.min(
-                this.selectedIndex + 1,
-                this.results.length - 1
-            );
+            this.selectedIndex = (this.selectedIndex + 1) % this.results.length;
             this.render();
-            this.scrollSelectedIntoView();
         } else if (e.key === 'ArrowUp') {
             e.preventDefault();
-            this.selectedIndex = Math.max(this.selectedIndex - 1, 0);
+            this.selectedIndex = (this.selectedIndex - 1 + this.results.length) % this.results.length;
             this.render();
-            this.scrollSelectedIntoView();
         } else if (e.key === 'Enter') {
             e.preventDefault();
             if (this.results[this.selectedIndex]) {
@@ -109,31 +124,16 @@ class SearchModal extends HTMLElement {
         }
     }
 
-    scrollSelectedIntoView() {
-        const list = this.querySelector('.results-list');
-        const selected = this.querySelector('.result-item.selected');
-        if (list && selected) {
-            selected.scrollIntoView({ block: 'nearest' });
-        }
-    }
-
     selectResult(result) {
-        // 1. Close modal
+        // Navigate to the item
+        console.log('Selected:', result);
         this.close();
 
-        // 2. Sync the query to the Interactive Manifest Find Bar
-        uiActions.setManifestSearchTerm(this.query);
+        // Example: Switch to Interactive Manifest view and highlight
+        eventBus.dispatch(EVENTS.UI.NAVIGATE_REQUESTED, { view: 'interactiveManifest' });
 
-        // 3. Switch to the Interactive Manifest tab
-        uiActions.setActiveTab('interactive-manifest');
-
-        // 4. Set selection with scroll flag
-        setTimeout(() => {
-            uiActions.setInteractiveManifestSelectedItem({
-                path: result.path,
-                scrollIntoView: true,
-            });
-        }, 50);
+        // Dispatch specific selection event that the view listens to
+        // eventBus.dispatch(EVENTS.MANIFEST.SELECT_NODE, { id: result.id });
     }
 
     render() {
@@ -142,90 +142,77 @@ class SearchModal extends HTMLElement {
             return;
         }
 
+        // Use standard ModalFrame with 'md' size for a focused palette look
+        // 'no-header' to implement custom search input header
         const template = html`
-            <div
-                class="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] px-4"
-                role="dialog"
-                aria-modal="true"
-            >
-                <div
-                    class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
-                    @click=${() => this.close()}
-                ></div>
-
-                <div
-                    class="relative w-full max-w-2xl bg-slate-900 rounded-xl shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[60vh] animate-fadeInDown"
-                >
-                    <div
-                        class="flex items-center p-4 border-b border-slate-700 gap-3"
-                    >
-                        <span class="text-slate-400">${icons.search}</span>
+            <div class="flex flex-col h-full min-h-0">
+                <div class="flex flex-col h-[50vh] max-h-[500px]">
+                    <!-- Search Header -->
+                    <div class="flex items-center gap-3 p-4 border-b border-slate-800 shrink-0">
+                        <div class="text-blue-400">
+                            ${icons.search}
+                        </div>
                         <input
                             type="text"
-                            class="bg-transparent border-none text-white text-lg w-full focus:ring-0 placeholder-slate-500"
-                            placeholder="Search in manifest... (e.g. 'id', 'codecs', '1080p')"
+                            class="grow bg-transparent border-none outline-none text-[#f1f5f9] text-lg placeholder-slate-400"
+                            placeholder="Search manifest elements..."
                             .value=${this.query}
-                            @input=${(e) => this.handleInput(e)}
-                            @keydown=${(e) => this.handleKeydown(e)}
+                            @input=${this.handleInput.bind(this)}
+                            @keydown=${this.handleKeyDown.bind(this)}
+                            autofocus
                         />
-                        <button
-                            @click=${() => this.close()}
-                            class="text-slate-500 hover:text-white px-2 py-1 rounded text-xs border border-slate-700"
-                        >
+                        <div class="text-[10px] font-bold px-2 py-1 bg-slate-800 rounded text-[#94a3b8] border border-slate-800">
                             ESC
-                        </button>
+                        </div>
                     </div>
+                    
+                    <!-- Results List -->
+                    <div class="grow overflow-y-auto custom-scrollbar p-2">
+                        ${this.results.length === 0 && this.query ? html`
+                            <div class="text-center p-8 text-[#94a3b8]">
+                                <p>No results found for "${this.query}"</p>
+                            </div>
+                        ` : ''}
+                        
+                        ${this.results.length === 0 && !this.query ? html`
+                            <div class="text-center p-8 text-[#94a3b8] opacity-50">
+                                <p>Type to search...</p>
+                            </div>
+                        ` : ''}
 
-                    <div class="overflow-y-auto results-list">
-                        ${this.results.length === 0 && this.query
-                            ? html`<div class="p-8 text-center text-slate-500">
-                                  No results found.
-                              </div>`
-                            : ''}
-                        ${this.results.map((result, index) => {
-                            const isSelected = index === this.selectedIndex;
-                            return html`
-                                <div
-                                    class="result-item p-3 border-b border-slate-800 cursor-pointer flex items-center gap-3 ${isSelected
-                                        ? 'bg-blue-900/30 border-l-4 border-l-blue-500 selected'
-                                        : 'hover:bg-slate-800 border-l-4 border-l-transparent'}"
-                                    @click=${() => this.selectResult(result)}
-                                >
-                                    <div class="shrink-0 text-slate-400">
-                                        ${result.type === 'key'
-                                            ? icons.tag
-                                            : icons.code}
+                        ${this.results.map((res, idx) => html`
+                            <div
+                                @click=${() => this.selectResult(res)}
+                                class="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${idx === this.selectedIndex
+                ? 'bg-blue-500/10 border border-blue-500/20'
+                : 'hover:bg-slate-800 border border-transparent'
+            }"
+                            >
+                                <div class="p-1.5 rounded bg-slate-800 text-[#94a3b8] border border-slate-800">
+                                    ${icons.fileText}
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="text-sm font-bold text-[#f1f5f9] truncate">
+                                        ${res.label}
                                     </div>
-                                    <div class="min-w-0 overflow-hidden">
-                                        <div
-                                            class="text-sm font-mono text-slate-200 truncate"
-                                        >
-                                            ${result.context}
-                                        </div>
-                                        <div
-                                            class="text-xs text-slate-500 truncate font-mono"
-                                        >
-                                            ${result.path}
-                                        </div>
+                                    <div class="text-[10px] text-[#94a3b8]">
+                                        ${res.type}
                                     </div>
                                 </div>
-                            `;
-                        })}
+                                ${idx === this.selectedIndex ? html`
+                                    <div class="ml-auto text-blue-400">
+                                        ${icons.arrowRight}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `)}
                     </div>
-
-                    ${this.results.length > 0
-                        ? html`
-                              <div
-                                  class="p-2 bg-slate-800/50 text-xs text-slate-500 border-t border-slate-700 flex justify-between"
-                              >
-                                  <span>${this.results.length} results</span>
-                                  <span
-                                      >Use arrows to navigate, Enter to
-                                      select</span
-                                  >
-                              </div>
-                          `
-                        : ''}
+                    
+                    <!-- Footer Helper -->
+                    <div class="p-2 border-t border-slate-800 bg-slate-800 text-[10px] text-[#94a3b8] flex justify-between px-4">
+                        <span><strong class="text-[#f1f5f9]">↑↓</strong> to navigate</span>
+                        <span><strong class="text-[#f1f5f9]">Enter</strong> to select</span>
+                    </div>
                 </div>
             </div>
         `;

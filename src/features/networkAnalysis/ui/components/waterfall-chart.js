@@ -9,7 +9,7 @@ export const waterfallChartTemplate = (waterfallData) => {
     if (waterfallData.length === 0) {
         return html`
             <div
-                class="h-full flex flex-col items-center justify-center text-slate-500 bg-slate-900/30 rounded-lg border border-slate-800 border-dashed"
+                class="h-full flex flex-col items-center justify-center text-slate-400 bg-slate-800"
             >
                 <div class="opacity-50 scale-150 mb-4">📡</div>
                 <p class="text-sm font-medium">No requests logged.</p>
@@ -21,28 +21,29 @@ export const waterfallChartTemplate = (waterfallData) => {
     }
 
     return html`
-        <div
-            class="flex flex-col h-full bg-slate-900 border border-slate-700 rounded-lg overflow-hidden shadow-inner relative"
-        >
+        <div class="flex flex-col h-full overflow-hidden relative">
             <!-- Header -->
             <div
-                class="flex items-center bg-slate-950 border-b border-slate-800 h-9 text-xs font-bold text-slate-400 uppercase tracking-wider select-none shrink-0 z-10"
+                class="flex items-center bg-slate-800 border-b border-slate-800 h-9 text-xs font-bold text-slate-400 uppercase tracking-wider select-none shrink-0 z-10"
+                style="padding-left: 1rem; padding-right: 1rem"
             >
-                <div class="w-[250px] px-3 border-r border-slate-800/50">
+                <div
+                    class="w-[250px] pr-3 border-r border-slate-800"
+                >
                     Name
                 </div>
                 <div
-                    class="w-[60px] px-2 text-center border-r border-slate-800/50"
+                    class="w-[60px] px-2 text-center border-r border-slate-800"
                 >
                     Stat
                 </div>
                 <div
-                    class="w-[80px] px-2 text-center border-r border-slate-800/50"
+                    class="w-[80px] px-2 text-center border-r border-slate-800"
                 >
                     Type
                 </div>
                 <div
-                    class="w-[80px] px-2 text-right border-r border-slate-800/50"
+                    class="w-[80px] px-2 text-right border-r border-slate-800"
                 >
                     Size
                 </div>
@@ -50,18 +51,12 @@ export const waterfallChartTemplate = (waterfallData) => {
             </div>
 
             <!-- Virtual List Container -->
-            <!-- 
-                CRITICAL FIX: 
-                1. 'grow relative' makes this div fill the remaining height.
-                2. The child 'virtualized-list' uses 'absolute inset-0' to exactly match this parent's dimensions.
-                3. This forces the virtual-list's internal 'overflow-y-auto' to trigger when content exceeds height.
-            -->
-            <div class="grow relative w-full min-h-0 bg-slate-900">
+            <div class="grow relative w-full min-h-0">
                 <virtualized-list
                     class="absolute inset-0 w-full h-full"
                     .items=${waterfallData}
                     .rowTemplate=${(item) =>
-                        waterfallRowTemplate(item, item.id === selectedEventId)}
+            waterfallRowTemplate(item, item.id === selectedEventId)}
                     .rowHeight=${32}
                     .itemId=${(item) => item.id}
                 ></virtualized-list>

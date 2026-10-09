@@ -140,6 +140,8 @@ export async function generateDashSummary(
         (as) => as.contentType === 'text' || as.contentType === 'application'
     );
 
+    const warnings = [];
+
     for (const period of manifestIR.periods) {
         for (const as of period.adaptationSets) {
             for (const cp of as.contentProtection) {
@@ -182,74 +184,96 @@ export async function generateDashSummary(
                         repBaseUrl
                     );
                     if (initInfo?.url) {
-                        const parsedSegment =
-                            await context.fetchAndParseSegment(
-                                initInfo.url,
-                                'isobmff',
-                                initInfo.range
-                            );
-
-                        if (context.onInitSegmentParsed) {
-                            const uniqueId = initInfo.range
-                                ? `${initInfo.url}@init@${initInfo.range}`
-                                : initInfo.url;
-
-                            context.onInitSegmentParsed({
-                                uniqueId,
-                                data: parsedSegment.rawBuffer,
-                                parsedData: parsedSegment.parsedData,
-                                template: initInfo.template,
-                            });
-                        }
-
-                        if (parsedSegment?.parsedData?.data?.boxes) {
-                            if (!rep.width.value || !rep.height.value) {
-                                const avc1 = findBoxRecursive(
-                                    parsedSegment.parsedData.data.boxes,
-                                    (b) => b.type === 'avc1'
+                        try {
+                            const parsedSegment =
+                                await context.fetchAndParseSegment(
+                                    initInfo.url,
+                                    'isobmff',
+                                    initInfo.range
                                 );
-                                if (
-                                    avc1 &&
-                                    avc1.details.width &&
-                                    avc1.details.height
-                                ) {
-                                    rep.width = {
-                                        value: avc1.details.width.value,
-                                        source: 'segment',
-                                    };
-                                    rep.height = {
-                                        value: avc1.details.height.value,
-                                        source: 'segment',
-                                    };
-                                }
+
+                            if (context.onInitSegmentParsed) {
+                                const uniqueId = initInfo.range
+                                    ? `${initInfo.url}@init@${initInfo.range}`
+                                    : initInfo.url;
+
+                                context.onInitSegmentParsed({
+                                    uniqueId,
+                                    data: parsedSegment.rawBuffer,
+                                    parsedData: parsedSegment.parsedData,
+                                    template: initInfo.template,
+                                });
                             }
-                            const btrt = findBoxRecursive(
-                                parsedSegment.parsedData.data.boxes,
-                                (b) => b.type === 'btrt'
-                            );
-                            if (btrt && btrt.details.maxBitrate?.value > 0) {
-                                rep.manifestBandwidth = rep.bandwidth;
-                                rep.bandwidth = btrt.details.maxBitrate.value;
-                            }
-                            const psshBoxes =
-                                parsedSegment.parsedData.data.boxes.filter(
-                                    (b) => b.type === 'pssh'
-                                );
-                            psshBoxes.forEach((psshBox) => {
-                                if (
-                                    psshBox.systemId &&
-                                    psshBox.details.license_url?.value
-                                ) {
-                                    if (securitySystems.has(psshBox.systemId)) {
-                                        const system = securitySystems.get(
-                                            psshBox.systemId
-                                        );
-                                        if (system.pssh) {
-                                            system.pssh.licenseServerUrl =
-                                                psshBox.details.license_url.value;
-                                        }
+
+                            if (parsedSegment?.parsedData?.data?.boxes) {
+                                if (!rep.width.value || !rep.height.value) {
+                                    const avc1 = findBoxRecursive(
+                                        parsedSegment.parsedData.data.boxes,
+                                        (b) => b.type === 'avc1'
+                                    );
+                                    if (
+                                        avc1 &&
+                                        avc1.details.width &&
+                                        avc1.details.height
+                                    ) {
+                                        rep.width = {
+                                            value: avc1.details.width.value,
+                                            source: 'segment',
+                                        };
+                                        rep.height = {
+                                            value: avc1.details.height.value,
+                                            source: 'segment',
+                                        };
                                     }
                                 }
+                                const btrt = findBoxRecursive(
+                                    parsedSegment.parsedData.data.boxes,
+                                    (b) => b.type === 'btrt'
+                                );
+                                if (
+                                    btrt &&
+                                    btrt.details.maxBitrate?.value > 0
+                                ) {
+                                    rep.manifestBandwidth = rep.bandwidth;
+                                    rep.bandwidth =
+                                        btrt.details.maxBitrate.value;
+                                }
+                                const psshBoxes =
+                                    parsedSegment.parsedData.data.boxes.filter(
+                                        (b) => b.type === 'pssh'
+                                    );
+                                psshBoxes.forEach((psshBox) => {
+                                    if (
+                                        psshBox.systemId &&
+                                        psshBox.details.license_url?.value
+                                    ) {
+                                        if (
+                                            securitySystems.has(
+                                                psshBox.systemId
+                                            )
+                                        ) {
+                                            const system = securitySystems.get(
+                                                psshBox.systemId
+                                            );
+                                            if (system.pssh) {
+                                                system.pssh.licenseServerUrl =
+                                                    psshBox.details.license_url.value;
+                                            }
+                                        }
+                                    }
+                                });
+                            }
+                        } catch (e) {
+                            // appLog('SummaryGenerator', 'warn', `Failed to fetch/parse init segment for rep ${rep.id}`, e);
+                            console.warn(
+                                `[SummaryGenerator] Failed to fetch/parse init segment for rep ${rep.id}:`,
+                                e
+                            );
+                            warnings.push({
+                                type: 'init_segment_fetch_error',
+                                message: `Failed to fetch/parse init segment for Representation ${rep.id}`,
+                                details: e.message,
+                                repId: rep.id,
                             });
                         }
                     }
@@ -511,7 +535,10 @@ export async function generateDashSummary(
         audioTracks: allAudioTracks,
         textTracks: allTextTracks,
         security: security,
+        warnings: warnings,
     };
 
-    return /** @type {import('@/types.ts').ManifestSummary} */ (summary);
+    return /** @type {import('@/types.ts').ManifestSummary} */ (
+        /** @type {unknown} */ (summary)
+    );
 }

@@ -23,12 +23,12 @@ export function showToast({ message, type, duration = 4000 }) {
 
     const toast = document.createElement('div');
     const colors = {
-        pass: 'bg-green-600 border-green-500',
-        fail: 'bg-red-600 border-red-500',
-        warn: 'bg-yellow-600 border-yellow-500',
-        info: 'bg-blue-600 border-blue-500',
+        pass: 'bg-emerald-500 border-emerald-500',
+        fail: 'bg-red-500 border-red-500',
+        warn: 'bg-amber-500 border-amber-500',
+        info: 'bg-blue-500 border-blue-500',
     };
-    toast.className = `p-4 rounded-lg border text-white shadow-lg transition-all duration-300 ease-in-out transform translate-x-full opacity-0 ${colors[type]}`;
+    toast.className = `p-4 rounded-lg border text-slate-100 shadow-lg transition-all duration-300 ease-in-out transform translate-x-full opacity-0 ${colors[type]}`;
     toast.textContent = message;
     toastContainer.appendChild(toast);
 

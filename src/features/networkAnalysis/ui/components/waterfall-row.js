@@ -2,47 +2,27 @@ import { networkActions } from '@/state/networkStore';
 import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 
-const TYPE_COLORS = {
-    manifest: {
-        text: 'text-purple-400',
-        bg: 'bg-purple-500',
-        border: 'border-purple-500/30',
-    },
-    video: {
-        text: 'text-blue-400',
-        bg: 'bg-blue-500',
-        border: 'border-blue-500/30',
-    },
-    audio: {
-        text: 'text-violet-400',
-        bg: 'bg-violet-500',
-        border: 'border-violet-500/30',
-    },
-    text: {
-        text: 'text-emerald-400',
-        bg: 'bg-emerald-500',
-        border: 'border-emerald-500/30',
-    },
-    init: {
-        text: 'text-yellow-400',
-        bg: 'bg-yellow-500',
-        border: 'border-yellow-500/30',
-    },
-    key: {
-        text: 'text-orange-400',
-        bg: 'bg-orange-500',
-        border: 'border-orange-500/30',
-    },
-    license: {
-        text: 'text-red-400',
-        bg: 'bg-red-500',
-        border: 'border-red-500/30',
-    },
-    other: {
-        text: 'text-slate-400',
-        bg: 'bg-slate-500',
-        border: 'border-slate-500/30',
-    },
+// Per-resource hex colors (ported: was CSS var names --chart-1..8 with no
+// definitions; hex keeps the same categorical palette, theme-free).
+const getResourceColor = (type) => {
+    switch (type) {
+        case 'manifest':
+            return '#3b82f6';
+        case 'video':
+            return '#10b981';
+        case 'audio':
+            return '#f59e0b';
+        case 'text':
+            return '#a855f7';
+        case 'init':
+            return '#64748b';
+        case 'key':
+            return '#f43f5e';
+        case 'license':
+            return '#06b6d4';
+        default:
+            return '#6b7280';
+    }
 };
 
 const formatSize = (bytes) => {
@@ -54,7 +34,8 @@ const formatSize = (bytes) => {
 
 const getStatusIcon = (status, auditStatus) => {
     if (status >= 400)
-        return html`<span class="text-red-500 font-bold flex items-center gap-1"
+        return html`<span
+            class="text-red-400 font-bold flex items-center gap-1"
             >${icons.xCircle} ${status}</span
         >`;
 
@@ -71,15 +52,17 @@ const getStatusIcon = (status, auditStatus) => {
             >${icons.info} ${status}</span
         >`;
 
-    return html`<span class="text-slate-400">${status}</span>`;
+    return html`<span class="text-slate-400"
+        >${status}</span
+    >`;
 };
 
 export const waterfallRowTemplate = (event, isSelected) => {
-    const colors = TYPE_COLORS[event.resourceType] || TYPE_COLORS.other;
+    const colorVar = getResourceColor(event.resourceType);
 
     const rowClasses = isSelected
-        ? 'bg-blue-900/40 border-l-2 border-blue-500'
-        : 'hover:bg-white/[0.02] border-l-2 border-transparent';
+        ? 'bg-[#3b82f6] border-l-2 border-blue-500'
+        : 'hover:bg-slate-800 border-l-2 border-transparent';
 
     const fileName = new URL(event.url).pathname.split('/').pop() || event.url;
     const timeLabel = `${event.timing.duration.toFixed(0)}ms`;
@@ -98,18 +81,18 @@ export const waterfallRowTemplate = (event, isSelected) => {
 
     return html`
         <div
-            class="group flex items-center text-xs border-b border-slate-800/50 h-8 cursor-pointer transition-colors ${rowClasses}"
+            class="group flex items-center text-xs border-b border-slate-800 h-8 cursor-pointer transition-colors ${rowClasses}"
             @click=${() => networkActions.setSelectedEventId(event.id)}
         >
             <!-- Name Column -->
             <div
-                class="w-[250px] px-3 flex items-center gap-2 shrink-0 border-r border-slate-800/50 overflow-hidden"
+                class="w-[250px] px-3 flex items-center gap-2 shrink-0 border-r border-slate-800 overflow-hidden"
             >
-                <span class="${colors.text} shrink-0 scale-75"
+                <span class="shrink-0 scale-75" style="color: ${colorVar}"
                     >${icons.fileText}</span
                 >
                 <span
-                    class="truncate font-medium text-slate-300"
+                    class="truncate font-medium text-slate-200"
                     title="${event.url}"
                     >${fileName}</span
                 >
@@ -117,19 +100,22 @@ export const waterfallRowTemplate = (event, isSelected) => {
 
             <!-- Status Column -->
             <div
-                class="w-[60px] px-2 shrink-0 border-r border-slate-800/50 flex items-center justify-center"
+                class="w-[60px] px-2 shrink-0 border-r border-slate-800 flex items-center justify-center"
             >
                 ${getStatusIcon(event.response.status, event.auditStatus)}
             </div>
 
             <!-- Type Column -->
             <div
-                class="w-[80px] px-2 shrink-0 border-r border-slate-800/50 flex items-center justify-center"
+                class="w-[80px] px-2 shrink-0 border-r border-slate-800 flex items-center justify-center"
             >
                 <span
-                    class="${colors.text} bg-${colors.text.split(
-                        '-'
-                    )[1]}-950/30 px-1.5 py-0.5 rounded text-[10px] border ${colors.border}"
+                    class="px-1.5 py-0.5 rounded text-[10px] border"
+                    style="
+                        background-color: color-mix(in srgb, ${colorVar}, transparent 90%);
+                        color: ${colorVar};
+                        border-color: color-mix(in srgb, ${colorVar}, transparent 70%);
+                    "
                 >
                     ${event.resourceType}
                 </span>
@@ -137,7 +123,7 @@ export const waterfallRowTemplate = (event, isSelected) => {
 
             <!-- Size Column -->
             <div
-                class="w-[80px] px-2 shrink-0 border-r border-slate-800/50 text-right text-slate-400 font-mono"
+                class="w-[80px] px-2 shrink-0 border-r border-slate-800 text-right text-slate-400 font-mono"
             >
                 ${formatSize(event.size)}
             </div>
@@ -150,52 +136,52 @@ export const waterfallRowTemplate = (event, isSelected) => {
                     class="absolute h-3 rounded-sm flex overflow-hidden"
                     style="left: ${left}; width: ${width}; min-width: 2px;"
                 >
-                    <!-- Redirect (Yellow) -->
+                    <!-- Redirect (Yellow -> Warning) -->
                     <div
-                        class="h-full bg-yellow-500"
+                        class="h-full bg-amber-500"
                         style="width: ${redirectWidth}"
                         title="Redirect"
                     ></div>
 
-                    <!-- DNS (Cyan) -->
+                    <!-- DNS (Cyan -> Chart 9) -->
                     <div
                         class="h-full bg-cyan-500"
                         style="width: ${dnsWidth}"
                         title="DNS Lookup"
                     ></div>
 
-                    <!-- TCP (Orange) -->
+                    <!-- TCP (Orange -> Chart 10) -->
                     <div
                         class="h-full bg-orange-500"
                         style="width: ${tcpWidth}"
                         title="TCP Connect"
                     ></div>
 
-                    <!-- TLS (Pink) -->
+                    <!-- TLS (Pink -> Secondary Accent) -->
                     <div
-                        class="h-full bg-pink-500"
+                        class="h-full bg-purple-500"
                         style="width: ${tlsWidth}"
                         title="TLS Handshake"
                     ></div>
 
-                    <!-- TTFB (Purple - Waiting) -->
+                    <!-- TTFB (Purple -> Primary Accent) -->
                     <div
-                        class="h-full bg-purple-500 opacity-80"
+                        class="h-full bg-blue-500 opacity-80"
                         style="width: ${ttfbWidth}"
                         title="Waiting (TTFB)"
                     ></div>
 
-                    <!-- Download (Blue/Type Color) -->
+                    <!-- Download (Type Color) -->
                     <div
-                        class="h-full ${colors.bg}"
-                        style="width: ${downloadWidth}; opacity: 0.9;"
+                        class="h-full"
+                        style="width: ${downloadWidth}; opacity: 0.9; background-color: ${colorVar}"
                         title="Content Download"
                     ></div>
                 </div>
 
                 <!-- Time Label -->
                 <span
-                    class="absolute text-[10px] text-slate-500 ml-1 pointer-events-none"
+                    class="absolute text-[10px] text-slate-400 ml-1 pointer-events-none"
                     style="left: calc(${left} + ${width});"
                 >
                     ${timeLabel}

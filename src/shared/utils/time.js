@@ -6,11 +6,12 @@
 export const parseDuration = (durationStr) => {
     if (!durationStr) return null;
     const match = durationStr.match(
-        /PT(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?/
+        /P(?:(\d+(?:\.\d+)?)D)?(?:T(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?)?/
     );
     if (!match) return null;
-    const hours = parseFloat(match[1] || '0');
-    const minutes = parseFloat(match[2] || '0');
-    const seconds = parseFloat(match[3] || '0');
-    return hours * 3600 + minutes * 60 + seconds;
+    const days = parseFloat(match[1] || '0');
+    const hours = parseFloat(match[2] || '0');
+    const minutes = parseFloat(match[3] || '0');
+    const seconds = parseFloat(match[4] || '0');
+    return days * 86400 + hours * 3600 + minutes * 60 + seconds;
 };

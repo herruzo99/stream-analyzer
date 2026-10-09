@@ -1,7 +1,7 @@
 import { analyzeSemantics } from '../../features/compliance/domain/semantic-analyzer.js';
 import { calculateGopStatistics } from '../../features/segmentAnalysis/domain/gop-analyzer.js';
 import { appLog } from '../../shared/utils/debug.js';
-import { boxParsers } from '../parsing/isobmff/index.js';
+
 import { parseISOBMFF } from '../parsing/isobmff/parser.js';
 import { extractPesFromTs, stripPesHeaders } from '../parsing/ts/demuxer.js';
 import { parse as parseTsSegment } from '../parsing/ts/index.js';
@@ -14,8 +14,13 @@ import {
 import { parseVTT } from '../parsing/vtt/parser.js';
 import { fetchWithAuth } from './http.js';
 
+import { getBoxColorIndex } from '../../shared/constants/isobmff-colors.js';
+
+// Tailwind color stems: hex-view builds `bg-${name}-900/40` classes from
+// these, so entries must stay stems (not hex). Order matches the pre-port
+// palette that getBoxColorIndex/getPacketColorIndex address.
 const PALETTE = [
-    'slate',
+    'slate', // 0 (unused/fallback)
     'red',
     'orange',
     'amber',
@@ -35,43 +40,7 @@ const PALETTE = [
     'rose',
 ];
 
-const BOX_TYPE_COLOR_INDICES = {};
-Object.keys(boxParsers).forEach((type, index) => {
-    BOX_TYPE_COLOR_INDICES[type] = (index % (PALETTE.length - 1)) + 1;
-});
-// Manual overrides
-BOX_TYPE_COLOR_INDICES['ftyp'] = 1;
-BOX_TYPE_COLOR_INDICES['styp'] = 1;
-BOX_TYPE_COLOR_INDICES['moov'] = 12;
-BOX_TYPE_COLOR_INDICES['moof'] = 11;
-BOX_TYPE_COLOR_INDICES['mdat'] = 0;
-BOX_TYPE_COLOR_INDICES['free'] = 0;
-BOX_TYPE_COLOR_INDICES['skip'] = 0;
-BOX_TYPE_COLOR_INDICES['emsg'] = 14;
-BOX_TYPE_COLOR_INDICES['sidx'] = 9;
-BOX_TYPE_COLOR_INDICES['ID32'] = 7;
-BOX_TYPE_COLOR_INDICES['stpp'] = 7;
-BOX_TYPE_COLOR_INDICES['wvtt'] = 7;
-
-const TS_PACKET_COLOR_INDICES = {
-    'PSI (PAT)': 1,
-    'PSI (PMT)': 3,
-    'PSI (CAT)': 15,
-    'PSI (TSDT)': 8,
-    'PSI (Private Section)': 14,
-    'PSI (IPMP)': 3,
-    'PSI (NIT)': 5,
-    'PSI (SDT)': 5,
-    'PSI (EIT)': 5,
-    PES: 11,
-    'PES (DSM-CC)': 12,
-    Data: 6,
-    'Null Packet': 0,
-    'H.264 Video': 10,
-    'HEVC Video': 10,
-    'AAC Audio': 13,
-    'ID3 Metadata': 7,
-};
+import { getPacketColorIndex } from '../../shared/constants/ts-colors.js';
 
 const findBox = (boxes, type) => {
     for (const box of boxes) {
@@ -89,7 +58,7 @@ function generateIsoBoxLayout(parsedData, rawDataSize) {
     const traverse = (boxes, depth, parentIdx) => {
         if (!boxes) return;
         for (const box of boxes) {
-            const colorIdx = BOX_TYPE_COLOR_INDICES[box.type] ?? 0;
+            const colorIdx = getBoxColorIndex(box.type);
             const end = Math.min(box.offset + box.size, rawDataSize);
             const currentIdx = flatBoxes.length;
             flatBoxes.push({
@@ -126,11 +95,7 @@ function generateTsPacketMap(parsedData) {
     const packetMap = new Uint8Array(packetCount);
     for (let i = 0; i < packetCount; i++) {
         const p = packets[i];
-        // Fix: Corrected variable name from TS_PACKET_SIZE_COLOR_INDICES to TS_PACKET_COLOR_INDICES
-        const color =
-            TS_PACKET_COLOR_INDICES[p.payloadType] !== undefined
-                ? TS_PACKET_COLOR_INDICES[p.payloadType]
-                : 6;
+        const color = getPacketColorIndex(p.payloadType);
         packetMap[i] = color;
     }
     return { packetMap, palette: PALETTE };

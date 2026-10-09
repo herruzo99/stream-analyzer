@@ -441,6 +441,7 @@ async function buildStreamObject(
         adaptationEvents: [],
         segmentPollingReps: new Set(),
         initialTimeOffset: 0,
+        warnings: analysisResults.warnings || [],
     };
 
     if (input.protocol === 'hls' && streamObject.mediaPlaylists.size > 0) {
@@ -565,8 +566,8 @@ async function buildStreamObject(
                 id:
                     String(
                         event.scte35?.splice_command?.splice_event_id ||
-                            event.scte35?.descriptors?.[0]
-                                ?.segmentation_event_id
+                        event.scte35?.descriptors?.[0]
+                            ?.segmentation_event_id
                     ) || String(event.startTime),
                 startTime: event.startTime,
                 duration:
@@ -576,7 +577,7 @@ async function buildStreamObject(
                 scte35Signal: event.scte35,
                 adManifestUrl:
                     event.scte35?.descriptors?.[0]?.segmentation_upid_type ===
-                    0x0c
+                        0x0c
                         ? event.scte35.descriptors[0].segmentation_upid
                         : null,
                 creatives: [],
@@ -831,6 +832,7 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
         const totalCount = workerInputs.length;
 
         const processingResults = [];
+        const failedInputs = []; // NEW: Collection for failed streams
 
         for (let i = 0; i < workerInputs.length; i++) {
             const input = workerInputs[i];
@@ -840,113 +842,133 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
                 `Analyzing ${i + 1} of ${totalCount}: ${streamIdentifier}`
             );
 
-            const preProcessed = await preProcessInput(input, signal);
+            // Per-stream Try/Catch Block
+            try {
+                const preProcessed = await preProcessInput(input, signal);
 
-            let manifestIR,
-                serializedManifestObject,
-                finalBaseUrl,
-                mediaPlaylists = new Map();
-            let segmentsToCache = [];
-            let segmentsByCompositeKey = {};
+                let manifestIR,
+                    serializedManifestObject,
+                    finalBaseUrl,
+                    mediaPlaylists = new Map();
+                let segmentsToCache = [];
+                let segmentsByCompositeKey = {};
 
-            const fetchAndParseSegment = async (
-                url,
-                formatHint,
-                range = null,
-                auth = null,
-                loggingContext = {},
-                abortSignal = null
-            ) => {
-                const response = await fetchWithAuth(
+                const fetchAndParseSegment = async (
                     url,
-                    auth,
-                    range,
-                    {},
-                    null,
-                    abortSignal,
-                    loggingContext,
-                    'GET'
-                );
-                if (!response.ok)
-                    throw new Error(`HTTP error ${response.status}`);
-                const data = await response.arrayBuffer();
-                const parsedData = await handleParseSegmentStructure({
-                    data,
                     formatHint,
-                    url,
-                    context: {},
-                });
-                return { parsedData, rawBuffer: data };
-            };
-
-            const context = {
-                fetchAndParseSegment,
-                manifestUrl: preProcessed.finalUrl,
-                isLive: preProcessed.isLive,
-                signal,
-            };
-
-            if (preProcessed.protocol === 'direct') {
-                appLog(
-                    'handleStartAnalysis',
-                    'info',
-                    `Processing direct file: ${preProcessed.finalUrl}`
-                );
-                const synth = createSyntheticManifest(
-                    preProcessed.finalUrl,
-                    preProcessed.name
-                );
-                manifestIR = synth.manifest;
-                serializedManifestObject = synth.serializedManifest;
-                finalBaseUrl = synth.baseUrl;
-            } else if (preProcessed.protocol === 'hls') {
-                const hlsResult = await _fetchAndParseHlsPresentation(
-                    preProcessed,
-                    signal,
-                    postProgress
-                );
-                manifestIR = hlsResult.masterIR;
-                serializedManifestObject = hlsResult.serializedManifestObject;
-                finalBaseUrl = hlsResult.finalUrl;
-                mediaPlaylists = hlsResult.mediaPlaylists;
-                preProcessed.isLive = manifestIR.type === 'dynamic';
-
-                const hlsSummaryResult = await generateHlsSummary(manifestIR, {
-                    ...context,
-                    mediaPlaylists,
-                });
-                manifestIR.summary = hlsSummaryResult.summary;
-                segmentsToCache =
-                    hlsSummaryResult.opportunisticallyCachedSegments;
-            } else {
-                const { manifest, serializedManifest, baseUrl } =
-                    await parseDashManifest(
-                        preProcessed.manifestString,
-                        preProcessed.finalUrl
+                    range = null,
+                    auth = null,
+                    loggingContext = {},
+                    abortSignal = null
+                ) => {
+                    const response = await fetchWithAuth(
+                        url,
+                        auth,
+                        range,
+                        {},
+                        null,
+                        abortSignal,
+                        loggingContext,
+                        'GET'
                     );
-                manifestIR = manifest;
-                serializedManifestObject = serializedManifest;
-                finalBaseUrl = baseUrl;
+                    if (!response.ok)
+                        throw new Error(`HTTP error ${response.status}`);
+                    const data = await response.arrayBuffer();
+                    const parsedData = await handleParseSegmentStructure({
+                        data,
+                        formatHint,
+                        url,
+                        context: {},
+                    });
+                    return { parsedData, rawBuffer: data };
+                };
+
+                const context = {
+                    fetchAndParseSegment,
+                    manifestUrl: preProcessed.finalUrl,
+                    isLive: preProcessed.isLive,
+                    signal,
+                };
+
+                if (preProcessed.protocol === 'direct') {
+                    appLog(
+                        'handleStartAnalysis',
+                        'info',
+                        `Processing direct file: ${preProcessed.finalUrl}`
+                    );
+                    const synth = createSyntheticManifest(
+                        preProcessed.finalUrl,
+                        preProcessed.name
+                    );
+                    manifestIR = synth.manifest;
+                    serializedManifestObject = synth.serializedManifest;
+                    finalBaseUrl = synth.baseUrl;
+                } else if (preProcessed.protocol === 'hls') {
+                    const hlsResult = await _fetchAndParseHlsPresentation(
+                        preProcessed,
+                        signal,
+                        postProgress
+                    );
+                    manifestIR = hlsResult.masterIR;
+                    serializedManifestObject = hlsResult.serializedManifestObject;
+                    finalBaseUrl = hlsResult.finalUrl;
+                    mediaPlaylists = hlsResult.mediaPlaylists;
+                    preProcessed.isLive = manifestIR.type === 'dynamic';
+
+                    const hlsSummaryResult = await generateHlsSummary(manifestIR, {
+                        ...context,
+                        mediaPlaylists,
+                    });
+                    manifestIR.summary = hlsSummaryResult.summary;
+                    segmentsToCache =
+                        hlsSummaryResult.opportunisticallyCachedSegments;
+                } else {
+                    const { manifest, serializedManifest, baseUrl } =
+                        await parseDashManifest(
+                            preProcessed.manifestString,
+                            preProcessed.finalUrl
+                        );
+                    manifestIR = manifest;
+                    serializedManifestObject = serializedManifest;
+                    finalBaseUrl = baseUrl;
+                    segmentsByCompositeKey = await parseDashSegments(
+                        serializedManifestObject,
+                        finalBaseUrl,
+                        { auth: input.auth, now: Date.now() }
+                    );
+
+                    manifestIR.summary = await generateDashSummary(
+                        manifestIR,
+                        serializedManifestObject,
+                        {
+                            ...context,
+                            manifestUrl: finalBaseUrl,
+                            onInitSegmentParsed: (seg) => {
+                                segmentsToCache.push({
+                                    uniqueId: seg.uniqueId,
+                                    data: seg.data,
+                                    parsedData: seg.parsedData,
+                                    status: 200,
+                                });
+                            },
+                            onSegmentFetched: (seg) => {
+                                segmentsToCache.push({
+                                    uniqueId: seg.uniqueId,
+                                    data: seg.data,
+                                    parsedData: seg.parsedData,
+                                    status: 200,
+                                });
+                            },
+                        }
+                    );
+                }
+
                 segmentsByCompositeKey = await parseDashSegments(
                     serializedManifestObject,
                     finalBaseUrl,
-                    { auth: input.auth, now: Date.now() }
-                );
-
-                manifestIR.summary = await generateDashSummary(
-                    manifestIR,
-                    serializedManifestObject,
                     {
-                        ...context,
-                        manifestUrl: finalBaseUrl,
-                        onInitSegmentParsed: (seg) => {
-                            segmentsToCache.push({
-                                uniqueId: seg.uniqueId,
-                                data: seg.data,
-                                parsedData: seg.parsedData,
-                                status: 200,
-                            });
-                        },
+                        auth: input.auth,
+                        now: Date.now(),
                         onSegmentFetched: (seg) => {
                             segmentsToCache.push({
                                 uniqueId: seg.uniqueId,
@@ -957,115 +979,111 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
                         },
                     }
                 );
-            }
 
-            segmentsByCompositeKey = await parseDashSegments(
-                serializedManifestObject,
-                finalBaseUrl,
-                {
-                    auth: input.auth,
-                    now: Date.now(),
-                    onSegmentFetched: (seg) => {
-                        segmentsToCache.push({
-                            uniqueId: seg.uniqueId,
-                            data: seg.data,
-                            parsedData: seg.parsedData,
-                            status: 200,
-                        });
-                    },
-                }
-            );
-
-            if (manifestIR.adAvails && manifestIR.adAvails.length > 0) {
-                manifestIR.adAvails = await resolveAdAvailsInWorker(
-                    manifestIR.adAvails
-                );
-            }
-
-            const manifestObjectForChecks =
-                preProcessed.protocol === 'hls'
-                    ? manifestIR
-                    : serializedManifestObject;
-
-            const complianceResults = runChecks(
-                // @ts-ignore
-                manifestObjectForChecks,
-                preProcessed.protocol === 'direct'
-                    ? 'dash'
-                    : preProcessed.protocol,
-                { isLive: preProcessed.isLive, segmentsByCompositeKey }
-            );
-
-            const rawInitialAnalysis = generateFeatureAnalysis(
-                // @ts-ignore
-                manifestIR,
-                preProcessed.protocol === 'direct'
-                    ? 'dash'
-                    : preProcessed.protocol,
-                serializedManifestObject
-            );
-            const featureAnalysisResults = new Map(
-                Object.entries(rawInitialAnalysis)
-            );
-
-            const coverageReport = input.isDebug
-                ? [
-                      ...(preProcessed.protocol === 'dash'
-                          ? analyzeDashCoverage(serializedManifestObject)
-                          : []),
-                      // @ts-ignore
-                      ...analyzeParserDrift(manifestIR),
-                  ]
-                : [];
-
-            const semanticData = new Map();
-            // @ts-ignore
-            if (preProcessed.protocol === 'hls' && manifestIR.isMaster) {
-                // @ts-ignore
-                const steeringTag = (manifestIR.tags || []).find(
-                    (t) => t.name === 'EXT-X-CONTENT-STEERING'
-                );
-                if (steeringTag) {
-                    const steeringUri = new URL(
-                        steeringTag.value['SERVER-URI'],
-                        finalBaseUrl
-                    ).href;
-                    semanticData.set(
-                        'steeringValidation',
-                        await validateSteeringManifest(steeringUri)
+                if (manifestIR.adAvails && manifestIR.adAvails.length > 0) {
+                    manifestIR.adAvails = await resolveAdAvailsInWorker(
+                        manifestIR.adAvails
                     );
                 }
+
+                const manifestObjectForChecks =
+                    preProcessed.protocol === 'hls'
+                        ? manifestIR
+                        : serializedManifestObject;
+
+                const complianceResults = runChecks(
+                    // @ts-ignore
+                    manifestObjectForChecks,
+                    preProcessed.protocol === 'direct'
+                        ? 'dash'
+                        : preProcessed.protocol,
+                    { isLive: preProcessed.isLive, segmentsByCompositeKey }
+                );
+
+                const rawInitialAnalysis = generateFeatureAnalysis(
+                    // @ts-ignore
+                    manifestIR,
+                    preProcessed.protocol === 'direct'
+                        ? 'dash'
+                        : preProcessed.protocol,
+                    serializedManifestObject
+                );
+                const featureAnalysisResults = new Map(
+                    Object.entries(rawInitialAnalysis)
+                );
+
+                const coverageReport = input.isDebug
+                    ? [
+                        ...(preProcessed.protocol === 'dash'
+                            ? analyzeDashCoverage(serializedManifestObject)
+                            : []),
+                        // @ts-ignore
+                        ...analyzeParserDrift(manifestIR),
+                    ]
+                    : [];
+
+                const semanticData = new Map();
+                // @ts-ignore
+                if (preProcessed.protocol === 'hls' && manifestIR.isMaster) {
+                    // @ts-ignore
+                    const steeringTag = (manifestIR.tags || []).find(
+                        (t) => t.name === 'EXT-X-CONTENT-STEERING'
+                    );
+                    if (steeringTag) {
+                        const steeringUri = new URL(
+                            steeringTag.value['SERVER-URI'],
+                            finalBaseUrl
+                        ).href;
+                        semanticData.set(
+                            'steeringValidation',
+                            await validateSteeringManifest(steeringUri)
+                        );
+                    }
+                }
+
+                const analysisResults = {
+                    featureAnalysisResults,
+                    semanticData,
+                    steeringTag: null,
+                    complianceResults,
+                    coverageReport,
+                    mediaPlaylists,
+                    segmentsByCompositeKey,
+                    warnings: manifestIR.summary?.warnings || [],
+                };
+
+                const streamObject = await buildStreamObject(
+                    preProcessed,
+                    manifestIR,
+                    serializedManifestObject,
+                    finalBaseUrl,
+                    analysisResults,
+                    fetchAndParseSegment,
+                    signal
+                );
+
+                const segmentsWithId = segmentsToCache.map((segment) => ({
+                    ...segment,
+                    streamId: streamObject.id,
+                }));
+
+                processingResults.push({
+                    streamObject,
+                    segmentsToCache: segmentsWithId,
+                });
+
+            } catch (err) {
+                appLog(
+                    'handleStartAnalysis',
+                    'warn',
+                    `Failed to process stream: ${streamIdentifier}`,
+                    err
+                );
+                failedInputs.push({
+                    input: input,
+                    error: err.message || 'Unknown error during analysis',
+                });
             }
-
-            const analysisResults = {
-                featureAnalysisResults,
-                semanticData,
-                steeringTag: null,
-                complianceResults,
-                coverageReport,
-                mediaPlaylists,
-                segmentsByCompositeKey,
-            };
-
-            const streamObject = await buildStreamObject(
-                preProcessed,
-                manifestIR,
-                serializedManifestObject,
-                finalBaseUrl,
-                analysisResults,
-                fetchAndParseSegment,
-                signal
-            );
-
-            const segmentsWithId = segmentsToCache.map((segment) => ({
-                ...segment,
-                streamId: streamObject.id,
-            }));
-
-            processingResults.push({
-                streamObject,
-                segmentsToCache: segmentsWithId,
-            });
         }
 
         const streamObjects = processingResults.map((r) => r.streamObject);
@@ -1086,19 +1104,20 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
             'info',
             `Analysis complete in ${(
                 performance.now() - analysisStartTime
-            ).toFixed(2)}ms`
+            ).toFixed(2)}ms. Success: ${streamObjects.length}, Failed: ${failedInputs.length}`
         );
 
         return {
             streams: workerResults,
             urlAuthMapArray,
             opportunisticallyCachedSegments: allCachedSegments,
+            failedInputs, // Return the failures
         };
     } catch (error) {
         appLog(
             'handleStartAnalysis',
             'error',
-            'Analysis pipeline failed.',
+            'Analysis pipeline failed unexpectedly.',
             error
         );
         throw error;

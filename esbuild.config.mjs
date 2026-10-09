@@ -48,7 +48,20 @@ async function safeCopyFile(src, dest) {
 
 async function copyRecursive(src, dest) {
     try {
-        await fs.cp(src, dest, { recursive: true });
+        // Robust copy: Read directory and copy files individually to avoid fs.cp race conditions
+        const entries = await fs.readdir(src, { withFileTypes: true });
+        await fs.mkdir(dest, { recursive: true });
+
+        for (const entry of entries) {
+            const srcPath = path.join(src, entry.name);
+            const destPath = path.join(dest, entry.name);
+
+            if (entry.isDirectory()) {
+                await copyRecursive(srcPath, destPath);
+            } else {
+                await safeCopyFile(srcPath, destPath);
+            }
+        }
     } catch (e) {
         console.warn(`Warning: Could not copy ${src} to ${dest}.`, e);
     }

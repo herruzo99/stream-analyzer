@@ -1,5 +1,5 @@
 import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
-import { appLog } from '@/shared/utils/debug';
+
 import { parseDuration } from '@/shared/utils/time';
 import { parseScte35 } from '../scte35/parser.js';
 import { isCodecSupported } from '../utils/codec-support.js';
@@ -694,29 +694,29 @@ function parsePeriod(periodEl, parentMergedEl, previousPeriod = null) {
     adaptationSets.sort(sortAdaptationSets);
 
     // FIX: Looser check for SCTE-35 detection
-    const hasScte35 = adaptationSets.some((as) =>
-        (as.inbandEventStreams || []).some((ies) => {
-            const uri = (ies.schemeIdUri || '').toLowerCase();
-            return uri.includes('scte35');
-        })
-    );
+    // const hasScte35 = adaptationSets.some((as) =>
+    //     (as.inbandEventStreams || []).some((ies) => {
+    //         const uri = (ies.schemeIdUri || '').toLowerCase();
+    //         return uri.includes('scte35');
+    //     })
+    // );
 
-    if (hasScte35) {
-        appLog(
-            'DashAdapter',
-            'info',
-            'SCTE-35 Inband Event Stream detected. Adding placeholder.'
-        );
-        adAvails.push({
-            id: 'unconfirmed-inband-scte35',
-            startTime: -1,
-            duration: -1,
-            scte35Signal: { error: 'Unconfirmed In-band Signal' },
-            adManifestUrl: null,
-            creatives: [],
-            detectionMethod: 'SCTE35_INBAND',
-        });
-    }
+    // if (hasScte35) {
+    //     appLog(
+    //         'DashAdapter',
+    //         'info',
+    //         'SCTE-35 Inband Event Stream detected. Adding placeholder.'
+    //     );
+    //     adAvails.push({
+    //         id: 'unconfirmed-inband-scte35',
+    //         startTime: -1,
+    //         duration: -1,
+    //         scte35Signal: { error: 'Unconfirmed In-band Signal' },
+    //         adManifestUrl: null,
+    //         creatives: [],
+    //         detectionMethod: 'SCTE35_INBAND',
+    //     });
+    // }
 
     const periodIR = {
         id: periodId,
@@ -827,6 +827,7 @@ export async function adaptDashToIr(manifestElement, baseUrl, context) {
             lang: getAttr(el, 'lang'),
             moreInformationURL: getAttr(el, 'moreInformationURL'),
         })),
+        baseUrls: findChildren(manifestCopy, 'BaseURL').map(getText),
         locations: findChildren(manifestCopy, 'Location').map(getText),
         patchLocations: findChildren(manifestCopy, 'PatchLocation').map(
             getText

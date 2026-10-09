@@ -134,13 +134,17 @@ export function renderChart(container, options, eventHandlers = {}) {
         chart = initChart(container);
         chartInstances.set(container, chart);
 
-        // ARCHITECTURAL FIX: Wrap resize in requestAnimationFrame.
+        // ARCHITECTURAL FIX: Wrap resize in requestAnimationFrame with debounce.
         // ECharts can sometimes fail to resize if called synchronously during a layout thrash.
+        let resizeTimeout;
         const resizeObserver = new ResizeObserver(() => {
             if (container.isConnected) {
-                requestAnimationFrame(() => {
-                    chart.resize();
-                });
+                if (resizeTimeout) clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    requestAnimationFrame(() => {
+                        chart.resize();
+                    });
+                }, 100); // Debounce by 100ms
             }
         });
         resizeObserver.observe(container);
@@ -169,13 +173,13 @@ export function renderChart(container, options, eventHandlers = {}) {
     const finalOptions = {
         ...options,
         tooltip: {
-            ...options.tooltip,
-            trigger: options.tooltip?.trigger || 'axis',
-            formatter: options.tooltip?.formatter || defaultTooltipFormatter,
+            trigger: 'axis',
             confine: true,
-            backgroundColor: 'rgba(30, 41, 59, 0.9)', // slate-800
-            borderColor: '#4b5563', // slate-600
-            textStyle: { color: '#e5e7eb' }, // slate-200
+            backgroundColor: 'rgba(30, 41, 59, 0.9)', // Default slate-800
+            borderColor: '#4b5563', // Default slate-600
+            textStyle: { color: '#e5e7eb' }, // Default slate-200
+            formatter: defaultTooltipFormatter,
+            ...options.tooltip, // Allow overrides
         },
     };
 

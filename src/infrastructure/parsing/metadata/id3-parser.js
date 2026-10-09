@@ -98,13 +98,63 @@ export function parseId3Tag(buffer) {
         if (frameEnd > limit) break;
 
         const content = buffer.subarray(offset + 10, frameEnd);
-        const frame = { id: frameId, size: frameSize, flags: frameFlags };
+        const frame = {
+            id: frameId,
+            size: frameSize,
+            flags: frameFlags,
+            offset: offset, // Store relative offset
+        };
 
         // Parse specific frame content
         if (frameId.startsWith('T')) {
-            // Text Frame
-            const encoding = content[0];
-            frame.value = decodeText(content.subarray(1), encoding);
+            if (frameId === 'TXXX') {
+                // User defined text information frame
+                // <Header> <Text encoding> <Description> <00 (00)> <Value>
+                const encoding = content[0];
+                let nullIndex = -1;
+                // Search for null terminator starting after encoding byte
+                // For UTF-16 (encoding 1 or 2), we need double null bytes aligned to 2 bytes,
+                // but decodeText handles the splitting usually. Let's find the first null.
+                // However, simplistic search might fail for UTF-16.
+                // Let's use a safer approach: decode everything and split by null.
+                // But we need to know where the description ends to separate it from value.
+
+                // Simplified approach: scan for null based on encoding
+                let scanStart = 1;
+                let step = 1;
+                if (encoding === 1 || encoding === 2) step = 2; // UTF-16
+
+                for (
+                    let i = scanStart;
+                    i < content.length - step + 1;
+                    i += step
+                ) {
+                    if (
+                        content[i] === 0 &&
+                        (step === 1 || content[i + 1] === 0)
+                    ) {
+                        nullIndex = i;
+                        break;
+                    }
+                }
+
+                if (nullIndex !== -1) {
+                    frame.description = decodeText(
+                        content.subarray(1, nullIndex),
+                        encoding
+                    );
+                    frame.value = decodeText(
+                        content.subarray(nullIndex + step),
+                        encoding
+                    );
+                } else {
+                    frame.value = decodeText(content.subarray(1), encoding);
+                }
+            } else {
+                // Standard Text Frame
+                const encoding = content[0];
+                frame.value = decodeText(content.subarray(1), encoding);
+            }
         } else if (frameId === 'PRIV') {
             // Private Frame: Owner Identifier (Null Terminated) + Binary
             let nullIndex = -1;
@@ -118,22 +168,39 @@ export function parseId3Tag(buffer) {
                 frame.owner = new TextDecoder('iso-8859-1').decode(
                     content.subarray(0, nullIndex)
                 );
-                // The rest is binary data (often SCTE-35 or timestamps)
+                // The rest is binary data
                 const binary = content.subarray(nullIndex + 1);
-                frame.data = `[${binary.length} bytes binary]`;
+
                 // Heuristic: Check for Timestamp (8 bytes / 33-bit PTS)
                 if (
                     frame.owner.includes(
                         'com.apple.streaming.transportStreamTimestamp'
-                    )
+                    ) &&
+                    binary.byteLength === 8
                 ) {
                     const view = new DataView(
                         binary.buffer,
                         binary.byteOffset,
                         binary.byteLength
                     );
-                    if (binary.byteLength === 8) {
-                        frame.value = view.getBigUint64(0).toString();
+                    frame.value = view.getBigUint64(0).toString();
+                } else {
+                    // Check if binary is actually text (e.g. HTTP URL)
+                    // Simple check: are all bytes printable ASCII?
+                    let isAscii = true;
+                    for (let k = 0; k < binary.length; k++) {
+                        if (binary[k] < 32 || binary[k] > 126) {
+                            isAscii = false;
+                            break;
+                        }
+                    }
+
+                    if (isAscii && binary.length > 0) {
+                        frame.value = new TextDecoder('iso-8859-1').decode(
+                            binary
+                        );
+                    } else {
+                        frame.data = `[${binary.length} bytes binary]`;
                     }
                 }
             } else {
@@ -166,6 +233,50 @@ export function parseId3Tag(buffer) {
                 frame.value = url;
             } else {
                 frame.value = '[Malformed WXXX]';
+            }
+        } else if (frameId === 'COMM') {
+            // Comments frame
+            // <Header> <Text encoding> <Language (3)> <Short content descrip> <00 (00)> <The actual text>
+            if (content.length > 4) {
+                const encoding = content[0];
+                const language = new TextDecoder('iso-8859-1').decode(
+                    content.subarray(1, 4)
+                );
+
+                let nullIndex = -1;
+                let scanStart = 4;
+                let step = 1;
+                if (encoding === 1 || encoding === 2) step = 2;
+
+                for (
+                    let i = scanStart;
+                    i < content.length - step + 1;
+                    i += step
+                ) {
+                    if (
+                        content[i] === 0 &&
+                        (step === 1 || content[i + 1] === 0)
+                    ) {
+                        nullIndex = i;
+                        break;
+                    }
+                }
+
+                if (nullIndex !== -1) {
+                    frame.description = decodeText(
+                        content.subarray(4, nullIndex),
+                        encoding
+                    );
+                    frame.value = decodeText(
+                        content.subarray(nullIndex + step),
+                        encoding
+                    );
+                } else {
+                    frame.value = decodeText(content.subarray(4), encoding);
+                }
+                frame.language = language;
+            } else {
+                frame.value = '[Malformed COMM]';
             }
         } else {
             // Generic binary

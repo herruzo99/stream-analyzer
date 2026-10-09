@@ -8,18 +8,31 @@ import { EVENTS } from '@/types/events';
  * It is independent of the UI and any framework.
  * @param {object} params
  * @param {Array<{id: number, url: string, name: string, file: File | null, auth: import('@/types').AuthInfo, drmAuth: import('@/types').DrmAuthInfo}>} params.inputs - The raw input data.
+ * @param {object} [params.options] - Optional analysis configuration.
+ * @param {boolean} [params.options.resetStore] - Whether to reset the analysis store.
+ * @param {boolean} [params.options.showLoader] - Whether to trigger the loading state.
  * @param {object} services - Injected dependencies.
  * @param {{saveLastUsedStreams: Function}} services.storage - Storage service.
  * @param {import('@/infrastructure/worker/workerService').WorkerService} services.workerService - The worker service.
  * @param {import('@/application/event-bus').EventBus} services.eventBus - The application event bus.
  * @param {typeof import('@/state/analysisStore').analysisActions} services.analysisActions - The analysis state actions.
  */
-export async function startAnalysisUseCase({ inputs }, services) {
+export async function startAnalysisUseCase({ inputs, options = {} }, services) {
     const { storage, workerService, eventBus, analysisActions } = services;
+
+    // Default options
+    const { resetStore = true, showLoader = true } = options;
+
     const analysisStartTime = performance.now();
-    appLog('startAnalysisUseCase', 'info', 'Starting analysis pipeline...');
-    analysisActions.startAnalysis();
-    eventBus.dispatch(EVENTS.ANALYSIS.STARTED);
+    appLog('startAnalysisUseCase', 'info', 'Starting analysis pipeline...', { options });
+
+    if (resetStore) {
+        analysisActions.startAnalysis();
+    }
+
+    if (showLoader) {
+        eventBus.dispatch(EVENTS.ANALYSIS.STARTED);
+    }
 
     const validInputs = inputs.filter((input) => input.url || input.file);
 
@@ -90,10 +103,14 @@ export async function startAnalysisUseCase({ inputs }, services) {
     );
 
     try {
-        const { streams, urlAuthMapArray, opportunisticallyCachedSegments } =
-            await workerService.postTask('start-analysis', {
-                inputs: workerInputs,
-            }).promise;
+        const {
+            streams,
+            urlAuthMapArray,
+            opportunisticallyCachedSegments,
+            failedInputs,
+        } = await workerService.postTask('start-analysis', {
+            inputs: workerInputs,
+        }).promise;
 
         // Manually populate the cache BEFORE completing analysis to prevent race conditions.
         if (opportunisticallyCachedSegments) {
@@ -117,6 +134,25 @@ export async function startAnalysisUseCase({ inputs }, services) {
                 'info',
                 `Pre-populated segment cache with ${opportunisticallyCachedSegments.length} opportunistically fetched segments.`
             );
+        }
+
+        // Check for partial or total failures
+        if (failedInputs && failedInputs.length > 0) {
+            // If we have some successful streams, we treat it as a partial failure
+            // If NO streams succeeded, it's a total failure (but handled via the same partial flow for now to show the list)
+
+            // Failsafe: If no streams and no failed inputs (shouldn't happen logic-wise but...)
+            if (streams.length === 0 && failedInputs.length === 0) {
+                throw new Error('No streams returned from analysis.');
+            }
+
+            return {
+                status: 'partial',
+                validStreams: streams,
+                failedInputs,
+                urlAuthMapArray,
+                validInputs,
+            };
         }
 
         // Failsafe check for empty manifest content which can result from network issues (e.g., 304 response)
@@ -151,11 +187,13 @@ export async function startAnalysisUseCase({ inputs }, services) {
                 tEndTotal - analysisStartTime
             ).toFixed(2)}ms`
         );
+        return { status: 'success' };
     } catch (error) {
         eventBus.dispatch(EVENTS.ANALYSIS.ERROR, {
             message: error.message,
             error,
         });
         eventBus.dispatch(EVENTS.ANALYSIS.FAILED);
+        return { status: 'error', error };
     }
 }

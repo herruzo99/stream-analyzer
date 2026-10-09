@@ -70,6 +70,7 @@ function getOrCreateContext(streamId, width, height) {
                 activeAnomalies: new Map(),
                 issues: [],
             },
+            lastFrameBase64: null, // Store base64 of previous frame for scene change
         };
         streamContexts.set(streamId, ctx);
     }
@@ -245,6 +246,53 @@ export async function handleAnalyzeFrameSequence(
             contrastPenalty -
             lumaPenalty;
         metrics.predictedQuality = Math.max(0, Math.min(100, score));
+    }
+
+    // H. Scene Change Detection
+    if (activeLayers.has('scene_change')) {
+        tracker.start('calc_scene_change');
+
+        // Convert current frame to base64 for potential storage
+        // OffscreenCanvas doesn't have toDataURL, we need to use convertToBlob
+        const blob = await ctx.offscreenCanvas.convertToBlob({
+            type: 'image/jpeg',
+            quality: 0.5,
+        });
+        const currentBase64 = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+        });
+
+        if (ctx.lastFrameBase64) {
+            // We reuse the diff calculated in Temporal Information if available, otherwise calculate it
+            let diff = metrics.freezeDiff;
+            if (diff === undefined) {
+                if (ctx.prevFrameData) {
+                    diff = calculateFrameDiff(data, ctx.prevFrameData);
+                } else {
+                    // Should have prevFrameData if we are in sequential mode, but if not (first frame), diff is 0
+                    diff = 0;
+                }
+            }
+
+            // Threshold for scene change (e.g., > 30% difference)
+            // Freeze diff is 0-1. 0.3 is 30%.
+            const SCENE_CHANGE_THRESHOLD = 0.3;
+
+            if (diff > SCENE_CHANGE_THRESHOLD) {
+                currentFrameIssues.push({
+                    type: 'scene_change',
+                    value: `Diff: ${(diff * 100).toFixed(1)}%`,
+                    prevFrameImage: ctx.lastFrameBase64,
+                    nextFrameImage: currentBase64,
+                    timestamp: timestamp,
+                });
+            }
+        }
+
+        ctx.lastFrameBase64 = currentBase64;
+        tracker.end('calc_scene_change');
     }
 
     // --- 4. Anomaly Detection (Thresholding) ---

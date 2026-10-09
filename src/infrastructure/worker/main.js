@@ -1,3 +1,4 @@
+// Force worker rebuild
 import { handleStartAnalysis } from './handlers/analysisHandler.js';
 import { handleGetStreamDrmInfo } from './handlers/drmDetectionHandler.js';
 import { handleGetManifestMetadata } from './handlers/metadataHandler.js';

@@ -48,7 +48,7 @@ class IconComponent extends HTMLElement {
 
             // If the icon wasn't found, add a class to color it red
             if (!icons[iconKey] && !icons[iconKeyLower] && !icons[name]) {
-                svgElement.classList.add('text-red-500');
+                svgElement.classList.add('text-red-400');
             }
 
             this.appendChild(svgElement);
@@ -58,7 +58,7 @@ class IconComponent extends HTMLElement {
             const errorIcon = createElement(icons['AlertTriangle']);
             errorIcon.setAttribute(
                 'class',
-                `lucide lucide-alert-triangle text-red-500 ${classes}`
+                `lucide lucide-alert-triangle text-red-400 ${classes}`
             );
             this.appendChild(errorIcon);
         }

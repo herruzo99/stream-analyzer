@@ -89,7 +89,7 @@ class NetworkInterventionPanel extends HTMLElement {
             'h-full',
             'flex',
             'flex-col',
-            'bg-slate-950',
+            'bg-transparent',
             'w-full'
         );
         this.render();
@@ -184,8 +184,8 @@ class NetworkInterventionPanel extends HTMLElement {
 
         const activeClass = isEditing
             ? `ring-2 ring-${color}-500 bg-${color}-900/10`
-            : `bg-slate-900 border-${color}-500/30 bg-${color}-900/5`;
-        const containerClass = `group flex items-center justify-between p-3 rounded-lg border transition-all hover:border-slate-600 ${rule.enabled ? activeClass : 'bg-slate-900 border-slate-800 opacity-60'}`;
+            : `bg-slate-800 border-${color}-500/30 bg-${color}-900/5`;
+        const containerClass = `group flex items-center justify-between p-3 rounded-lg border transition-all hover:border-slate-800 ${rule.enabled ? activeClass : 'bg-slate-800 border-slate-800 opacity-60'}`;
 
         return html`
             <div class="${containerClass}">
@@ -193,10 +193,10 @@ class NetworkInterventionPanel extends HTMLElement {
                     <button
                         type="button"
                         @click=${() =>
-                            networkActions.toggleInterventionRule(rule.id)}
+                networkActions.toggleInterventionRule(rule.id)}
                         class="p-2 rounded-lg ${rule.enabled
-                            ? `bg-${color}-500 text-white shadow-md`
-                            : 'bg-slate-800 text-slate-500'} transition-colors"
+                ? `bg-${color}-500 text-white shadow-md`
+                : 'bg-slate-800 text-slate-400'} transition-colors"
                         title="${rule.enabled ? 'Disable' : 'Enable'}"
                     >
                         ${icon}
@@ -208,28 +208,28 @@ class NetworkInterventionPanel extends HTMLElement {
                                 >${rule.label}</span
                             >
                             <span
-                                class="text-[9px] px-1.5 rounded border border-slate-700 text-slate-400 bg-slate-950 uppercase"
+                                class="text-[9px] px-1.5 rounded border border-slate-800 text-slate-400 bg-slate-800 uppercase"
                                 >${rule.resourceType}</span
                             >
                         </div>
                         <div
-                            class="text-xs font-mono text-slate-500 truncate mt-0.5"
+                            class="text-xs font-mono text-slate-400 truncate mt-0.5"
                             title="${rule.urlPattern}"
                         >
                             ${rule.urlPattern
-                                ? `/${rule.urlPattern}/`
-                                : 'All URLs'}
+                ? `/${rule.urlPattern}/`
+                : 'All URLs'}
                             →
                             <span
                                 class="${color === 'red'
-                                    ? 'text-red-300'
-                                    : 'text-amber-300'}"
+                ? 'text-red-400'
+                : 'text-amber-400'}"
                             >
                                 ${isBlock
-                                    ? `HTTP ${rule.params.statusCode}`
-                                    : `+${rule.params.delayMs}ms`}
+                ? `HTTP ${rule.params.statusCode}`
+                : `+${rule.params.delayMs}ms`}
                             </span>
-                            <span class="text-slate-600 ml-1"
+                            <span class="text-slate-400 ml-1"
                                 >(${probability}%)</span
                             >
                         </div>
@@ -250,8 +250,8 @@ class NetworkInterventionPanel extends HTMLElement {
                     <button
                         type="button"
                         @click=${() =>
-                            networkActions.removeInterventionRule(rule.id)}
-                        class="p-2 text-slate-600 hover:text-red-400 transition-colors"
+                networkActions.removeInterventionRule(rule.id)}
+                        class="p-2 text-slate-400 hover:text-red-400 transition-colors"
                         title="Delete"
                     >
                         ${icons.trash}
@@ -278,20 +278,20 @@ class NetworkInterventionPanel extends HTMLElement {
                 </h4>
                 <div class="grid grid-cols-2 gap-2">
                     ${PRESETS.map(
-                        (p) => html`
+            (p) => html`
                             <button
                                 type="button"
                                 @click=${() => {
-                                    networkActions.addInterventionRule({
-                                        ...p.rule,
-                                        id: crypto.randomUUID(),
-                                    });
-                                    showToast({
-                                        message: `${p.label} activated!`,
-                                        type: 'warn',
-                                    });
-                                }}
-                                class="flex items-center gap-2 p-2 rounded-lg bg-slate-800 border border-slate-700 hover:border-blue-500/50 hover:bg-slate-700 transition-all text-xs font-medium text-slate-300 hover:text-white group text-left"
+                    networkActions.addInterventionRule({
+                        ...p.rule,
+                        id: crypto.randomUUID(),
+                    });
+                    showToast({
+                        message: `${p.label} activated!`,
+                        type: 'warn',
+                    });
+                }}
+                                class="flex items-center gap-2 p-2 rounded-lg bg-slate-800 border border-slate-800 hover:border-blue-500/50 hover:bg-slate-800 transition-all text-xs font-medium text-slate-400 hover:text-white group text-left"
                             >
                                 <span
                                     class="text-blue-400 group-hover:text-white"
@@ -300,18 +300,18 @@ class NetworkInterventionPanel extends HTMLElement {
                                 ${p.label}
                             </button>
                         `
-                    )}
+        )}
                 </div>
             </div>
         `;
 
         const form = html`
             <h4
-                class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 flex justify-between items-center"
+                class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex justify-between items-center"
             >
                 ${this.editingRuleId ? 'Edit Rule' : 'Custom Rule'}
                 ${this.editingRuleId
-                    ? html`
+                ? html`
                           <button
                               type="button"
                               @click=${() => this.handleCancelEdit()}
@@ -320,46 +320,46 @@ class NetworkInterventionPanel extends HTMLElement {
                               ${icons.xCircle} cancel
                           </button>
                       `
-                    : ''}
+                : ''}
             </h4>
             <form
                 @submit=${(e) => this.handleSubmit(e)}
-                class="bg-slate-900/50 p-3 rounded-xl border border-slate-800 space-y-3 relative transition-all ${this
-                    .editingRuleId
-                    ? 'ring-1 ring-blue-500/50 bg-blue-900/5'
-                    : ''}"
+                class="bg-slate-800/50 p-3 rounded-xl border border-slate-800 space-y-3 relative transition-all ${this
+                .editingRuleId
+                ? 'ring-1 ring-blue-500/50 bg-blue-500/5'
+                : ''}"
             >
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label
-                            class="block text-[9px] font-bold text-slate-500 uppercase mb-1"
+                            class="block text-[9px] font-bold text-slate-400 uppercase mb-1"
                             >Name</label
                         >
                         <input
                             type="text"
                             required
                             placeholder="Rule Name"
-                            class="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-xs text-white focus:border-blue-500 outline-none"
+                            class="w-full bg-slate-800 border border-slate-800 rounded p-1.5 text-xs text-white focus:border-blue-500 outline-none"
                             .value=${label}
                             @input=${(e) =>
-                                this.handleInputChange('label', e.target.value)}
+                this.handleInputChange('label', e.target.value)}
                         />
                     </div>
                     <div>
                         <label
-                            class="block text-[9px] font-bold text-slate-500 uppercase mb-1"
+                            class="block text-[9px] font-bold text-slate-400 uppercase mb-1"
                             >URL Pattern</label
                         >
                         <input
                             type="text"
                             placeholder="Regex (Optional)"
-                            class="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-xs font-mono text-yellow-300 focus:border-yellow-500 outline-none"
+                            class="w-full bg-slate-800 border border-slate-800 rounded p-1.5 text-xs font-mono text-amber-400 focus:border-amber-500 outline-none"
                             .value=${urlPattern}
                             @input=${(e) =>
-                                this.handleInputChange(
-                                    'urlPattern',
-                                    e.target.value
-                                )}
+                this.handleInputChange(
+                    'urlPattern',
+                    e.target.value
+                )}
                         />
                     </div>
                 </div>
@@ -367,39 +367,39 @@ class NetworkInterventionPanel extends HTMLElement {
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label
-                            class="block text-[9px] font-bold text-slate-500 uppercase mb-1"
+                            class="block text-[9px] font-bold text-slate-400 uppercase mb-1"
                             >Target</label
                         >
                         <select
-                            class="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-xs text-white outline-none"
+                            class="w-full bg-slate-800 border border-slate-800 rounded p-1.5 text-xs text-white outline-none"
                             .value=${resourceType}
                             @change=${(e) =>
-                                this.handleInputChange(
-                                    'resourceType',
-                                    e.target.value
-                                )}
+                this.handleInputChange(
+                    'resourceType',
+                    e.target.value
+                )}
                         >
                             ${TYPE_OPTIONS.map(
-                                (o) =>
-                                    html`<option value=${o.value}>
+                    (o) =>
+                        html`<option value=${o.value}>
                                         ${o.label}
                                     </option>`
-                            )}
+                )}
                         </select>
                     </div>
                     <div>
                         <label
-                            class="block text-[9px] font-bold text-slate-500 uppercase mb-1"
+                            class="block text-[9px] font-bold text-slate-400 uppercase mb-1"
                             >Action</label
                         >
                         <select
-                            class="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-xs text-white outline-none"
+                            class="w-full bg-slate-800 border border-slate-800 rounded p-1.5 text-xs text-white outline-none"
                             .value=${action}
                             @change=${(e) =>
-                                this.handleInputChange(
-                                    'action',
-                                    e.target.value
-                                )}
+                this.handleInputChange(
+                    'action',
+                    e.target.value
+                )}
                         >
                             <option value="block">Block</option>
                             <option value="delay">Delay</option>
@@ -407,47 +407,49 @@ class NetworkInterventionPanel extends HTMLElement {
                     </div>
                 </div>
 
-                <div class="bg-black/20 p-2 rounded border border-white/5">
+                <div
+                    class="bg-black/20 p-2 rounded border border-slate-800"
+                >
                     ${action === 'block'
-                        ? html`
+                ? html`
                               <div>
                                   <label
-                                      class="block text-[9px] font-bold text-slate-500 uppercase mb-1"
+                                      class="block text-[9px] font-bold text-slate-400 uppercase mb-1"
                                       >HTTP Code</label
                                   >
                                   <input
                                       type="number"
                                       min="400"
                                       max="599"
-                                      class="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-xs text-red-300 outline-none"
+                                      class="w-full bg-slate-800 border border-slate-800 rounded p-1.5 text-xs text-red-400 outline-none"
                                       .value=${params.statusCode}
                                       @input=${(e) =>
-                                          this.handleInputChange(
-                                              'statusCode',
-                                              e.target.value,
-                                              'statusCode'
-                                          )}
+                        this.handleInputChange(
+                            'statusCode',
+                            e.target.value,
+                            'statusCode'
+                        )}
                                   />
                               </div>
                           `
-                        : html`
+                : html`
                               <div>
                                   <label
-                                      class="block text-[9px] font-bold text-slate-500 uppercase mb-1"
+                                      class="block text-[9px] font-bold text-slate-400 uppercase mb-1"
                                       >Delay (ms)</label
                                   >
                                   <input
                                       type="number"
                                       min="100"
                                       step="100"
-                                      class="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-xs text-blue-300 outline-none"
+                                      class="w-full bg-slate-800 border border-slate-800 rounded p-1.5 text-xs text-blue-400 outline-none"
                                       .value=${params.delayMs}
                                       @input=${(e) =>
-                                          this.handleInputChange(
-                                              'delayMs',
-                                              e.target.value,
-                                              'delayMs'
-                                          )}
+                        this.handleInputChange(
+                            'delayMs',
+                            e.target.value,
+                            'delayMs'
+                        )}
                                   />
                               </div>
                           `}
@@ -455,10 +457,11 @@ class NetworkInterventionPanel extends HTMLElement {
                     <div class="mt-3">
                         <div class="flex justify-between mb-1">
                             <label
-                                class="block text-[9px] font-bold text-slate-500 uppercase"
+                                class="block text-[9px] font-bold text-slate-400 uppercase"
                                 >Probability</label
                             >
-                            <span class="text-[9px] font-mono text-blue-300"
+                            <span
+                                class="text-[9px] font-mono text-blue-400"
                                 >${params.probability}%</span
                             >
                         </div>
@@ -466,14 +469,14 @@ class NetworkInterventionPanel extends HTMLElement {
                             type="range"
                             min="1"
                             max="100"
-                            class="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                            class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
                             .value=${params.probability}
                             @input=${(e) =>
-                                this.handleInputChange(
-                                    'probability',
-                                    e.target.value,
-                                    'probability'
-                                )}
+                this.handleInputChange(
+                    'probability',
+                    e.target.value,
+                    'probability'
+                )}
                         />
                     </div>
                 </div>
@@ -481,8 +484,8 @@ class NetworkInterventionPanel extends HTMLElement {
                 <button
                     type="submit"
                     class="w-full py-2 ${this.editingRuleId
-                        ? 'bg-emerald-600 hover:bg-emerald-500'
-                        : 'bg-blue-600 hover:bg-blue-500'} text-white text-xs font-bold rounded-lg transition-colors shadow-lg"
+                ? 'bg-emerald-500 hover:bg-emerald-500/80'
+                : 'bg-blue-500 hover:bg-[#60a5fa]'} text-white text-xs font-bold rounded-lg transition-colors shadow-lg"
                 >
                     ${this.editingRuleId ? 'Update Rule' : 'Add Rule'}
                 </button>
@@ -498,12 +501,12 @@ class NetworkInterventionPanel extends HTMLElement {
                 </h4>
                 <div class="space-y-2 pb-20">
                     ${interventionRules.length === 0
-                        ? html`<div
-                              class="text-center p-8 text-slate-600 italic text-xs border-2 border-dashed border-slate-800 rounded-xl"
+                ? html`<div
+                              class="text-center p-8 text-slate-400 italic text-xs border-2 border-dashed border-slate-800 rounded-xl"
                           >
                               No active rules.
                           </div>`
-                        : interventionRules.map((r) => this.renderRuleCard(r))}
+                : interventionRules.map((r) => this.renderRuleCard(r))}
                 </div>
             </div>
         `;
@@ -512,7 +515,7 @@ class NetworkInterventionPanel extends HTMLElement {
             html`
                 <div class="grow overflow-y-auto p-6 custom-scrollbar">
                     <div
-                        class="text-xs text-slate-400 mb-4 leading-relaxed bg-blue-900/10 border border-blue-500/20 p-3 rounded-lg"
+                        class="text-xs text-slate-400 mb-4 leading-relaxed bg-blue-500/10 border border-blue-500/20 p-3 rounded-lg"
                     >
                         <strong>Active Intervention:</strong> Define rules to
                         intercept requests before they leave the browser. Use

@@ -52,13 +52,16 @@ const renderHexPreview = (data) => {
     const remaining = data.length - maxBytes;
     return html`
         <div
-            class="font-mono text-[10px] bg-black/40 rounded border border-slate-700/50 p-2 flex items-center gap-3 select-all group cursor-text"
+            class="font-mono text-[10px] bg-slate-800 rounded border border-slate-800 p-2 flex items-center gap-3 select-all group cursor-text"
         >
             <span class="text-blue-300">${hex}</span>
-            <div class="w-px h-3 bg-slate-700"></div>
-            <span class="text-emerald-200/80 tracking-widest">${ascii}</span>
+            <div class="w-px h-3 bg-slate-800"></div>
+            <span class="text-emerald-400/80 tracking-widest"
+                >${ascii}</span
+            >
             ${remaining > 0
-                ? html`<span class="text-slate-600 italic ml-2 text-[9px]"
+                ? html`<span
+                      class="text-slate-400 italic ml-2 text-[9px]"
                       >+${remaining} bytes</span
                   >`
                 : ''}
@@ -71,7 +74,7 @@ const renderEmsgPayload = (box) => {
 
     const sectionTitle = html`
         <div
-            class="px-4 py-2 bg-slate-800/80 border-b border-slate-700/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-4"
+            class="px-4 py-2 bg-slate-800/80 border-b border-slate-800 text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-4"
         >
             Event Payload (${box.messagePayloadType.toUpperCase()})
         </div>
@@ -87,12 +90,12 @@ const renderEmsgPayload = (box) => {
                 ? html`
                       <details class="mt-4">
                           <summary
-                              class="text-[10px] font-bold text-slate-500 uppercase tracking-wider cursor-pointer mb-2 hover:text-slate-300"
+                              class="text-[10px] font-bold text-slate-400 uppercase tracking-wider cursor-pointer mb-2 hover:text-slate-100"
                           >
                               View Raw XML
                           </summary>
                           <div
-                              class="bg-slate-950 p-2 rounded border border-slate-800 overflow-x-auto"
+                              class="bg-slate-800 p-2 rounded border border-slate-800 overflow-x-auto"
                           >
                               <pre
                                   class="text-[10px] font-mono text-slate-400 whitespace-pre-wrap"
@@ -106,7 +109,9 @@ ${box.messagePayload.rawXml}</pre
         </div>`;
     } else if (box.messagePayloadType === 'xml') {
         content = html`
-            <div class="p-4 bg-slate-900 overflow-x-auto custom-scrollbar">
+            <div
+                class="p-4 bg-slate-800 overflow-x-auto custom-scrollbar"
+            >
                 <pre
                     class="text-xs font-mono text-blue-300 whitespace-pre-wrap break-all"
                 >
@@ -122,7 +127,7 @@ ${box.messagePayload}</pre
 
     return html`
         <div
-            class="mt-4 bg-slate-800/30 rounded-xl border border-slate-700/50 overflow-hidden"
+            class="mt-4 bg-slate-800/30 rounded-xl border border-slate-800 overflow-hidden"
         >
             ${sectionTitle}${content}
         </div>
@@ -145,7 +150,7 @@ const renderValue = (key, value, timescale = null) => {
                         <span
                             class="px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wide flex items-center gap-1.5 ${isSet
                                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                : 'bg-slate-800/50 text-slate-500 border-slate-700/50 opacity-60'}"
+                                : 'bg-slate-800/50 text-slate-400 border-slate-800 opacity-60'}"
                         >
                             ${isSet
                                 ? html`<span class="scale-75"
@@ -167,25 +172,31 @@ const renderValue = (key, value, timescale = null) => {
         const errorCount = value.errors?.length || 0;
         return html`
             <div class="text-[10px]">
-                <span class="text-emerald-400 font-bold">${cueCount} Cues</span>
+                <span class="text-emerald-400 font-bold"
+                    >${cueCount} Cues</span
+                >
                 ${errorCount > 0
                     ? html`<span class="text-red-400 ml-2"
                           >${errorCount} Errors</span
                       >`
                     : ''}
                 <div
-                    class="mt-1 max-h-24 overflow-y-auto bg-slate-950/50 p-1 rounded custom-scrollbar"
+                    class="mt-1 max-h-24 overflow-y-auto bg-slate-800 p-1 rounded custom-scrollbar"
                 >
                     ${value.cues
                         .slice(0, 3)
                         .map(
                             (c) =>
-                                html`<div class="truncate text-slate-400">
+                                html`<div
+                                    class="truncate text-slate-400"
+                                >
                                     ${c.payload}
                                 </div>`
                         )}
                     ${cueCount > 3
-                        ? html`<div class="text-slate-600 italic">
+                        ? html`<div
+                              class="text-slate-400 italic"
+                          >
                               +${cueCount - 3} more
                           </div>`
                         : ''}
@@ -196,9 +207,12 @@ const renderValue = (key, value, timescale = null) => {
 
     if (Array.isArray(value)) {
         if (value.length === 0)
-            return html`<span class="text-slate-600 italic">Empty List</span>`;
+            return html`<span class="text-slate-400 italic"
+                >Empty List</span
+            >`;
         if (typeof value[0] !== 'object')
-            return html`<span class="text-cyan-300 break-all font-mono text-xs"
+            return html`<span
+                class="text-blue-300 break-all font-mono text-xs"
                 >[ ${value.join(', ')} ]</span
             >`;
         return html`<span class="text-purple-300 font-bold text-xs"
@@ -208,14 +222,17 @@ const renderValue = (key, value, timescale = null) => {
 
     if (typeof value === 'object' && value !== null) {
         return html`
-            <div class="pl-2 border-l-2 border-slate-700 mt-1 space-y-1">
+            <div
+                class="pl-2 border-l-2 border-slate-800 mt-1 space-y-1"
+            >
                 ${Object.entries(value).map(
                     ([k, v]) =>
                         html`<div class="flex flex-col">
                             <span
-                                class="text-[10px] text-slate-500 font-bold uppercase"
+                                class="text-[10px] text-slate-400 font-bold uppercase"
                                 >${k}</span
-                            ><span class="text-xs text-slate-300"
+                            ><span
+                                class="text-xs text-slate-100"
                                 >${renderValue(k, v)}</span
                             >
                         </div>`
@@ -236,7 +253,7 @@ const renderValue = (key, value, timescale = null) => {
         const timeStr = formatDuration(Number(value), timescale);
         if (timeStr)
             suffix = html`<span
-                class="ml-2 text-[10px] text-emerald-400 bg-emerald-900/20 px-1 rounded border border-emerald-900/50 font-mono"
+                class="ml-2 text-[10px] text-emerald-400 bg-emerald-500/20 px-1 rounded border border-emerald-500/50 font-mono"
                 >${timeStr}</span
             >`;
     }
@@ -246,8 +263,8 @@ const renderValue = (key, value, timescale = null) => {
         /^[a-zA-Z0-9]{4}$/.test(value);
     return html`<span
             class="${isFourCC
-                ? 'font-mono font-bold text-yellow-300 bg-yellow-900/20 px-1 rounded'
-                : 'text-slate-200 font-mono'} break-all"
+                ? 'font-mono font-bold text-amber-400 bg-amber-500/20 px-1 rounded'
+                : 'text-slate-100 font-mono'} break-all"
             >${content}</span
         >${suffix}`;
 };
@@ -262,16 +279,16 @@ const propertyRow = (key, field, box, timescale, fieldForDisplay) => {
         uiActions.setInteractiveSegmentHighlightedItem(null, null);
     const bgClass = isHighlighted
         ? 'bg-blue-900/30 ring-1 ring-blue-500/50'
-        : 'hover:bg-white/[0.02]';
+        : 'hover:bg-slate-800/50';
 
     return html`
         <div
-            class="group flex flex-col p-2 rounded transition-colors border-b border-slate-800/50 last:border-0 ${bgClass}"
+            class="group flex flex-col p-2 rounded transition-colors border-b border-slate-800 last:border-0 ${bgClass}"
             @mouseenter=${handleMouseEnter}
             @mouseleave=${handleMouseLeave}
         >
             <dt
-                class="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 w-full flex justify-between items-center"
+                class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 w-full flex justify-between items-center"
             >
                 <span
                     class="${labelClass}"
@@ -281,7 +298,7 @@ const propertyRow = (key, field, box, timescale, fieldForDisplay) => {
                 >
                 ${fieldInfo?.ref
                     ? html`<span
-                          class="text-[9px] text-slate-600 font-mono opacity-0 group-hover:opacity-100 transition-opacity"
+                          class="text-[9px] text-slate-400 font-mono opacity-0 group-hover:opacity-100 transition-opacity"
                           >${fieldInfo.ref}</span
                       >`
                     : ''}
@@ -352,16 +369,18 @@ export const entriesTableTemplate = (box) => {
     const colClass =
         'w-36 shrink-0 px-3 py-2 border-r border-slate-800 last:border-0 truncate';
     const idxClass =
-        'w-12 shrink-0 px-2 py-2 text-right text-slate-600 border-r border-slate-800 select-none sticky left-0 bg-inherit z-10';
+        'w-12 shrink-0 px-2 py-2 text-right text-slate-400 border-r border-slate-800 select-none sticky left-0 bg-inherit z-10';
 
     const rowRenderer = (entry, index) => {
         const actualIndex = entry.isSample ? entry.index : index;
         const isEven = index % 2 === 0;
-        const bgClass = isEven ? 'bg-slate-900/50' : 'bg-slate-900';
+        const bgClass = isEven
+            ? 'bg-slate-800/50'
+            : 'bg-slate-800';
 
         return html`
             <div
-                class="flex items-center text-xs font-mono hover:bg-blue-500/20 transition-colors ${bgClass} border-b border-slate-800/50 last:border-0 h-[32px] min-w-max"
+                class="flex items-center text-xs font-mono hover:bg-blue-500/20 transition-colors ${bgClass} border-b border-slate-800 last:border-0 h-[32px] min-w-max"
             >
                 <div class="${idxClass}">${actualIndex + 1}</div>
                 ${headers.map(
@@ -379,17 +398,17 @@ export const entriesTableTemplate = (box) => {
 
     return html`
         <div
-            class="mt-6 border border-slate-700 rounded-xl overflow-hidden bg-slate-900 shadow-lg"
+            class="mt-6 border border-slate-800 rounded-xl overflow-hidden bg-slate-800 shadow-lg"
         >
             <div
-                class="px-4 py-3 bg-slate-800 border-b border-slate-700 flex justify-between items-center"
+                class="px-4 py-3 bg-slate-800 border-b border-slate-800 flex justify-between items-center"
             >
                 <h4
-                    class="font-bold text-xs text-white uppercase tracking-widest flex items-center gap-2"
+                    class="font-bold text-xs text-slate-100 uppercase tracking-widest flex items-center gap-2"
                 >
                     ${icons.list} Entries
                     <span
-                        class="bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full text-[9px] border border-slate-600"
+                        class="bg-slate-800 text-slate-100 px-2 py-0.5 rounded-full text-[9px] border border-slate-800"
                         >${entries.length}</span
                     >
                 </h4>
@@ -397,10 +416,10 @@ export const entriesTableTemplate = (box) => {
             <div class="overflow-x-auto custom-scrollbar">
                 <div class="min-w-max">
                     <div
-                        class="flex bg-slate-900/80 border-b border-slate-800 text-[10px] font-bold text-slate-500 uppercase tracking-wider select-none sticky top-0 z-20"
+                        class="flex bg-slate-800/80 border-b border-slate-800 text-[10px] font-bold text-slate-400 uppercase tracking-wider select-none sticky top-0 z-20"
                     >
                         <div
-                            class="${idxClass} bg-slate-900 border-b border-slate-800"
+                            class="${idxClass} bg-slate-800 border-b border-slate-800"
                         >
                             #
                         </div>
@@ -409,7 +428,7 @@ export const entriesTableTemplate = (box) => {
                         )}
                     </div>
                     <div
-                        class="relative w-full bg-slate-950"
+                        class="relative w-full bg-slate-800"
                         style="height: 300px; contain: strict;"
                     >
                         <virtualized-list
@@ -442,19 +461,19 @@ const renderChunkInfo = (chunkInfo) => {
             <div class="grid grid-cols-2 gap-4 text-sm">
                 <div>
                     <span
-                        class="block text-[10px] text-slate-500 font-bold uppercase mb-1"
+                        class="block text-[10px] text-slate-400 font-bold uppercase mb-1"
                         >Total Size</span
                     >
-                    <span class="font-mono text-slate-200"
+                    <span class="font-mono text-slate-100"
                         >${chunkInfo.totalSize.toLocaleString()} bytes</span
                     >
                 </div>
                 <div>
                     <span
-                        class="block text-[10px] text-slate-500 font-bold uppercase mb-1"
+                        class="block text-[10px] text-slate-400 font-bold uppercase mb-1"
                         >Decode Base</span
                     >
-                    <span class="font-mono text-slate-200"
+                    <span class="font-mono text-slate-100"
                         >${chunkInfo.baseTime}</span
                     >
                 </div>
@@ -491,30 +510,32 @@ export const inspectorDetailsTemplate = (
     };
 
     return html`
-        <div class="h-full flex flex-col bg-slate-900 min-h-0">
+        <div class="h-full flex flex-col bg-transparent min-h-0">
             <div
-                class="shrink-0 p-5 border-b border-slate-800 bg-gradient-to-b from-slate-800/50 to-slate-900/50"
+                class="shrink-0 p-5 border-b border-slate-800 bg-slate-800/80 backdrop-blur-md"
             >
                 <div class="flex justify-between items-start mb-3">
                     <div>
                         <div class="flex items-baseline gap-3">
                             <h2
-                                class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300 font-mono tracking-tight"
+                                class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-blue-300 font-mono tracking-tight"
                             >
                                 ${box.type}
                             </h2>
                             <span
-                                class="px-2 py-0.5 rounded-md bg-slate-800 border border-slate-600 text-slate-400 text-xs font-mono"
+                                class="px-2 py-0.5 rounded-md bg-slate-800 border border-slate-800 text-slate-400 text-xs font-mono"
                                 >${box.size.toLocaleString()} bytes</span
                             >
                         </div>
-                        <h3 class="text-sm font-medium text-white mt-1">
+                        <h3
+                            class="text-sm font-medium text-slate-100 mt-1"
+                        >
                             ${boxInfo.name || 'Unknown Box'}
                         </h3>
                     </div>
                     <button
                         @click=${handleCopyJson}
-                        class="p-2 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-colors"
+                        class="p-2 hover:bg-slate-100/10 rounded-lg text-slate-400 hover:text-slate-100 transition-colors"
                         title="Copy JSON"
                     >
                         ${icons.clipboardCopy}
@@ -522,7 +543,7 @@ export const inspectorDetailsTemplate = (
                 </div>
                 ${boxInfo.text
                     ? html`<div
-                          class="text-xs text-slate-400 leading-relaxed bg-black/20 p-3 rounded border border-white/5 relative"
+                          class="text-xs text-slate-400 leading-relaxed bg-slate-800 p-3 rounded border border-slate-800 relative"
                       >
                           <div
                               class="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 rounded-l"
@@ -536,10 +557,10 @@ export const inspectorDetailsTemplate = (
                 ${renderChunkInfo(box.chunkInfo)}
                 ${fields.length > 0
                     ? html`<div
-                          class="bg-slate-800/40 rounded-xl border border-slate-700/50 overflow-hidden"
+                          class="bg-slate-800/40 rounded-xl border border-slate-800 overflow-hidden"
                       >
                           <div
-                              class="px-4 py-2 bg-slate-800/80 border-b border-slate-700/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest"
+                              class="px-4 py-2 bg-slate-800/80 border-b border-slate-800 text-[10px] font-bold text-slate-400 uppercase tracking-widest"
                           >
                               Properties
                           </div>
@@ -556,7 +577,7 @@ export const inspectorDetailsTemplate = (
                           </div>
                       </div>`
                     : html`<div
-                          class="text-center p-8 text-slate-600 italic border-2 border-dashed border-slate-800 rounded-xl"
+                          class="text-center p-8 text-slate-400 italic border-2 border-dashed border-slate-800 rounded-xl"
                       >
                           No properties parsed for this box.
                       </div>`}
@@ -580,25 +601,29 @@ export const isoBoxTreeTemplate = (box, context = {}) => {
     const hasError = isDebugMode && issues.length > 0;
 
     const boxTypeColors = {
-        moov: 'text-indigo-400',
-        trak: 'text-violet-400',
+        moov: 'text-blue-400',
+        trak: 'text-purple-400',
         mdia: 'text-blue-400',
-        minf: 'text-cyan-400',
+        minf: 'text-blue-400',
         stbl: 'text-emerald-400',
         moof: 'text-blue-400',
-        traf: 'text-sky-400',
-        tfhd: 'text-teal-300',
-        trun: 'text-cyan-300',
+        traf: 'text-blue-400',
+        tfhd: 'text-blue-300',
+        trun: 'text-blue-300',
         mdat: 'text-slate-400',
-        ftyp: 'text-rose-400',
-        emsg: 'text-fuchsia-400',
+        ftyp: 'text-red-400',
+        emsg: 'text-purple-400',
         sidx: 'text-amber-400',
     };
 
     const typeColor =
         boxTypeColors[box.type] ||
-        (hasError ? 'text-yellow-400' : 'text-blue-300');
-    const borderColor = hasError ? 'border-yellow-600' : 'border-slate-800';
+        (hasError
+            ? 'text-amber-400'
+            : 'text-blue-300');
+    const borderColor = hasError
+        ? 'border-amber-500'
+        : 'border-slate-800';
 
     const allFields = Object.entries(box.details).filter(([key, field]) => {
         if (field.internal) return false;
@@ -626,47 +651,50 @@ export const isoBoxTreeTemplate = (box, context = {}) => {
     });
 
     return html`
-        <div class="relative pl-6 my-2 group">
+        <div class="relative pl-6 my-3 group">
             <div
-                class="absolute top-0 bottom-0 left-2.5 w-px bg-gradient-to-b from-slate-800 to-slate-900 group-last:h-6"
+                class="absolute top-0 bottom-0 left-2.5 w-px bg-gradient-to-b from-slate-800 to-slate-800/20 group-last:h-6"
             ></div>
-            <div class="absolute top-6 left-2.5 w-4 h-px bg-slate-800"></div>
+            <div
+                class="absolute top-6 left-2.5 w-4 h-px bg-slate-800"
+            ></div>
 
             <div
-                class="bg-slate-950 rounded-lg border ${borderColor} overflow-hidden shadow-sm transition-all hover:border-slate-700"
+                class="bg-slate-800/50 backdrop-blur-sm rounded-xl border ${borderColor} overflow-hidden shadow-lg transition-all hover:border-blue-500/30 hover:shadow-[0_0_15px_rgba(0,0,0,0.2)]"
             >
                 <div
-                    class="flex items-center justify-between px-4 py-2 bg-slate-900/80 border-b border-slate-800"
+                    class="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-slate-800/80 to-slate-800/40 border-b border-slate-800"
                 >
                     <div class="flex items-center gap-3">
                         <span
-                            class="font-mono font-bold text-xs ${typeColor} px-2 py-0.5 bg-slate-950 rounded border border-slate-800 shadow-inner ${boxInfo.text
+                            class="font-mono font-bold text-xs ${typeColor} px-2 py-1 bg-slate-800 rounded-lg border border-slate-800 shadow-inner ${boxInfo.text
                                 ? tooltipTriggerClasses
                                 : ''}"
                             data-tooltip="${boxInfo.text || ''}"
                             data-iso="${boxInfo.ref || ''}"
                             >${box.type}</span
                         >
-                        <span class="text-xs font-semibold text-slate-300"
+                        <span
+                            class="text-xs font-bold text-slate-100"
                             >${boxInfo.name || ''}</span
                         >
                         <!-- NEW: Inline Chunk Badge -->
                         ${box.chunkInfo
                             ? html`<span
-                                  class="px-1.5 py-0.5 rounded bg-blue-900/30 border border-blue-500/30 text-[9px] font-bold text-blue-300 uppercase tracking-wider"
+                                  class="px-2 py-0.5 rounded-full bg-blue-900/30 border border-blue-500/30 text-[9px] font-bold text-blue-300 uppercase tracking-wider shadow-[0_0_10px_rgba(59,130,246,0.2)]"
                                   >Chunk #${box.chunkInfo.index}</span
                               >`
                             : ''}
                     </div>
                     <div class="flex items-center gap-2">
                         <span
-                            class="text-[10px] font-mono text-slate-500 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800"
+                            class="text-[10px] font-mono text-slate-400 bg-slate-800 px-2 py-1 rounded-md border border-slate-800"
                         >
                             ${box.size.toLocaleString()} B
                         </span>
                         ${hasError
                             ? html`<span
-                                  class="text-yellow-400 text-[10px] font-bold flex items-center gap-1 bg-yellow-900/20 px-1.5 py-0.5 rounded border border-yellow-900/50"
+                                  class="text-amber-400 text-[10px] font-bold flex items-center gap-1 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/30 shadow-[0_0_10px_#f59e0b/20]"
                               >
                                   ${icons.alertTriangle} Issue
                               </span>`
@@ -674,11 +702,11 @@ export const isoBoxTreeTemplate = (box, context = {}) => {
                     </div>
                 </div>
 
-                <div class="p-3 space-y-3">
+                <div class="p-4 space-y-4">
                     ${scalarFields.length > 0
                         ? html`
                               <div
-                                  class="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-2"
+                                  class="grid grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-3"
                               >
                                   ${scalarFields.map(
                                       ([key, field]) => html`
@@ -686,11 +714,13 @@ export const isoBoxTreeTemplate = (box, context = {}) => {
                                               class="flex flex-col text-xs group/field"
                                           >
                                               <span
-                                                  class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5 truncate"
+                                                  class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 truncate opacity-70"
                                                   title="${key}"
                                                   >${key}</span
                                               >
-                                              <div class="font-mono truncate">
+                                              <div
+                                                  class="font-mono truncate text-slate-100"
+                                              >
                                                   ${renderValue(
                                                       key,
                                                       field.value
@@ -705,13 +735,13 @@ export const isoBoxTreeTemplate = (box, context = {}) => {
                     ${complexFields.length > 0
                         ? html`
                               <div
-                                  class="space-y-2 pt-2 border-t border-slate-800/50"
+                                  class="space-y-3 pt-3 border-t border-slate-800/50"
                               >
                                   ${complexFields.map(
                                       ([key, field]) => html`
                                           <div>
                                               <span
-                                                  class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1"
+                                                  class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2 opacity-70"
                                                   >${key}</span
                                               >
                                               ${renderValue(key, field.value)}

@@ -10,21 +10,25 @@ export function parseId32(box, view) {
     const p = new BoxParser(box, view);
     p.readVersionAndFlags();
 
-    // Decode language code
-    const flagsInt = parseInt(box.details.flags.value, 16);
-    const langBits = flagsInt & 0x7fff;
-    const char1 = ((langBits >> 10) & 0x1f) + 0x60;
-    const char2 = ((langBits >> 5) & 0x1f) + 0x60;
-    const char3 = (langBits & 0x1f) + 0x60;
-    const langValue = String.fromCharCode(char1, char2, char3);
+    // The 'id32' box extends FullBox, so it has version (1 byte) and flags (3 bytes).
+    // Immediately following that is a 16-bit language code (ISO-639-2/T).
+    // The previous implementation incorrectly tried to extract language from flags.
 
-    box.details['language'] = {
-        value: langValue,
-        offset: box.details.flags.offset,
-        length: 2,
-    };
+    const langInt = p.readUint16('language');
+    let langValue = 'und';
+
+    if (langInt !== null) {
+        const char1 = ((langInt >> 10) & 0x1f) + 0x60;
+        const char2 = ((langInt >> 5) & 0x1f) + 0x60;
+        const char3 = (langInt & 0x1f) + 0x60;
+        langValue = String.fromCharCode(char1, char2, char3);
+
+        // Update the detail to show the decoded string
+        box.details['language'].value = langValue;
+    }
 
     // Extract raw ID3 payload
+    // The ID3 data starts immediately after the language field.
     const remainingBytes = box.size - p.offset;
     if (remainingBytes > 0) {
         const id3Data = new Uint8Array(
@@ -46,21 +50,30 @@ export function parseId32(box, view) {
 
             // Inject frames as individual details for the UI
             parsedId3.frames.forEach((frame, idx) => {
-                const val = frame.value || frame.data || frame.owner;
+                let val = frame.value || frame.data || frame.owner;
+
+                // Enhance value display for frames with descriptions
+                if (frame.description) {
+                    val = `[${frame.description}] ${val}`;
+                }
+                if (frame.language) {
+                    val = `(${frame.language}) ${val}`;
+                }
+
                 box.details[`Frame ${idx + 1} (${frame.id})`] = {
                     value: val,
-                    offset: p.offset, // Approximate mapping
-                    length: frame.size,
+                    offset: box.offset + p.offset + frame.offset, // Correct absolute offset
+                    length: frame.size + 10, // Include header (10 bytes)
                     internal: false, // Show in UI
                 };
 
-                // Special handling for PRIV owner
+                // Special handling for PRIV owner - make it visible as a sub-field
                 if (frame.owner) {
                     box.details[`Frame ${idx + 1} Owner`] = {
                         value: frame.owner,
-                        offset: p.offset,
-                        length: 0,
-                        internal: true, // Hide if redundant
+                        offset: box.offset + p.offset + frame.offset + 10, // Start of content
+                        length: frame.owner.length,
+                        internal: false, // Show in UI now
                     };
                 }
             });
@@ -73,18 +86,18 @@ export function parseId32(box, view) {
         }
     }
 
-    p.readRemainingBytes('raw_id3_data');
+    // p.readRemainingBytes('raw_id3_data'); // Removed as requested
     p.finalize();
 }
 
 export const id32Tooltip = {
     ID32: {
         name: 'ID3v2 Metadata Box',
-        text: 'ID3v2 Box (`ID32`). Carries timed metadata. Now fully parsed to show frames like TIT2 (Title), PRIV (Private Data/SCTE-35), and TXXX (User Text).',
-        ref: 'ID3v2 Specification',
+        text: 'ID3v2 Box (`ID32`). Carries timed metadata in ID3v2 format. Commonly used for transporting timed metadata like SCTE-35 markers or program information in HLS/DASH streams.',
+        ref: 'ISO/IEC 23001-18',
     },
     'ID32@language': {
-        text: 'The language of the ID3 tag content, packed into the flags field.',
-        ref: 'User-defined',
+        text: 'ISO-639-2/T language code for the metadata.',
+        ref: 'ISO 639-2',
     },
 };

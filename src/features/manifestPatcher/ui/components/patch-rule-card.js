@@ -22,15 +22,17 @@ export const patchRuleCardTemplate = ({
 
     // Resolve classes manually to avoid DOMTokenList whitespace errors in classMap
     const baseClasses =
-        'group relative flex flex-col gap-2 p-3 rounded-lg border transition-all duration-200 bg-slate-900/50';
+        'group relative flex flex-col gap-2 p-3 rounded-lg border transition-all duration-200 bg-slate-800';
     let statusClasses = '';
 
     if (!rule.active) {
         statusClasses = 'border-slate-800 opacity-60';
     } else if (isValidRegex) {
-        statusClasses = 'border-slate-700 hover:border-slate-600';
+        statusClasses =
+            'border-slate-800 hover:border-blue-500/50';
     } else {
-        statusClasses = 'border-red-500/40 bg-red-900/10';
+        statusClasses =
+            'border-red-500/40 bg-red-500/10';
     }
 
     const containerClass = `${baseClasses} ${statusClasses}`;
@@ -42,7 +44,7 @@ export const patchRuleCardTemplate = ({
                 <div class="flex items-center gap-2">
                     <!-- Drag Handle -->
                     <div
-                        class="text-slate-600 cursor-grab active:cursor-grabbing p-1 -ml-1 hover:text-slate-400"
+                        class="text-slate-400 cursor-grab active:cursor-grabbing p-1 -ml-1 hover:text-slate-200"
                     >
                         ${icons.gripHorizontal}
                     </div>
@@ -51,13 +53,12 @@ export const patchRuleCardTemplate = ({
                     <button
                         type="button"
                         @click=${(e) => {
-                            e.preventDefault();
                             e.stopPropagation();
                             onUpdate(rule.id, 'active', !rule.active);
                         }}
-                        class="relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${rule.active
-                            ? 'bg-blue-600'
-                            : 'bg-slate-700'}"
+                        class="relative inline-flex h-4 w-7 items-center rounded-full transition-colors cursor-pointer ${rule.active
+                            ? 'bg-blue-500'
+                            : 'bg-slate-800 border border-slate-800'}"
                         title="${rule.active ? 'Disable Rule' : 'Enable Rule'}"
                     >
                         <span
@@ -70,7 +71,7 @@ export const patchRuleCardTemplate = ({
                     <!-- Type Selector (Compact) -->
                     <div class="relative">
                         <select
-                            class="appearance-none bg-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-300 border border-slate-700 rounded px-2 py-0.5 pr-4 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none cursor-pointer"
+                            class="appearance-none bg-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 border border-slate-800 rounded px-2 py-0.5 pr-4 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none cursor-pointer"
                             .value=${rule.type}
                             @change=${(e) =>
                                 onUpdate(rule.id, 'type', e.target.value)}
@@ -79,7 +80,7 @@ export const patchRuleCardTemplate = ({
                             <option value="regex">Regex</option>
                         </select>
                         <span
-                            class="absolute right-1 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none scale-75"
+                            class="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none scale-75"
                             >${icons.chevronDown}</span
                         >
                     </div>
@@ -93,7 +94,7 @@ export const patchRuleCardTemplate = ({
                         type="button"
                         @click=${() => onMove(index, -1)}
                         ?disabled=${index === 0}
-                        class="p-1 text-slate-500 hover:text-slate-200 disabled:opacity-30 rounded hover:bg-slate-800 transition-colors"
+                        class="p-1 text-slate-400 hover:text-slate-200 disabled:opacity-30 rounded hover:bg-slate-800 transition-colors"
                     >
                         ${icons.arrowLeft}
                         <!-- Up -->
@@ -102,16 +103,16 @@ export const patchRuleCardTemplate = ({
                         type="button"
                         @click=${() => onMove(index, 1)}
                         ?disabled=${index === totalCount - 1}
-                        class="p-1 text-slate-500 hover:text-slate-200 disabled:opacity-30 rounded hover:bg-slate-800 transition-colors"
+                        class="p-1 text-slate-400 hover:text-slate-200 disabled:opacity-30 rounded hover:bg-slate-800 transition-colors"
                     >
                         ${icons.arrowRight}
                         <!-- Down -->
                     </button>
-                    <div class="w-px h-3 bg-slate-700 mx-1"></div>
+                    <div class="w-px h-3 bg-slate-800 mx-1"></div>
                     <button
                         type="button"
                         @click=${() => onRemove(rule.id)}
-                        class="p-1 text-slate-500 hover:text-red-400 rounded hover:bg-red-900/20 transition-colors"
+                        class="p-1 text-slate-400 hover:text-red-400 rounded hover:bg-red-500/20 transition-colors"
                     >
                         ${icons.xCircle}
                     </button>
@@ -123,9 +124,9 @@ export const patchRuleCardTemplate = ({
                 <div class="relative">
                     <input
                         type="text"
-                        class="w-full bg-slate-950/50 border ${isValidRegex
-                            ? 'border-slate-700 focus:border-blue-500'
-                            : 'border-red-500/50 focus:border-red-500'} rounded px-2 py-1.5 text-xs font-mono text-yellow-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all"
+                        class="w-full bg-slate-800 border ${isValidRegex
+                            ? 'border-slate-800 focus:border-blue-500'
+                            : 'border-red-500/50 focus:border-red-500'} rounded px-2 py-1.5 text-xs font-mono text-slate-200 placeholder-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all"
                         placeholder=${isRegex ? 'Pattern...' : 'Find...'}
                         .value=${rule.target}
                         @input=${(e) =>
@@ -134,7 +135,7 @@ export const patchRuleCardTemplate = ({
                     ${!isValidRegex
                         ? html`
                               <span
-                                  class="absolute right-2 top-1/2 -translate-y-1/2 text-red-500 scale-75"
+                                  class="absolute right-2 top-1/2 -translate-y-1/2 text-red-400 scale-75"
                                   title="Invalid Regex"
                                   >${icons.alertTriangle}</span
                               >
@@ -144,14 +145,14 @@ export const patchRuleCardTemplate = ({
                 <div class="relative">
                     <input
                         type="text"
-                        class="w-full bg-slate-950/50 border border-slate-700 rounded px-2 py-1.5 text-xs font-mono text-emerald-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50 transition-all"
+                        class="w-full bg-slate-800 border border-slate-800 rounded px-2 py-1.5 text-xs font-mono text-slate-200 placeholder-slate-300 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/50 transition-all"
                         placeholder="Replace..."
                         .value=${rule.replacement}
                         @input=${(e) =>
                             onUpdate(rule.id, 'replacement', e.target.value)}
                     />
                     <span
-                        class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-600 scale-75 pointer-events-none"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 scale-75 pointer-events-none"
                         >${icons.refresh}</span
                     >
                 </div>

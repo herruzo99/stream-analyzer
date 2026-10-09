@@ -81,10 +81,14 @@ export async function addStreamsToSessionUseCase({ inputs }, services) {
     const workerInputs = await Promise.all(workerInputsPromises);
 
     try {
-        const { streams, urlAuthMapArray, opportunisticallyCachedSegments } =
-            await workerService.postTask('start-analysis', {
-                inputs: workerInputs,
-            }).promise;
+        const {
+            streams,
+            urlAuthMapArray,
+            opportunisticallyCachedSegments,
+            failedInputs,
+        } = await workerService.postTask('start-analysis', {
+            inputs: workerInputs,
+        }).promise;
 
         // Cache segments
         if (opportunisticallyCachedSegments) {
@@ -96,6 +100,17 @@ export async function addStreamsToSessionUseCase({ inputs }, services) {
                     parsedData: segment.parsedData,
                 });
             }
+        }
+
+        // Check for partial failures
+        if (failedInputs && failedInputs.length > 0) {
+            return {
+                status: 'partial',
+                validStreams: streams,
+                failedInputs,
+                urlAuthMapArray,
+                mode: 'append',
+            };
         }
 
         // Failsafe check
@@ -130,11 +145,14 @@ export async function addStreamsToSessionUseCase({ inputs }, services) {
         eventBus.dispatch(EVENTS.STATE.ANALYSIS_COMPLETE, {
             streams: useAnalysisStore.getState().streams,
         });
+
+        return { status: 'success' };
     } catch (error) {
         console.error('Failed to add streams:', error);
         eventBus.dispatch(EVENTS.ANALYSIS.ERROR, {
             message: `Failed to add streams: ${error.message}`,
             error,
         });
+        return { status: 'error', error };
     }
 }

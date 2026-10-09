@@ -26,7 +26,7 @@ export const summaryCardsTemplate = (summary) => {
                 icon: icons.xCircle,
                 iconBgClass:
                     summary.failedRequests > 0
-                        ? 'bg-red-900/30 text-red-300'
+                        ? 'bg-red-500/30 text-red-400'
                         : 'bg-slate-800 text-slate-400',
                 tooltip:
                     'The number of requests that resulted in an HTTP 4xx or 5xx status code.',
