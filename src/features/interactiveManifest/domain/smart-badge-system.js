@@ -47,13 +47,19 @@ const detailRow = (label, value) =>
  * @param {object} [context]
  */
 function getDetails(key, value, context = {}) {
+    // Renderers pass tag-qualified keys (e.g. 'S@d'); match on the bare
+    // attribute name so timescale/repeat/codec rules keep working.
     const lowerKey = String(key ?? '').toLowerCase();
+    const shortKey = lowerKey.includes('@')
+        ? lowerKey.split('@').pop()
+        : lowerKey;
+    const labelKey = shortKey || lowerKey;
     const timescale = context.timescale ?? null;
     const allAttributes = context.allAttributes ?? {};
     const text = value === null || value === undefined ? '' : String(value);
 
     // S-tag aggregator (SegmentTimeline spans): value carries the attributes.
-    if (lowerKey === 's' && value && typeof value === 'object') {
+    if (shortKey === 's' && value && typeof value === 'object') {
         const attrs = value;
         const d = parseFloat(attrs.d ?? attrs.D ?? '');
         const rRaw = attrs.r ?? attrs.R ?? null;
@@ -78,7 +84,7 @@ function getDetails(key, value, context = {}) {
     }
 
     // Duration pills / timescale math mirror renderBadge below.
-    if (lowerKey === 'r' && timescale) {
+    if (shortKey === 'r' && timescale) {
         const dVal = allAttributes['d'] || allAttributes['D'];
         const r = parseInt(text, 10);
         const d = parseFloat(dVal);
@@ -97,13 +103,13 @@ function getDetails(key, value, context = {}) {
             };
         }
     }
-    if (lowerKey.includes('bandwidth') || lowerKey.includes('bitrate')) {
+    if (shortKey.includes('bandwidth') || shortKey.includes('bitrate')) {
         const num = parseInt(text, 10);
         if (!isNaN(num)) {
             return { label: 'Bitrate', parsedValue: formatBitrate(num) };
         }
     }
-    if (lowerKey.includes('range') && text.includes('-')) {
+    if (shortKey.includes('range') && text.includes('-')) {
         const [start, end] = text.split('-').map(Number);
         if (!isNaN(start) && !isNaN(end)) {
             return {
@@ -119,7 +125,7 @@ function getDetails(key, value, context = {}) {
         'presentationtimeoffset',
         'availabilitytimeoffset',
     ];
-    if (timescale && scaledFields.includes(lowerKey)) {
+    if (timescale && scaledFields.includes(shortKey)) {
         const num = parseFloat(text);
         if (!isNaN(num) && timescale > 0) {
             return {
@@ -140,10 +146,10 @@ function getDetails(key, value, context = {}) {
             };
         }
     }
-    if (lowerKey === 'codecs') {
+    if (shortKey === 'codecs') {
         return { label: 'Codecs', parsedValue: text };
     }
-    if (lowerKey.includes('framerate')) {
+    if (shortKey.includes('framerate')) {
         let fps = text;
         if (text.includes('/')) {
             const [n, d] = text.split('/');
@@ -153,7 +159,7 @@ function getDetails(key, value, context = {}) {
     }
 
     return {
-        label: prettyKey(key) || 'Value',
+        label: prettyKey(labelKey) || 'Value',
         parsedValue: text.length > 160 ? `${text.slice(0, 159)}…` : text,
     };
 }
@@ -163,14 +169,18 @@ function getDetails(key, value, context = {}) {
  * implementation; class names preserved so existing styles apply.
  */
 function renderBadge(key, value, context = {}) {
+    // See getDetails: renderers pass tag-qualified keys ('S@d').
     const lowerKey = String(key ?? '').toLowerCase();
+    const shortKey = lowerKey.includes('@')
+        ? lowerKey.split('@').pop()
+        : lowerKey;
     const text = value === null || value === undefined ? '' : String(value);
     const timescale = context.timescale ?? null;
     const allAttributes = context.allAttributes ?? {};
 
-    if (lowerKey === 'timescale') return null;
+    if (shortKey === 'timescale') return null;
 
-    if (lowerKey === 'r' && timescale) {
+    if (shortKey === 'r' && timescale) {
         const dVal = allAttributes['d'] || allAttributes['D'];
         if (dVal) {
             const r = parseInt(text, 10);
@@ -194,7 +204,7 @@ function renderBadge(key, value, context = {}) {
         }
     }
 
-    if (lowerKey.includes('bandwidth') || lowerKey.includes('bitrate')) {
+    if (shortKey.includes('bandwidth') || shortKey.includes('bitrate')) {
         const num = parseInt(text, 10);
         if (!isNaN(num)) {
             return pill(
@@ -205,7 +215,7 @@ function renderBadge(key, value, context = {}) {
         }
     }
 
-    if (lowerKey.includes('range') && text.includes('-')) {
+    if (shortKey.includes('range') && text.includes('-')) {
         const [start, end] = text.split('-').map(Number);
         if (!isNaN(start) && !isNaN(end)) {
             const size = end - start + 1;
@@ -223,7 +233,7 @@ function renderBadge(key, value, context = {}) {
         'duration',
         'presentationtimeoffset',
         'availabilitytimeoffset',
-    ].includes(lowerKey);
+    ].includes(shortKey);
     if (timescale && isScaledTimeField) {
         const num = parseFloat(text);
         if (!isNaN(num) && timescale > 0) {
@@ -244,12 +254,12 @@ function renderBadge(key, value, context = {}) {
         'maxsegmentduration',
         'targetduration',
         'elapsed',
-    ].some((term) => lowerKey.includes(term));
+    ].some((term) => shortKey.includes(term));
     const isTimestamp =
-        lowerKey.includes('timestamp') ||
-        lowerKey.includes('publish') ||
-        lowerKey.includes('availability') ||
-        lowerKey.includes('program-date');
+        shortKey.includes('timestamp') ||
+        shortKey.includes('publish') ||
+        shortKey.includes('availability') ||
+        shortKey.includes('program-date');
 
     if (text.startsWith('PT')) {
         const parsed = parseDuration(text);
@@ -278,7 +288,7 @@ function renderBadge(key, value, context = {}) {
         }
     }
 
-    if (lowerKey === 'codecs') {
+    if (shortKey === 'codecs') {
         const codecList = text.split(',').map((c) => c.trim().split('.')[0]);
         return html`<span class="ml-0.5 mr-1 inline-flex gap-1 align-middle"
             >${codecList.map(
@@ -291,11 +301,11 @@ function renderBadge(key, value, context = {}) {
         >`;
     }
 
-    if (lowerKey === 'width' || lowerKey === 'height') {
+    if (shortKey === 'width' || shortKey === 'height') {
         return pill('bg-transparent text-slate-500 border border-transparent', '', 'px');
     }
 
-    if (lowerKey.includes('framerate')) {
+    if (shortKey.includes('framerate')) {
         let fps = text;
         if (text.includes('/')) {
             const [n, d] = text.split('/');
@@ -310,7 +320,7 @@ function renderBadge(key, value, context = {}) {
         );
     }
 
-    if (lowerKey.includes('samplingrate')) {
+    if (shortKey.includes('samplingrate')) {
         return pill(
             'bg-pink-500/20 text-pink-300 border border-pink-500/30',
             text,
@@ -318,7 +328,7 @@ function renderBadge(key, value, context = {}) {
         );
     }
 
-    if (lowerKey === 'sar' || lowerKey === 'par') {
+    if (shortKey === 'par' || shortKey === 'sar') {
         const [w, h] = text.split(':').map(Number);
         if (!isNaN(w) && !isNaN(h)) {
             return pill(
