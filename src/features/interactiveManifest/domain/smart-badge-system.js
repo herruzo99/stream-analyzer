@@ -173,6 +173,59 @@ const verdictDot = (kind) => {
     return `<span style="display:inline-block;width:7px;height:7px;border-radius:99px;background:${color};margin-right:6px"></span>`;
 };
 
+/** Hero verdict banner: the live/age status, prominent instead of tabular. */
+const verdictHero = (verdict) => {
+    if (!verdict) return '';
+    const theme =
+        verdict.kind === 'live'
+            ? {
+                  bg: 'rgba(239,68,68,.10)',
+                  border: 'rgba(239,68,68,.35)',
+                  fg: '#f87171',
+                  label: 'LIVE',
+              }
+            : verdict.kind === 'future'
+              ? {
+                    bg: 'rgba(245,158,11,.10)',
+                    border: 'rgba(245,158,11,.30)',
+                    fg: '#fbbf24',
+                    label: verdict.label,
+                }
+              : {
+                    bg: 'rgba(148,163,184,.10)',
+                    border: 'rgba(148,163,184,.25)',
+                    fg: '#cbd5e1',
+                    label: verdict.label,
+                };
+    const span =
+        verdict.endMs === null
+            ? wallClock(verdict.startMs)
+            : `${wallClock(verdict.startMs)} → ${wallClock(verdict.endMs)}`;
+    return (
+        `<div style="display:flex;align-items:center;gap:10px;margin:2px 0 10px;padding:9px 12px;border-radius:10px;` +
+        `background:${theme.bg};border:1px solid ${theme.border}">` +
+        `${verdictDot(verdict.kind)}<div>` +
+        `<div style="font-weight:800;font-size:14px;letter-spacing:.04em;color:${theme.fg}">${escapeHtml(theme.label)}</div>` +
+        `<div style="font-family:monospace;font-size:11px;opacity:.75" title="${escapeHtml(verdict.title)}">${escapeHtml(span)} UTC</div>` +
+        `</div></div>`
+    );
+};
+
+/** Worked-calculation panel: substituted formula with its result. */
+const workedPanel = (workedText) => {
+    if (!workedText) return '';
+    return (
+        `<div style="margin:2px 0 10px;padding:9px 12px;border-radius:10px;` +
+        `background:rgba(2,6,23,.55);border:1px solid rgba(148,163,184,.14)">` +
+        `<div style="font-size:9px;text-transform:uppercase;letter-spacing:.12em;opacity:.55;margin-bottom:6px">Worked calculation</div>` +
+        `<div style="font-family:monospace;font-size:13px;color:#e2e8f0">${escapeHtml(workedText)}</div></div>`
+    );
+};
+
+/** Compose hero + worked panel + detail rows for the sidebar/tooltips. */
+const analysisHtml = ({ rowsHtml, workedText, verdict }) =>
+    `<div>${verdictHero(verdict)}${workedPanel(workedText)}<div>${rowsHtml}</div></div>`;
+
 /**
  * @param {string} key Attribute/tag name.
  * @param {*} value Raw value (string, or the attribute map for aggregators).
@@ -202,16 +255,13 @@ function getDetails(key, value, context = {}) {
             detailRow('r (repeat)', String(rRaw ?? '—')),
         ];
         let parsedValue = `d=${attrs.d ?? attrs.D ?? '?'} r=${rRaw ?? '?'}`;
-        let worked = '';
+        let workedText = null;
         if (!isNaN(d) && timescale && timescale > 0) {
             const r = rRaw === null ? 0 : parseInt(rRaw, 10);
             if (!isNaN(r) && r >= 0) {
                 const total = ((r + 1) * d) / timescale;
                 parsedValue += ` ≈ ${formatDurationPill(total)} total`;
-                worked = detailRow(
-                    'Worked',
-                    `(${r} + 1) × ${d} / ${timescale} = ${formatDurationPill(total)}`
-                );
+                workedText = `(${r} + 1) × ${d} / ${timescale} = ${formatDurationPill(total)}`;
             }
         }
         const verdict = liveVerdict({
@@ -223,19 +273,14 @@ function getDetails(key, value, context = {}) {
             spd: context.spd,
             isSpdActive: context.isSpdActive,
         });
-        const verdictHtml = verdict
-            ? `<div style="display:flex;justify-content:space-between;gap:1rem;padding:2px 0;">` +
-              `<span style="opacity:.65">Status</span>` +
-              `<span style="font-family:monospace">${verdictDot(verdict.kind)}${escapeHtml(verdict.label)}</span></div>` +
-              detailRow(
-                  'Span',
-                  `${wallClock(verdict.startMs)}${verdict.endMs === null ? '' : ' → ' + wallClock(verdict.endMs)} UTC`
-              )
-            : '';
         return {
             label: 'S Span Aggregator',
             parsedValue,
-            tooltipHtml: `<div>${rows.join('')}${worked}${verdictHtml}</div>`,
+            tooltipHtml: analysisHtml({
+                rowsHtml: rows.join(''),
+                workedText,
+                verdict,
+            }),
         };
     }
 
@@ -246,13 +291,10 @@ function getDetails(key, value, context = {}) {
         const d = parseFloat(dVal);
         if (!isNaN(r) && !isNaN(d)) {
             const count = r < 0 ? 'Until End' : r + 1;
-            const worked =
+            const workedText =
                 typeof count === 'number'
-                    ? detailRow(
-                          'Worked',
-                          `(${r} + 1) × ${d} / ${timescale} = ${formatDurationPill(((r + 1) * d) / timescale)}`
-                      )
-                    : '';
+                    ? `(${r} + 1) × ${d} / ${timescale} = ${formatDurationPill(((r + 1) * d) / timescale)}`
+                    : null;
             const verdict = liveVerdict({
                 tTicks: allAttributes['t'] ?? allAttributes['T'] ?? null,
                 dTicks: d,
@@ -262,21 +304,20 @@ function getDetails(key, value, context = {}) {
                 spd: context.spd,
                 isSpdActive: context.isSpdActive,
             });
-            const verdictHtml = verdict
-                ? `<div style="display:flex;justify-content:space-between;gap:1rem;padding:2px 0;">` +
-                  `<span style="opacity:.65">Status</span>` +
-                  `<span style="font-family:monospace">${verdictDot(verdict.kind)}${escapeHtml(verdict.label)}</span></div>`
-                : '';
             return {
                 label: 'Repeat Count',
                 parsedValue:
                     typeof count === 'number'
                         ? `${count} × ${formatDurationPill(d / timescale)}`
                         : 'Repeat: Until End',
-                tooltipHtml:
-                    `<div>${detailRow('Formula', '(r + 1) × d / timescale')}` +
-                    `${detailRow('Raw r', text)}${detailRow('d', String(dVal))}` +
-                    `${detailRow('Timescale', String(timescale))}${worked}${verdictHtml}</div>`,
+                tooltipHtml: analysisHtml({
+                    rowsHtml:
+                        `${detailRow('Formula', '(r + 1) × d / timescale')}` +
+                        `${detailRow('Raw r', text)}${detailRow('d', String(dVal))}` +
+                        `${detailRow('Timescale', String(timescale))}`,
+                    workedText,
+                    verdict,
+                }),
             };
         }
     }
@@ -306,8 +347,8 @@ function getDetails(key, value, context = {}) {
         const num = parseFloat(text);
         if (!isNaN(num) && timescale > 0) {
             const seconds = num / timescale;
-            let worked = '';
-            let verdictHtml = '';
+            let workedText = null;
+            let verdict = null;
             if (shortKey === 'd' || shortKey === 't') {
                 const siblingT =
                     shortKey === 'd'
@@ -317,13 +358,11 @@ function getDetails(key, value, context = {}) {
                     shortKey === 'd'
                         ? num
                         : (allAttributes['d'] ?? allAttributes['D'] ?? null);
-                worked = detailRow(
-                    'Worked',
+                workedText =
                     shortKey === 'd'
                         ? `${num} / ${timescale} = ${formatDurationPill(seconds)}`
-                        : `wall = anchor + ${num} / ${timescale}`
-                );
-                const verdict = liveVerdict({
+                        : `wall = anchor + ${num} / ${timescale}`;
+                verdict = liveVerdict({
                     tTicks: siblingT,
                     dTicks: siblingD,
                     timescale,
@@ -332,23 +371,17 @@ function getDetails(key, value, context = {}) {
                     spd: context.spd,
                     isSpdActive: context.isSpdActive,
                 });
-                if (verdict) {
-                    worked += detailRow(
-                        'Span',
-                        `${wallClock(verdict.startMs)}${verdict.endMs === null ? '' : ' → ' + wallClock(verdict.endMs)} UTC`
-                    );
-                    verdictHtml =
-                        `<div style="display:flex;justify-content:space-between;gap:1rem;padding:2px 0;">` +
-                        `<span style="opacity:.65">Status</span>` +
-                        `<span style="font-family:monospace">${verdictDot(verdict.kind)}${escapeHtml(verdict.label)}</span></div>`;
-                }
             }
             return {
                 label: prettyKey(labelKey),
                 parsedValue: formatDurationPill(seconds),
-                tooltipHtml:
-                    `<div>${detailRow('Raw ticks', text)}` +
-                    `${detailRow('Timescale', String(timescale))}${worked}${verdictHtml}</div>`,
+                tooltipHtml: analysisHtml({
+                    rowsHtml:
+                        `${detailRow('Raw ticks', text)}` +
+                        `${detailRow('Timescale', String(timescale))}`,
+                    workedText,
+                    verdict,
+                }),
             };
         }
     }

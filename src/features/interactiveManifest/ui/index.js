@@ -439,6 +439,20 @@ class InteractiveManifestView {
                          <span class="font-bold text-slate-200 truncate max-w-[200px]" title="${stream.name}">${stream.name}</span>
                          <div class="flex items-center gap-2">
                              <span class="text-[10px] font-mono text-slate-400">${stream.protocol.toUpperCase()}</span>
+                             ${stream?.manifest?.type === 'dynamic'
+                                 ? html`<span
+                                       class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-500/20 text-red-400 border border-red-500/30 uppercase tracking-wider"
+                                       title="Live stream (dynamic manifest): badges show LIVE/age verdicts against the live edge"
+                                       ><span class="relative flex h-1.5 w-1.5"
+                                           ><span
+                                               class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"
+                                           ></span
+                                           ><span
+                                               class="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"
+                                           ></span></span
+                                       >Live</span
+                                   >`
+                                 : ''}
                              ${stream.protocol === 'dash' && stream.manifest?.serializedManifest?.[':@']?.availabilityStartTime
                 ? html`
                                       <div class="flex items-center gap-2 pl-2 border-l border-slate-700/30">
