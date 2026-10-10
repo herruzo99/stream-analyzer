@@ -137,7 +137,7 @@ class IntegratorsReportView {
         if (!this.container) return;
 
         const { streams, activeStreamId } = useAnalysisStore.getState();
-        const stream = streams.find((s) => s.id === activeStreamId);
+        const stream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
 
         // --- EMPTY STATE ---
         if (!stream || !stream.manifest) {

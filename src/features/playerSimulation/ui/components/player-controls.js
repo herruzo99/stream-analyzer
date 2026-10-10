@@ -169,7 +169,7 @@ class PlayerControlsComponent extends HTMLElement {
                         <div class="flex items-center gap-1 ml-2">
                              ${renderGhostButton(icons.stop, 'Stop', () => playerService.destroy(), false, true)}
                              ${renderGhostButton(icons.volumeUp, isMuted ? 'Unmute' : 'Mute', () => playerService.toggleMute(), !isMuted)}
-                             ${renderGhostButton(icons.sync, 'Reload', () => playerService.load(streams.find((s) => s.id === activeStreamId), true), false)}
+                             ${renderGhostButton(icons.sync, 'Reload', () => playerService.load(streams.find((s) => s.id === activeStreamId) ?? streams[0], true), false)}
                         </div>
                     </div>
 

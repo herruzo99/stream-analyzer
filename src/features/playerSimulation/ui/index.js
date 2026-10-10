@@ -151,7 +151,7 @@ class PlayerSimulationView {
         const { pendingPlayerRequest } = useUiStore.getState();
         const { playbackState } = usePlayerStore.getState();
 
-        const activeStream = streams.find((s) => s.id === activeStreamId);
+        const activeStream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
         if (!activeStream) return;
 
         const isPlayerActive =
@@ -225,7 +225,7 @@ class PlayerSimulationView {
         if (!this.container) return;
 
         const { streams, activeStreamId } = useAnalysisStore.getState();
-        const activeStream = streams.find((s) => s.id === activeStreamId);
+        const activeStream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
         const playerState = usePlayerStore.getState();
         const { isSignalMonitorOpen, activeTab, playerTelemetrySidebarOpen, playerControlMode } = useUiStore.getState();
 

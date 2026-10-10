@@ -37,7 +37,7 @@ class SessionService {
         const { streams, streamInputs, activeStreamId, segmentsForCompare } =
             useAnalysisStore.getState();
         const { activeTab, activeSegmentUrl } = useUiStore.getState();
-        const activeStream = streams.find((s) => s.id === activeStreamId);
+        const activeStream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
 
         if (streamInputs.length === 0) {
             return null;

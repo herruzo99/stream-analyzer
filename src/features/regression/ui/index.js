@@ -78,7 +78,7 @@ class RegressionView {
 
     updateShell() {
         const { streams, activeStreamId } = useAnalysisStore.getState();
-        const stream = streams.find((s) => s.id === activeStreamId);
+        const stream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
 
         // 1. Sidebar panel + 2. header panel, composed in-container below.
         this._sidebarPanel = suiteLibrarySidebarTemplate();
@@ -100,7 +100,7 @@ class RegressionView {
         if (!this.container) return;
 
         const { streams, activeStreamId } = useAnalysisStore.getState();
-        const stream = streams.find((s) => s.id === activeStreamId);
+        const stream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
         // Refresh panels every render (cheap templates; avoids stale
         // sidebar/header after store updates outside subscriptions).
         if (stream?.manifest) this.updateShell();

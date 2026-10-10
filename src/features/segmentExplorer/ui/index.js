@@ -94,7 +94,7 @@ class SegmentExplorerView {
 
         const { streams, activeStreamId, segmentsForCompare } = useAnalysisStore.getState();
         const uiState = useUiStore.getState();
-        const stream = streams.find((s) => s.id === activeStreamId);
+        const stream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
 
         // --- EMPTY STATE ---
         if (!stream) {
@@ -200,7 +200,7 @@ class SegmentExplorerView {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
         const { activeStreamId, streams } = useAnalysisStore.getState();
-        const stream = streams.find((s) => s.id === activeStreamId);
+        const stream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
         if (!stream) return;
 
         const uiState = useUiStore.getState();

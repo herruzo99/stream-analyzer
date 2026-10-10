@@ -151,7 +151,7 @@ export function initializeUiOrchestration() {
     // --- Manifest Patcher ---
     eventBus.subscribe(EVENTS.UI.SHOW_MANIFEST_PATCHER, () => {
         const { activeStreamId, streams } = useAnalysisStore.getState();
-        const activeStream = streams.find((s) => s.id === activeStreamId);
+        const activeStream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
 
         if (!activeStream) {
             showToast({

@@ -13,7 +13,7 @@ import { useQualityStore } from '@/state/qualityStore';
  */
 export function togglePlayerAndPolling() {
     const { streams, activeStreamId } = useAnalysisStore.getState();
-    const activeStream = streams.find((s) => s.id === activeStreamId);
+    const activeStream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
     if (!activeStream) return;
 
     if (activeStream.manifest?.type === 'dynamic') {

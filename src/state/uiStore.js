@@ -201,7 +201,7 @@ export const useUiStore = createStore((set, get) => ({
         // ... existing explorer tab logic ...
         const { streams, activeStreamId } = useAnalysisStore.getState();
         if (tabName === 'explorer' && streams) {
-            const activeStream = streams.find((s) => s.id === activeStreamId);
+            const activeStream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
             if (activeStream) {
                 let defaultRepId = get().segmentExplorerActiveRepId;
                 const isHls = activeStream.protocol === 'hls';

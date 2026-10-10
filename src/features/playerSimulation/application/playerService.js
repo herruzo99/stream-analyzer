@@ -321,7 +321,7 @@ class PlayerService {
                 this.player.addEventListener('emsg', (e) => {
                     const { streams, activeStreamId } =
                         useAnalysisStore.getState();
-                    const stream = streams.find((s) => s.id === activeStreamId);
+                    const stream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
                     if (stream) {
                         eventBus.dispatch('player:emsg', {
                             ...e.detail,
@@ -756,7 +756,7 @@ class PlayerService {
             }
 
             const { streams, activeStreamId } = useAnalysisStore.getState();
-            const stream = streams.find((s) => s.id === activeStreamId);
+            const stream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
             eventBus.dispatch('notify:player-error', {
                 streamName: stream?.name || 'Player Simulation',
                 message: finalMessage,
@@ -809,7 +809,7 @@ class PlayerService {
                 !this.isInitialized
             )
                 return;
-            const streamToReload = streams.find((s) => s.id === activeStreamId);
+            const streamToReload = streams.find((s) => s.id === activeStreamId) ?? streams[0];
             if (streamToReload) {
                 this.load(streamToReload, true);
             }
@@ -822,7 +822,7 @@ class PlayerService {
         }
 
         const { streams, activeStreamId } = useAnalysisStore.getState();
-        const stream = streams.find((s) => s.id === activeStreamId);
+        const stream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
         const mediaElement = this.player.getMediaElement();
         const currentTime = mediaElement ? mediaElement.currentTime : 0;
 

@@ -94,7 +94,7 @@ class AdvertisingView {
     renderTemplate() {
         const { streams, activeStreamId } = useAnalysisStore.getState();
         const { adDetectionPreferences } = useUiStore.getState();
-        const stream = streams.find((s) => s.id === activeStreamId);
+        const stream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
 
         // --- EMPTY STATE ---
         if (!stream) {
@@ -283,7 +283,7 @@ class AdvertisingView {
         if (!isContextualOpen) return html``;
 
         const { streams, activeStreamId } = useAnalysisStore.getState();
-        const stream = streams.find((s) => s.id === activeStreamId);
+        const stream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
         if (!stream) return html``;
         const { adDetectionPreferences } = useUiStore.getState();
         const vm = createAdvertisingViewModel(stream, adDetectionPreferences);

@@ -15,7 +15,7 @@ function renderFeaturesAnalysis() {
     if (!container) return;
 
     const { streams, activeStreamId } = useAnalysisStore.getState();
-    const stream = streams.find((s) => s.id === activeStreamId);
+    const stream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
     const { featureAnalysisStandardVersion, comparisonHideUnusedFeatures } =
         useUiStore.getState();
 

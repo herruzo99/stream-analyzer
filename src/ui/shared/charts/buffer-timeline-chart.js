@@ -10,7 +10,7 @@ export const bufferTimelineChartOptions = (videoEl, eventLog, abrHistory) => {
 
     const { buffered, duration, currentTime, seekable } = videoEl;
     const { streams, activeStreamId } = useAnalysisStore.getState();
-    const stream = streams.find((s) => s.id === activeStreamId);
+    const stream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
 
     let displayDuration = duration;
     let timeOffset = 0;

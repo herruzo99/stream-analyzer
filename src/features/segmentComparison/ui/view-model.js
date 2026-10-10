@@ -40,7 +40,7 @@ const collectSegments = (stream) => {
 export const selectSegmentComparisonState = () => {
     const { streams, activeStreamId } = useAnalysisStore.getState();
     const { segmentComparisonSelection } = useUiStore.getState();
-    const stream = streams.find((s) => s.id === activeStreamId);
+    const stream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
     const availableSegments = collectSegments(stream);
     const byId = new Map(
         availableSegments.map((entry) => [entry.segment.uniqueId, entry])

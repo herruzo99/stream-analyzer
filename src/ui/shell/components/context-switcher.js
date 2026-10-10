@@ -19,7 +19,7 @@ export function renderContextSwitcher() {
         return html``;
     }
 
-    const activeStream = streams.find((s) => s.id === activeStreamId);
+    const activeStream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
 
     const streamSwitcher =
         streams.length > 0

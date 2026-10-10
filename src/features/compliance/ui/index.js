@@ -187,7 +187,7 @@ class ComplianceView {
         if (!this.container) return;
 
         const { streams, activeStreamId } = useAnalysisStore.getState();
-        const stream = streams.find((s) => s.id === activeStreamId);
+        const stream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
 
         if (!stream || !stream.manifest) {
             // Clear sidebar if no stream

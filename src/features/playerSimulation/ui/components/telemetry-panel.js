@@ -44,7 +44,7 @@ export const telemetryPanelTemplate = (stats) => {
 
     const { playbackQuality, abr, buffer, session } = stats;
     const { activeStreamId, streams } = useAnalysisStore.getState();
-    const activeStream = streams.find((s) => s.id === activeStreamId);
+    const activeStream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
     const isLive = activeStream?.manifest?.type === 'dynamic';
 
     // --- VOD vs Live Metrics Logic ---

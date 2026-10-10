@@ -76,7 +76,7 @@ class SidebarNav extends HTMLElement {
             qcBadgeColor = 'bg-emerald-500';
         }
 
-        const activeStream = streams.find((s) => s.id === activeStreamId);
+        const activeStream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
 
         const hasComplianceIssues =
             activeStream?.manifestUpdates?.[0]?.complianceResults?.some(

@@ -246,7 +246,7 @@ export const globalControlsTemplate = () => {
     const { isLoaded } = usePlayerStore.getState();
     const { isGlobalNavCompact } = useUiStore.getState();
 
-    const activeStream = streams.find((s) => s.id === activeStreamId);
+    const activeStream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
     const liveStreams = streams.filter((s) => s.manifest?.type === 'dynamic');
     const isAnyPolling = liveStreams.some((s) => s.isPolling);
     const hasLive = liveStreams.length > 0;

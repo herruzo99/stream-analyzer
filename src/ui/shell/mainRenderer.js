@@ -75,7 +75,7 @@ export function renderApp() {
         segmentExplorerActiveTab,
     } = useUiStore.getState();
     const isResultsView = viewState === 'results' && streams.length > 0;
-    const activeStream = streams.find((s) => s.id === activeStreamId);
+    const activeStream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
 
     initialDomContext.inputSection.classList.toggle('hidden', isResultsView);
     initialDomContext.appRoot.classList.toggle('hidden', !isResultsView);

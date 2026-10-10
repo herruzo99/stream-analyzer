@@ -98,7 +98,7 @@ class SegmentAnalysisComponent extends HTMLElement {
 
     _resolveInitSegmentId(segmentUniqueId) {
         const { streams, activeStreamId } = useAnalysisStore.getState();
-        const activeStream = streams.find((s) => s.id === activeStreamId);
+        const activeStream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
         const streamList = activeStream
             ? [activeStream, ...streams.filter((s) => s.id !== activeStreamId)]
             : streams;
