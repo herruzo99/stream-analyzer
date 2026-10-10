@@ -108,7 +108,10 @@ const effectivePto = (t, d, ptoTicks) => {
 };
 
 /**
- * @returns {{ kind: 'live'|'ago'|'future', label: string, title: string, startMs: number, endMs: number|null } | null}
+ * Repeat count for run-aware verdicts. rCount >= 0 extends the judged span
+ * to the whole (r+1)-segment run; r=-1 (repeat to period end) and invalid
+ * values fall back to the first segment (the run end is unknowable here).
+ * @returns {{ kind: 'live'|'ago'|'future', label: string, title: string, startMs: number, endMs: number|null, segCount: number, segIndex: number|null, edgeMs: number, nowMs: number } | null}
  */
 const liveVerdict = ({
     tTicks,
@@ -119,6 +122,7 @@ const liveVerdict = ({
     spd,
     isSpdActive,
     ptoTicks = 0,
+    rCount = 0,
 }) => {
     // Null clocks (VOD / unknown) must yield no verdict: Number(null)
     // is 0, which would otherwise fake a 1970 edge and label every span
@@ -142,41 +146,52 @@ const liveVerdict = ({
     if (d !== null && (!Number.isFinite(d) || d < 0)) return null;
     const edge = now - (isSpdActive ? spdSeconds(spd) * 1000 : 0);
     const start = anchor + ((t - effectivePto(t, d, ptoTicks)) / ts) * 1000;
-    const end = d === null ? null : start + (d / ts) * 1000;
+    const repeats = Number(rCount);
+    const runSegs =
+        d !== null && Number.isInteger(repeats) && repeats > 0
+            ? repeats + 1
+            : 1;
+    const segMs = d === null ? null : (d / ts) * 1000;
+    const end = segMs === null ? null : start + runSegs * segMs;
     const span = `${wallClock(start)}${end === null ? '' : ' → ' + wallClock(end)} UTC`;
+    const runNote = runSegs > 1 ? `run of ${runSegs} segments ` : 'span ';
+    const segIndex =
+        end !== null && segMs > 0 && edge >= start && edge <= end
+            ? Math.min(runSegs, Math.floor((edge - start) / segMs) + 1)
+            : null;
+    const base = { startMs: start, endMs: end, segCount: runSegs, segIndex, edgeMs: edge, nowMs: now };
     if (end !== null && edge >= start && edge <= end) {
         return {
             kind: 'live',
             label: 'LIVE',
-            title: `Live edge inside span (${span})`,
-            startMs: start,
-            endMs: end,
+            title:
+                runSegs > 1
+                    ? `Live edge inside run (segment ${segIndex} of ${runSegs}, ${span})`
+                    : `Live edge inside span (${span})`,
+            ...base,
         };
     }
     if (end !== null && edge > end) {
         return {
             kind: 'ago',
             label: `${humanAge(edge - end)} ago`,
-            title: `Span ended ${span}; live edge ${humanAge(edge - end)} past it`,
-            startMs: start,
-            endMs: end,
+            title: `${runSegs > 1 ? `Run of ${runSegs} segments ended` : 'Span ended'} ${span}; live edge ${humanAge(edge - end)} past its end`,
+            ...base,
         };
     }
     if (start > edge) {
         return {
             kind: 'future',
             label: `in ${humanAge(start - edge)}`,
-            title: `Span starts ${span}; available ${humanAge(start - edge)} after the edge`,
-            startMs: start,
-            endMs: end,
+            title: `${runSegs > 1 ? `Run of ${runSegs} segments starts` : 'Span starts'} ${span}; available ${humanAge(start - edge)} after the edge`,
+            ...base,
         };
     }
     return {
         kind: 'ago',
         label: `started ${humanAge(edge - start)} ago`,
-        title: `Span started ${span}`,
-        startMs: start,
-        endMs: end,
+        title: `${runNote}started ${span}`,
+        ...base,
     };
 };
 
@@ -215,12 +230,19 @@ const verdictHero = (verdict) => {
         verdict.endMs === null
             ? wallClock(verdict.startMs)
             : `${wallClock(verdict.startMs)} → ${wallClock(verdict.endMs)}`;
+    const segLine =
+        verdict.kind === 'live' &&
+        verdict.segCount > 1 &&
+        verdict.segIndex
+            ? `<div style="font-family:monospace;font-size:11px;opacity:.75">segment ${verdict.segIndex} of ${verdict.segCount}</div>`
+            : '';
     return (
         `<div style="display:flex;align-items:center;gap:10px;margin:2px 0 10px;padding:9px 12px;border-radius:10px;` +
         `background:${theme.bg};border:1px solid ${theme.border}">` +
         `${verdictDot(verdict.kind)}<div>` +
         `<div style="font-weight:800;font-size:14px;letter-spacing:.04em;color:${theme.fg}">${escapeHtml(theme.label)}</div>` +
         `<div style="font-family:monospace;font-size:11px;opacity:.75" title="${escapeHtml(verdict.title)}">${escapeHtml(span)} UTC</div>` +
+        segLine +
         `</div></div>`
     );
 };
@@ -236,9 +258,117 @@ const workedPanel = (workedText) => {
     );
 };
 
-/** Compose hero + worked panel + detail rows for the sidebar/tooltips. */
-const analysisHtml = ({ rowsHtml, workedText, verdict }) =>
-    `<div>${verdictHero(verdict)}${workedPanel(workedText)}<div>${rowsHtml}</div></div>`;
+/**
+ * Timeline-position strip: run span on a wall-clock bar with live-edge
+ * and now markers, plus Start / End / Edge / Now rows and a status line.
+ * All inline styles so it survives unsafeHTML injection; every value is
+ * numeric and formatted here, titles escaped.
+ */
+const timelineStrip = ({ verdict, spd, isSpdActive, segDurMs }) => {
+    if (!verdict || !Number.isFinite(verdict.startMs)) return '';
+    const start = verdict.startMs;
+    const end =
+        verdict.endMs !== null && Number.isFinite(verdict.endMs)
+            ? verdict.endMs
+            : null;
+    const edge = verdict.edgeMs;
+    const now = verdict.nowMs;
+    if (![edge, now].every(Number.isFinite)) return '';
+    const pts = end !== null ? [start, end, edge, now] : [start, edge, now];
+    let lo = Math.min(...pts);
+    let hi = Math.max(...pts);
+    const pad = Math.max((hi - lo) * 0.08, 1000);
+    lo -= pad;
+    hi += pad;
+    if (!(hi > lo)) {
+        lo -= 1000;
+        hi += 1000;
+    }
+    const pct = (x) =>
+        Math.min(100, Math.max(0, ((x - lo) / (hi - lo)) * 100));
+    const runColor =
+        verdict.kind === 'live'
+            ? 'rgba(239,68,68,.55)'
+            : verdict.kind === 'future'
+              ? 'rgba(245,158,11,.55)'
+              : 'rgba(148,163,184,.45)';
+    const runLeft = pct(start);
+    const runRight = end !== null ? pct(end) : runLeft;
+    const runWidth = Math.max(runRight - runLeft, 1.5);
+    const n = verdict.segCount > 1 ? verdict.segCount : 1;
+    let ticks = '';
+    if (
+        n > 1 &&
+        n <= 64 &&
+        Number.isFinite(segDurMs) &&
+        segDurMs > 0
+    ) {
+        for (let i = 1; i < n; i++) {
+            const x = pct(start + i * segDurMs).toFixed(2);
+            ticks += `<span style="position:absolute;top:0;bottom:0;left:${x}%;width:1px;background:rgba(2,6,23,.65)"></span>`;
+        }
+    }
+    const edgeX = pct(edge).toFixed(2);
+    const nowX = pct(now).toFixed(2);
+    const clock = (ms) => `${wallClock(ms)} UTC`;
+    const spdSec = spdSeconds(spd);
+    const dot =
+        verdict.kind === 'live'
+            ? '#ef4444'
+            : verdict.kind === 'future'
+              ? '#f59e0b'
+              : '#94a3b8';
+    let status;
+    if (verdict.kind === 'live') {
+        status =
+            n > 1 && verdict.segIndex
+                ? `LIVE — edge inside segment ${verdict.segIndex} of ${n}`
+                : 'LIVE — edge inside span';
+    } else if (verdict.kind === 'future') {
+        status = `PENDING — ${escapeHtml(verdict.label)}`;
+    } else {
+        status = `ENDED — ${escapeHtml(verdict.label)}`;
+    }
+    const row = (k, v) =>
+        `<div style="display:flex;justify-content:space-between;gap:1rem;padding:2px 0;">` +
+        `<span style="opacity:.65">${escapeHtml(k)}</span>` +
+        `<span style="font-family:monospace">${escapeHtml(v)}</span></div>`;
+    return (
+        `<div style="margin:2px 0 10px;padding:9px 12px;border-radius:10px;` +
+        `background:rgba(2,6,23,.55);border:1px solid rgba(148,163,184,.14)">` +
+        `<div style="font-size:9px;text-transform:uppercase;letter-spacing:.12em;opacity:.55;margin-bottom:8px">Timeline position</div>` +
+        `<div title="${escapeHtml(`run ${clock(start)} → ${end !== null ? clock(end) : 'open-ended'}`)}" style="position:relative;height:14px;border-radius:7px;background:rgba(148,163,184,.12);overflow:hidden;margin-bottom:8px">` +
+        `<span style="position:absolute;top:0;bottom:0;left:${runLeft.toFixed(2)}%;width:${runWidth.toFixed(2)}%;background:${runColor}"></span>` +
+        ticks +
+        `<span title="${escapeHtml(`live edge ${clock(edge)}`)}" style="position:absolute;top:-2px;bottom:-2px;left:${edgeX}%;width:2px;background:#f8fafc"></span>` +
+        `<span title="${escapeHtml(`now ${clock(now)}`)}" style="position:absolute;top:4px;left:calc(${nowX}% - 3px);width:6px;height:6px;border-radius:99px;background:#38bdf8"></span>` +
+        `</div>` +
+        row('Start', clock(start)) +
+        row(
+            end !== null
+                ? n > 1
+                    ? `End (run, ${n} segs)`
+                    : 'End'
+                : 'End',
+            end !== null ? clock(end) : 'open-ended'
+        ) +
+        row('Live edge', clock(edge)) +
+        row(
+            'Now',
+            spdSec > 0 && isSpdActive
+                ? `${clock(now)} (edge = now − SPD ${spdSec}s)`
+                : `${clock(now)} (edge = now)`
+        ) +
+        `<div style="display:flex;align-items:center;gap:7px;margin-top:7px;padding-top:7px;border-top:1px solid rgba(148,163,184,.14);font-weight:700;font-size:12px;">` +
+        `<span style="display:inline-block;width:7px;height:7px;border-radius:99px;background:${dot}"></span>` +
+        `<span>${escapeHtml(status)}</span></div>` +
+        `</div>`
+    );
+};
+
+/** Compose hero + timeline + worked panel + detail rows for the sidebar/tooltips. */
+const analysisHtml = ({ rowsHtml, workedText, verdict, timeline }) =>
+    `<div>${verdictHero(verdict)}${timeline ?? ''}${workedPanel(workedText)}<div>${rowsHtml}</div></div>`;
 
 /**
  * @param {string} key Attribute/tag name.
@@ -270,12 +400,13 @@ function getDetails(key, value, context = {}) {
         ];
         let parsedValue = `d=${attrs.d ?? attrs.D ?? '?'} r=${rRaw ?? '?'}`;
         let workedText = null;
+        const parsedR = rRaw === null ? 0 : parseInt(rRaw, 10);
+        const runR = !isNaN(parsedR) && parsedR >= 0 ? parsedR : 0;
         if (!isNaN(d) && timescale && timescale > 0) {
-            const r = rRaw === null ? 0 : parseInt(rRaw, 10);
-            if (!isNaN(r) && r >= 0) {
-                const total = ((r + 1) * d) / timescale;
+            if (!isNaN(parsedR) && parsedR >= 0) {
+                const total = ((parsedR + 1) * d) / timescale;
                 parsedValue += ` ≈ ${formatDurationPill(total)} total`;
-                workedText = `(${r} + 1) × ${d} / ${timescale} = ${formatDurationPill(total)}`;
+                workedText = `(${parsedR} + 1) × ${d} / ${timescale} = ${formatDurationPill(total)}`;
             }
         }
         const verdict = liveVerdict({
@@ -287,6 +418,7 @@ function getDetails(key, value, context = {}) {
             spd: context.spd,
             isSpdActive: context.isSpdActive,
             ptoTicks: context.pto ?? null,
+            rCount: runR,
         });
         return {
             label: 'S Span Aggregator',
@@ -295,6 +427,15 @@ function getDetails(key, value, context = {}) {
                 rowsHtml: rows.join(''),
                 workedText,
                 verdict,
+                timeline: timelineStrip({
+                    verdict,
+                    spd: context.spd,
+                    isSpdActive: context.isSpdActive,
+                    segDurMs:
+                        !isNaN(d) && timescale > 0
+                            ? (d / timescale) * 1000
+                            : null,
+                }),
             }),
         };
     }
@@ -319,6 +460,7 @@ function getDetails(key, value, context = {}) {
                 spd: context.spd,
                 isSpdActive: context.isSpdActive,
                 ptoTicks: context.pto ?? null,
+                rCount: r,
             });
             return {
                 label: 'Repeat Count',
@@ -333,6 +475,12 @@ function getDetails(key, value, context = {}) {
                         `${detailRow('Timescale', String(timescale))}`,
                     workedText,
                     verdict,
+                    timeline: timelineStrip({
+                        verdict,
+                        spd: context.spd,
+                        isSpdActive: context.isSpdActive,
+                        segDurMs: (d / timescale) * 1000,
+                    }),
                 }),
             };
         }
@@ -365,6 +513,7 @@ function getDetails(key, value, context = {}) {
             const seconds = num / timescale;
             let workedText = null;
             let verdict = null;
+            let segDurMs = null;
             if (shortKey === 'd' || shortKey === 't') {
                 const siblingT =
                     shortKey === 'd'
@@ -396,7 +545,15 @@ function getDetails(key, value, context = {}) {
                     spd: context.spd,
                     isSpdActive: context.isSpdActive,
                     ptoTicks: context.pto ?? null,
+                    rCount:
+                        allAttributes['r'] ?? allAttributes['R'] ?? null,
                 });
+                const segDurRaw =
+                    shortKey === 'd' ? num : parseFloat(siblingD);
+                segDurMs =
+                    !isNaN(segDurRaw) && timescale > 0
+                        ? (segDurRaw / timescale) * 1000
+                        : null;
             }
             return {
                 label: prettyKey(labelKey),
@@ -407,6 +564,12 @@ function getDetails(key, value, context = {}) {
                         `${detailRow('Timescale', String(timescale))}`,
                     workedText,
                     verdict,
+                    timeline: timelineStrip({
+                        verdict,
+                        spd: context.spd,
+                        isSpdActive: context.isSpdActive,
+                        segDurMs,
+                    }),
                 }),
             };
         }
@@ -529,6 +692,8 @@ function renderBadge(key, value, context = {}) {
                 spd: context.spd,
                 isSpdActive: context.isSpdActive,
                 ptoTicks: context.pto ?? null,
+                rCount:
+                    allAttributes['r'] ?? allAttributes['R'] ?? null,
             });
             const extra = verdictTreePill(verdict);
             return extra ? [main, extra] : main;
