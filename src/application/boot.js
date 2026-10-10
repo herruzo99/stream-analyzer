@@ -43,6 +43,7 @@ export async function startApp() {
     const dom = {
         root: rootElement,
         appRoot: rootElement.querySelector('#app-root'),
+        inputSection: rootElement.querySelector('#input-section'),
         toastContainer: rootElement.querySelector('#toast-container'),
         globalLoader: rootElement.querySelector('#global-loader'),
         loaderMessage: rootElement.querySelector('#loader-message'),
