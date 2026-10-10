@@ -250,7 +250,9 @@ export const streamContextSwitcherTemplate = (streams, activeStreamId) => {
     const activeStream =
         streams.find((s) => s.id === activeStreamId) || streams[0];
     const isLive = activeStream.manifest?.type === 'dynamic';
-    const protocol = activeStream.protocol.toUpperCase();
+    const protocol = activeStream.protocol
+        ? activeStream.protocol.toUpperCase()
+        : 'ERR';
 
     // Compact Mode Trigger
     if (isGlobalNavCompact) {
