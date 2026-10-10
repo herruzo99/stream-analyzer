@@ -1,5 +1,6 @@
 import { useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
+import { copyTextToClipboard } from '@/ui/shared/clipboard';
 import { html, render } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { styleMap } from 'lit-html/directives/style-map.js';
@@ -51,6 +52,13 @@ const detailTemplate = (item, isSelected) => {
 
     const handleClear = () => {
         useUiStore.getState().setInteractiveManifestSelectedItem(null);
+    };
+
+    // Raw value lives inline in the header now (space saver); click copies it.
+    const handleCopyRaw = () => {
+        if (attributeValue !== null && attributeValue !== undefined) {
+            copyTextToClipboard(String(attributeValue), 'Raw value copied!');
+        }
     };
 
     let title = item.key || item.tagName;
@@ -181,16 +189,23 @@ const detailTemplate = (item, isSelected) => {
                 <div class="space-y-1">
                     <div class="flex items-center gap-3">
                         <h2
-                            class="text-2xl font-black text-slate-100 tracking-tight break-all leading-none drop-shadow-sm"
+                            class="text-2xl font-black text-slate-100 tracking-tight break-all leading-none drop-shadow-sm shrink-0"
                         >
                             ${title}
                         </h2>
                         ${smartToken
             ? html`<div
-                                  class="scale-110 origin-left drop-shadow-lg"
+                                  class="scale-110 origin-left drop-shadow-lg shrink-0"
                               >
                                   ${smartToken}
                               </div>`
+            : ''}
+                        ${attributeValue
+            ? html`<span
+                                  @click=${handleCopyRaw}
+                                  class="min-w-0 flex-1 truncate text-right font-mono text-sm text-slate-300 cursor-pointer hover:text-slate-100 transition-colors"
+                                  >"${attributeValue}"</span
+                              >`
             : ''}
                     </div>
 
@@ -212,6 +227,19 @@ const detailTemplate = (item, isSelected) => {
                               </div>
                           `
             : ''}
+                    ${item.info?.text
+            ? html`
+                              <p
+                                  class="text-xs text-slate-400 leading-relaxed"
+                              >
+                                  ${item.info.text}
+                                  <span
+                                      class="whitespace-nowrap font-mono text-[10px] text-blue-400/70"
+                                      >· ${item.info?.isoRef || 'ISO/IEC 23009-1'}</span
+                                  >
+                              </p>
+                          `
+            : ''}
                 </div>
             </div>
 
@@ -219,45 +247,7 @@ const detailTemplate = (item, isSelected) => {
             <div
                 class="relative z-10 p-5 space-y-5 overflow-y-auto grow min-h-0 custom-scrollbar"
             >
-                <!-- 1. Raw Value Section -->
-                ${attributeValue
-            ? html`
-                          <div class="animate-fadeIn delay-75">
-                              <div class="flex items-center gap-2 mb-2">
-                                  <span
-                                      class="text-slate-400"
-                                      >${icons.code}</span
-                                  >
-                                  <h3
-                                      class="text-xs font-bold text-slate-400 uppercase tracking-widest"
-                                  >
-                                      Raw Value
-                                  </h3>
-                              </div>
-                              <div
-                                  class="group relative bg-slate-800 rounded-xl border border-slate-800/50 overflow-hidden transition-all hover:border-blue-500/30 hover:shadow-[0_0_20px_rgba(0,0,0,0.2)]"
-                              >
-                                  <div
-                                      class="p-3 font-mono text-sm text-slate-100 break-all leading-relaxed"
-                                  >
-                                      "${attributeValue}"
-                                  </div>
-                                  <!-- Copy Hint -->
-                                  <div
-                                      class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  >
-                                      <span
-                                          class="text-[10px] bg-slate-800 text-slate-400 px-2 py-1 rounded border border-slate-800"
-                                      >
-                                          Select to Copy
-                                      </span>
-                                  </div>
-                              </div>
-                          </div>
-                      `
-            : ''}
-
-                <!-- 2. Smart Analysis Section (If available) -->
+                <!-- 1. Smart Analysis Section (If available) -->
                 ${smartDetails &&
             (smartDetails.tooltipHtml ||
                 smartDetails.parsedValue ||
@@ -354,49 +344,6 @@ const detailTemplate = (item, isSelected) => {
                       `
             : ''}
 
-                <!-- 3. Documentation Section -->
-                <div class="animate-fadeIn delay-100">
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="text-slate-400"
-                            >${icons.book}</span
-                        >
-                        <h3
-                            class="text-xs font-bold text-slate-400 uppercase tracking-widest"
-                        >
-                            Documentation
-                        </h3>
-                    </div>
-
-                    <div
-                        class="bg-slate-800/50 rounded-2xl p-4 border border-slate-800/50 space-y-3"
-                    >
-                        <p
-                            class="text-sm text-slate-100 leading-relaxed opacity-90"
-                        >
-                            ${item.info?.text ||
-        'No description available for this element.'}
-                        </p>
-
-                        <div
-                            class="pt-3 border-t border-slate-800/30 flex items-center justify-between"
-                        >
-                            <span
-                                class="text-[10px] font-bold uppercase tracking-wider text-slate-400 opacity-70"
-                            >
-                                Specification
-                            </span>
-                            <div
-                                class="flex items-center gap-2 text-blue-400"
-                            >
-                                <span
-                                    class="text-[10px] font-mono font-bold bg-blue-500/10 px-2 py-1 rounded border border-blue-500/20"
-                                >
-                                    ${item.info?.isoRef || 'ISO/IEC 23009-1'}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     `;
