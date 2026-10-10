@@ -1,4 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
+import { AD_XML_LIMITS, boundedAdItems, boundedAdXml } from './xml-limits.js';
 
 /**
  * @typedef {Object} VmapAdBreak
@@ -31,6 +32,9 @@ export function parseVmap(xmlString) {
         attributeNamePrefix: '',
         attributesGroupName: ':@',
         textNodeName: '#text',
+        processEntities: false,
+        maxNestedTags: 50,
+        strictReservedNames: true,
         removeNSPrefix: true, // Strips vmap: prefix
         isArray: (tagName) => ['AdBreak', 'Tracking'].includes(tagName),
     });
@@ -38,7 +42,7 @@ export function parseVmap(xmlString) {
     const result = { version: '1.0', breaks: [], errors: [] };
 
     try {
-        const parsed = parser.parse(xmlString);
+        const parsed = parser.parse(boundedAdXml(xmlString));
         const vmap = parsed.VMAP;
 
         if (!vmap) {
@@ -51,7 +55,7 @@ export function parseVmap(xmlString) {
 
         const adBreaks = vmap.AdBreak || [];
 
-        result.breaks = adBreaks.map((ab) => {
+        result.breaks = boundedAdItems(adBreaks).map((ab) => {
             const attrs = ab[':@'] || {};
             const breakId = attrs.breakId || attrs.breakID;
             const timeOffset = attrs.timeOffset;
@@ -82,7 +86,10 @@ export function parseVmap(xmlString) {
             // Tracking
             const trackingEvents = [];
             if (ab.TrackingEvents && ab.TrackingEvents.Tracking) {
-                ab.TrackingEvents.Tracking.forEach((t) => {
+                boundedAdItems(
+                    ab.TrackingEvents.Tracking,
+                    AD_XML_LIMITS.nestedItems
+                ).forEach((t) => {
                     if (t[':@']?.event) trackingEvents.push(t[':@'].event);
                 });
             }
@@ -101,8 +108,8 @@ export function parseVmap(xmlString) {
             };
         });
     } catch (e) {
-        console.error('VMAP parsing failed:', e);
-        result.errors.push(e.message);
+        if (result.errors.length < AD_XML_LIMITS.errors)
+            result.errors.push(e.message);
     }
 
     return result;

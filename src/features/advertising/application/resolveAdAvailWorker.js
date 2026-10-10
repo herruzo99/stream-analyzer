@@ -11,10 +11,25 @@ const COMMON_AD_FILENAMES = [
     'ads.xml',
     'ad.xml',
 ];
+const AD_WORKER_LIMITS = Object.freeze({ avails: 100, nestedDocuments: 20 });
 
-async function resolveUrl(url) {
+function safeExternalUrl(value) {
+    const url = new URL(value);
+    if (
+        !['http:', 'https:'].includes(url.protocol) ||
+        url.username ||
+        url.password
+    )
+        throw new TypeError('Unsupported external advertising URL.');
+    return url.href;
+}
+
+async function resolveUrl(url, signal) {
     try {
-        const response = await fetchWithRetry(url);
+        const response = await fetchWithRetry(safeExternalUrl(url), {
+            signal,
+            credentials: 'omit',
+        });
         if (!response.ok) return null;
         return await response.text();
     } catch (e) {
@@ -48,12 +63,12 @@ function processVastXml(xml) {
     return creatives;
 }
 
-async function resolveSingleAvail(adAvail) {
+async function resolveSingleAvail(adAvail, signal) {
     if (!adAvail.adManifestUrl) {
         return adAvail;
     }
 
-    let urlsToTry = [adAvail.adManifestUrl];
+    let urlsToTry = [safeExternalUrl(adAvail.adManifestUrl)];
 
     // Heuristic for directories
     if (adAvail.adManifestUrl.endsWith('/')) {
@@ -63,7 +78,7 @@ async function resolveSingleAvail(adAvail) {
     }
 
     for (const url of urlsToTry) {
-        const xmlContent = await resolveUrl(url);
+        const xmlContent = await resolveUrl(url, signal);
         if (!xmlContent) continue;
 
         const isVmap =
@@ -79,10 +94,13 @@ async function resolveSingleAvail(adAvail) {
 
             // Resolve internals
             const allCreatives = [];
-            for (const br of vmapData.breaks) {
+            for (const br of vmapData.breaks.slice(
+                0,
+                AD_WORKER_LIMITS.nestedDocuments
+            )) {
                 // Only fetch if it's a VAST URI
                 if (br.adTagUri) {
-                    const vastXml = await resolveUrl(br.adTagUri);
+                    const vastXml = await resolveUrl(br.adTagUri, signal);
                     if (vastXml) {
                         const vastCreatives = processVastXml(vastXml);
                         allCreatives.push(...vastCreatives);
@@ -107,8 +125,10 @@ async function resolveSingleAvail(adAvail) {
     return adAvail;
 }
 
-export async function resolveAdAvailsInWorker(adAvails) {
+export async function resolveAdAvailsInWorker(adAvails, options = {}) {
     if (!adAvails || adAvails.length === 0) return [];
-    const promises = adAvails.map(resolveSingleAvail);
+    const promises = adAvails
+        .slice(0, AD_WORKER_LIMITS.avails)
+        .map((avail) => resolveSingleAvail(avail, options.signal));
     return Promise.all(promises);
 }

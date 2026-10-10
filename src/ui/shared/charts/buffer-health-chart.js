@@ -1,3 +1,5 @@
+// because(domain-canvas): ECharts canvas palette (axis greys, blue/green data
+// series). Confined to this chart-option factory; never leaks into DOM CSS.
 export const bufferHealthChartOptions = (history, bufferingGoal) => {
     if (!history || history.length < 2) {
         return {};

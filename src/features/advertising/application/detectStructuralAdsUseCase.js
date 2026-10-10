@@ -104,5 +104,8 @@ function handleAnalysisComplete({ streams }) {
 }
 
 export function initializeDetectStructuralAdsUseCase() {
-    eventBus.subscribe('state:analysis-complete', handleAnalysisComplete);
+    return eventBus.subscribe(
+        'state:analysis-complete',
+        handleAnalysisComplete
+    );
 }

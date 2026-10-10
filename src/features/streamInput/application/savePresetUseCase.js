@@ -1,5 +1,9 @@
 import { eventBus } from '@/application/event-bus';
 import {
+    deriveEffectiveSourceConfiguration,
+    projectPersistableEffectiveSource,
+} from '@/features/streamInput/application/effective-source-configuration.js';
+import {
     fetchStreamMetadata,
     savePreset,
 } from '@/infrastructure/persistence/streamStorage';
@@ -23,23 +27,31 @@ function handleSavePresetRequest({ name, url, isPreset }) {
         setTimeout(() => uiActions.setPresetSaveStatus('idle'), 2000);
         return;
     }
+    const effective = deriveEffectiveSourceConfiguration(streamInput);
+    const persistable = projectPersistableEffectiveSource(effective);
 
-    fetchStreamMetadata(url)
+    fetchStreamMetadata(effective.identity.url)
         .then(({ protocol, type }) => {
             savePreset({
+                ...persistable,
                 name,
-                url,
                 protocol,
                 type,
-                auth: streamInput.auth,
-                drmAuth: streamInput.drmAuth,
             });
 
             uiActions.loadPresets();
             uiActions.setPresetSaveStatus('saved');
+            showToast({
+                message: `Preset “${name}” saved`,
+                type: 'pass',
+            });
         })
         .catch((err) => {
             console.error('Failed to save preset:', err);
+            showToast({
+                message: `Preset could not be saved: ${err.message}`,
+                type: 'fail',
+            });
             uiActions.setPresetSaveStatus('error');
         })
         .finally(() => {

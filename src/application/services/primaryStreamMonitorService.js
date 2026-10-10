@@ -28,6 +28,7 @@ async function monitorStream(streamId) {
     // 1. Identity Check: Capture the current poller instance.
     const activePoller = pollers.get(streamId);
     if (!activePoller) return;
+    if (activePoller.task) return;
 
     // --- ARCHITECTURAL FIX: Decoupling ---
     // We no longer check getStreamPollingMode() to yield control.
@@ -43,6 +44,15 @@ async function monitorStream(streamId) {
     }
 
     activePoller.lastPollTime = performance.now();
+    analysisActions.updateStream(streamId, {
+        pollingStatus: {
+            state: 'checking',
+            lastSuccessAt: activePoller.lastSuccessAt,
+            retryCount: activePoller.retryCount,
+            nextPollAt: null,
+            message: 'Checking for a manifest update.',
+        },
+    });
 
     try {
         const latestUpdate = stream.manifestUpdates[0];
@@ -73,18 +83,46 @@ async function monitorStream(streamId) {
             segmentPollingReps: Array.from(stream.segmentPollingReps || []),
         };
 
-        await workerService.postTask(workerTask, payload).promise;
-    } catch (e) {
-        console.error(
-            `[Stream Monitor] Error during update cycle for stream ${stream.id}:`,
-            e
-        );
-        eventBus.dispatch(EVENTS.UI.SHOW_STATUS, {
-            message: `Live update failed for ${stream.name}: ${e.message}`,
-            type: 'fail',
-            duration: 5000,
+        activePoller.task = workerService.postTask(workerTask, payload);
+        await activePoller.task.promise;
+        activePoller.lastSuccessAt = Date.now();
+        activePoller.retryCount = 0;
+        analysisActions.updateStream(streamId, {
+            pollingStatus: {
+                state: 'active',
+                lastSuccessAt: activePoller.lastSuccessAt,
+                retryCount: 0,
+                nextPollAt: null,
+                message: 'Manifest refresh succeeded.',
+            },
         });
+    } catch (e) {
+        const wasCanceled = e?.name === 'AbortError';
+        if (!wasCanceled) activePoller.retryCount += 1;
+        console.error(
+            `[Stream Monitor] Manifest update cycle failed for stream ${stream.id}.`
+        );
+        if (!wasCanceled) {
+            const isOffline = globalThis.navigator?.onLine === false;
+            analysisActions.updateStream(streamId, {
+                pollingStatus: {
+                    state: isOffline ? 'offline' : 'retrying',
+                    lastSuccessAt: activePoller.lastSuccessAt,
+                    retryCount: activePoller.retryCount,
+                    nextPollAt: null,
+                    message: isOffline
+                        ? 'Polling paused while this browser is offline.'
+                        : 'Manifest refresh failed; retry is scheduled.',
+                },
+            });
+            eventBus.dispatch(EVENTS.UI.SHOW_STATUS, {
+                message: `Live update failed for ${stream.name}.`,
+                type: 'fail',
+                duration: 5000,
+            });
+        }
     } finally {
+        activePoller.task = null;
         const currentPoller = pollers.get(streamId);
         if (currentPoller === activePoller) {
             scheduleNextPoll(streamId);
@@ -127,6 +165,10 @@ function calculatePollInterval(stream) {
             ? stream.pollingIntervalOverride
             : globalPollingIntervalOverride
     );
+    const retryCount = pollers.get(stream.id)?.retryCount || 0;
+    if (retryCount > 0) {
+        return Math.min(baseInterval * 2 ** Math.min(retryCount, 3), 60_000);
+    }
 
     if (pollingMode === 'smart') {
         const state = getBackoffState(stream.id);
@@ -169,6 +211,24 @@ function scheduleNextPoll(streamId) {
     const now = performance.now();
     const timeSinceLastPoll = now - poller.lastPollTime;
     const delay = Math.max(0, nextInterval - timeSinceLastPoll);
+    poller.nextPollAt = Date.now() + delay;
+    analysisActions.updateStream(streamId, {
+        pollingStatus: {
+            state:
+                globalThis.navigator?.onLine === false
+                    ? 'offline'
+                    : poller.retryCount > 0
+                      ? 'retrying'
+                      : 'active',
+            lastSuccessAt: poller.lastSuccessAt,
+            retryCount: poller.retryCount,
+            nextPollAt: poller.nextPollAt,
+            message:
+                poller.retryCount > 0
+                    ? 'Manifest refresh failed; retry is scheduled.'
+                    : 'Waiting for the next manifest refresh.',
+        },
+    });
 
     if (poller.timerId) clearTimeout(poller.timerId);
 
@@ -191,6 +251,10 @@ function startMonitoring(stream, lastPollTime = 0) {
             pollInterval,
             lastPollTime: lastPollTime || performance.now(),
             timerId: null,
+            task: null,
+            retryCount: 0,
+            lastSuccessAt: null,
+            nextPollAt: null,
         };
 
         pollers.set(stream.id, poller);
@@ -201,10 +265,21 @@ function startMonitoring(stream, lastPollTime = 0) {
 function stopMonitoring(streamId) {
     if (pollers.has(streamId)) {
         const poller = pollers.get(streamId);
+        poller.task?.cancel();
+        poller.task = null;
         if (poller.timerId) {
             clearTimeout(poller.timerId);
         }
         pollers.delete(streamId);
+        analysisActions.updateStream(streamId, {
+            pollingStatus: {
+                state: 'canceled',
+                lastSuccessAt: poller.lastSuccessAt,
+                retryCount: poller.retryCount,
+                nextPollAt: null,
+                message: 'Manifest polling is stopped.',
+            },
+        });
     }
     if (oneTimePollers.has(streamId)) {
         clearTimeout(oneTimePollers.get(streamId));
@@ -216,6 +291,16 @@ function stopMonitoring(streamId) {
             missedSegmentStreak: 0,
         });
     }
+}
+
+export function retryMonitoring(streamId) {
+    const poller = pollers.get(streamId);
+    if (!poller || poller.task) return false;
+    if (poller.timerId) clearTimeout(poller.timerId);
+    poller.timerId = null;
+    poller.lastPollTime = 0;
+    void monitorStream(streamId);
+    return true;
 }
 
 export function managePollers() {
@@ -414,10 +499,13 @@ function onManifestUpdated(payload) {
 
 let tickerSubscription = null;
 let manifestUpdateSubscription = null;
+let lifecycleSubscriptions = [];
 
 export function initializeLiveStreamMonitor() {
     if (tickerSubscription) tickerSubscription();
     if (manifestUpdateSubscription) manifestUpdateSubscription();
+    lifecycleSubscriptions.forEach((unsubscribe) => unsubscribe());
+    lifecycleSubscriptions = [];
 
     tickerSubscription = eventBus.subscribe(
         EVENTS.TICKER.ONE_SECOND,
@@ -429,15 +517,17 @@ export function initializeLiveStreamMonitor() {
         onManifestUpdated
     );
 
-    eventBus.subscribe(EVENTS.STATE.STREAM_UPDATED, managePollers);
-    eventBus.subscribe(EVENTS.STATE.ANALYSIS_COMPLETE, managePollers);
-    eventBus.subscribe(EVENTS.MANIFEST.FORCE_RELOAD, ({ streamId }) =>
-        monitorStream(streamId)
-    );
-    eventBus.subscribe(
-        EVENTS.MONITOR.SCHEDULE_ONE_TIME_POLL,
-        scheduleOneTimePoll
-    );
+    lifecycleSubscriptions = [
+        eventBus.subscribe(EVENTS.STATE.STREAM_UPDATED, managePollers),
+        eventBus.subscribe(EVENTS.STATE.ANALYSIS_COMPLETE, managePollers),
+        eventBus.subscribe(EVENTS.MANIFEST.FORCE_RELOAD, ({ streamId }) =>
+            retryMonitoring(streamId)
+        ),
+        eventBus.subscribe(
+            EVENTS.MONITOR.SCHEDULE_ONE_TIME_POLL,
+            scheduleOneTimePoll
+        ),
+    ];
 
     document.removeEventListener('visibilitychange', handleVisibilityChange);
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -452,7 +542,10 @@ export function stopAllMonitoring() {
         manifestUpdateSubscription();
         manifestUpdateSubscription = null;
     }
+    lifecycleSubscriptions.forEach((unsubscribe) => unsubscribe());
+    lifecycleSubscriptions = [];
     for (const poller of pollers.values()) {
+        poller.task?.cancel();
         if (poller.timerId) clearTimeout(poller.timerId);
     }
     pollers.clear();

@@ -1,8 +1,8 @@
 import { appLog } from '@/shared/utils/debug';
-import shaka from 'shaka-player/dist/shaka-player.ui.js';
 import { shakaNetworkPlugin } from './shaka-network-plugin.js';
 
 let shakaSingleton = null;
+let shakaInitialization = null;
 
 /**
  * Initializes and configures the Shaka Player library singleton.
@@ -14,22 +14,45 @@ async function initializeShaka() {
         return shakaSingleton;
     }
 
-    if (!shaka) {
-        throw new Error('Shaka Player module failed to import correctly.');
+    if (!shakaInitialization) {
+        shakaInitialization = (async () => {
+            const module = await import(
+                'shaka-player/dist/shaka-player.ui.js'
+            );
+            /** @type {any} */
+            const shaka = module.default ?? module;
+            if (!shaka) {
+                throw new Error(
+                    'Shaka Player module failed to import correctly.'
+                );
+            }
+
+            appLog(
+                'shaka-canonical',
+                'info',
+                'Shaka Player module imported. Initializing singleton.'
+            );
+
+            // Configure Shaka Player networking only when a media workflow
+            // first requests the player engine.
+            shaka.net.NetworkingEngine.registerScheme(
+                'http',
+                shakaNetworkPlugin
+            );
+            shaka.net.NetworkingEngine.registerScheme(
+                'https',
+                shakaNetworkPlugin
+            );
+
+            shakaSingleton = shaka;
+            return shakaSingleton;
+        })().catch((error) => {
+            shakaInitialization = null;
+            throw error;
+        });
     }
 
-    appLog(
-        'shaka-canonical',
-        'info',
-        'Shaka Player module imported. Initializing singleton.'
-    );
-
-    // Configure Shaka Player networking
-    shaka.net.NetworkingEngine.registerScheme('http', shakaNetworkPlugin);
-    shaka.net.NetworkingEngine.registerScheme('https', shakaNetworkPlugin);
-
-    shakaSingleton = shaka;
-    return shakaSingleton;
+    return shakaInitialization;
 }
 
 /**

@@ -12,8 +12,30 @@ const SCTE224_SCHEMES = [
     'urn:scte:224:2018',
     'http://www.scte.org/schemas/224',
 ];
+const AD_RESOLUTION_LIMITS = Object.freeze({
+    events: 100,
+    nestedDocuments: 20,
+});
+const activeResolutions = new Map();
+let resolutionGeneration = 0;
 
-function createPartialAdAvail(stream, scte35Event, detectionMethod) {
+function safeExternalUrl(value) {
+    const url = new URL(value);
+    if (
+        !['http:', 'https:'].includes(url.protocol) ||
+        url.username ||
+        url.password
+    )
+        throw new TypeError('Unsupported external advertising URL.');
+    return url.href;
+}
+
+const isCurrent = (streamId, context) =>
+    activeResolutions.get(streamId)?.generation === context.generation &&
+    !context.controller.signal.aborted;
+
+function createPartialAdAvail(stream, scte35Event, detectionMethod, context) {
+    if (context && !isCurrent(stream.id, context)) return;
     const scte35 = scte35Event.scte35;
     if (!scte35 || 'error' in scte35) return;
 
@@ -35,7 +57,8 @@ function createPartialAdAvail(stream, scte35Event, detectionMethod) {
     updateStreamState(stream.id, adAvail);
 }
 
-function updateStreamState(streamId, adAvail) {
+function updateStreamState(streamId, adAvail, context) {
+    if (context && !isCurrent(streamId, context)) return;
     const currentStream = useAnalysisStore
         .getState()
         .streams.find((s) => s.id === streamId);
@@ -53,7 +76,7 @@ function updateStreamState(streamId, adAvail) {
     analysisActions.updateStream(streamId, { adAvails: updatedAdAvails });
 }
 
-async function resolveAdAvail(stream, scte35Event, detectionMethod) {
+async function resolveAdAvail(stream, scte35Event, detectionMethod, context) {
     if (!scte35Event.scte35 || 'error' in scte35Event.scte35) return;
 
     const descriptor = scte35Event.scte35.descriptors?.find(
@@ -61,20 +84,23 @@ async function resolveAdAvail(stream, scte35Event, detectionMethod) {
     );
 
     if (!descriptor?.segmentation_upid) {
-        createPartialAdAvail(stream, scte35Event, detectionMethod);
+        createPartialAdAvail(stream, scte35Event, detectionMethod, context);
         return;
     }
 
     let adManifestUrl;
     try {
-        adManifestUrl = new URL(descriptor.segmentation_upid).href;
+        adManifestUrl = safeExternalUrl(descriptor.segmentation_upid);
     } catch (_e) {
-        createPartialAdAvail(stream, scte35Event, detectionMethod);
+        createPartialAdAvail(stream, scte35Event, detectionMethod, context);
         return;
     }
 
     try {
-        const response = await fetchWithRetry(adManifestUrl);
+        const response = await fetchWithRetry(adManifestUrl, {
+            signal: context.controller.signal,
+            credentials: 'omit',
+        });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const content = await response.text();
 
@@ -90,10 +116,17 @@ async function resolveAdAvail(stream, scte35Event, detectionMethod) {
             };
 
             // Naive Flattening: Resolve ALL VAST URIs in VMAP
-            for (const br of vmap.breaks) {
+            for (const br of vmap.breaks.slice(
+                0,
+                AD_RESOLUTION_LIMITS.nestedDocuments
+            )) {
                 if (br.adTagUri) {
                     try {
-                        const vastRes = await fetchWithRetry(br.adTagUri);
+                        const nestedUrl = safeExternalUrl(br.adTagUri);
+                        const vastRes = await fetchWithRetry(nestedUrl, {
+                            signal: context.controller.signal,
+                            credentials: 'omit',
+                        });
                         if (vastRes.ok) {
                             const vastXml = await vastRes.text();
                             const vastParsed = parseVast(vastXml);
@@ -151,38 +184,47 @@ async function resolveAdAvail(stream, scte35Event, detectionMethod) {
             vmapInfo,
         });
 
-        updateStreamState(stream.id, adAvail);
+        updateStreamState(stream.id, adAvail, context);
     } catch (e) {
+        if (e?.name === 'AbortError' || context.controller.signal.aborted)
+            return;
         console.error(
             `[resolveAdAvailUseCase] Failed to fetch ads from ${adManifestUrl}:`,
             e
         );
-        createPartialAdAvail(stream, scte35Event, detectionMethod);
+        createPartialAdAvail(stream, scte35Event, detectionMethod, context);
     }
 }
 
-function handleInbandEventsAdded({ streamId, newEvents }) {
+async function handleInbandEventsAdded({ streamId, newEvents }) {
     const stream = useAnalysisStore
         .getState()
         .streams.find((s) => s.id === streamId);
     if (!stream) return;
 
-    for (const event of newEvents) {
+    activeResolutions.get(streamId)?.controller.abort();
+    const context = {
+        controller: new AbortController(),
+        generation: ++resolutionGeneration,
+    };
+    activeResolutions.set(streamId, context);
+
+    for (const event of newEvents.slice(0, AD_RESOLUTION_LIMITS.events)) {
         // Handle SCTE-35
         if (event.scte35) {
-            resolveAdAvail(stream, event, 'SCTE35_INBAND');
+            await resolveAdAvail(stream, event, 'SCTE35_INBAND', context);
         }
         // Handle SCTE-224 (Check scheme or payload structure)
         if (
             event.schemeIdUri &&
             SCTE224_SCHEMES.some((s) => event.schemeIdUri.includes(s))
         ) {
-            handleScte224Event(stream, event);
+            handleScte224Event(stream, event, context);
         }
     }
 }
 
-function handleScte224Event(stream, event) {
+function handleScte224Event(stream, event, context) {
     // If payload is text, parse it. If binary, decode.
     let xml = event.messageData;
     // Sometimes messageData is base64
@@ -208,10 +250,19 @@ function handleScte224Event(stream, event) {
             creatives: [],
             detectionMethod: 'SCTE224_ESNI',
         });
-        updateStreamState(stream.id, avail);
+        updateStreamState(stream.id, avail, context);
     }
 }
 
 export function initializeResolveAdAvailUseCase() {
-    eventBus.subscribe('state:inband-events-added', handleInbandEventsAdded);
+    const unsubscribe = eventBus.subscribe(
+        'state:inband-events-added',
+        handleInbandEventsAdded
+    );
+    return () => {
+        unsubscribe();
+        for (const context of activeResolutions.values())
+            context.controller.abort();
+        activeResolutions.clear();
+    };
 }

@@ -55,6 +55,9 @@ export function parseTTML(ttmlString) {
         attributesGroupName: ':@',
         textNodeName: '#text',
         allowBooleanAttributes: true,
+        processEntities: false,
+        maxNestedTags: 50,
+        strictReservedNames: true,
         removeNSPrefix: true,
     });
 

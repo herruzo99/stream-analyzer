@@ -1,9 +1,23 @@
-import { eventBus } from '@/application/event-bus';
+import { eventBus as applicationEventBus } from '@/application/event-bus';
 import { useMultiPlayerStore } from '@/state/multiPlayerStore';
 import { EVENTS } from '@/types/events';
 import { multiPlayerService } from './multiPlayerService.js';
 
 export function initializeMultiPlayerController() {
+    const subscriptions = [];
+    const eventBus = {
+        subscribe(eventName, listener) {
+            const unsubscribe = applicationEventBus.subscribe(
+                eventName,
+                listener
+            );
+            subscriptions.push(unsubscribe);
+            return unsubscribe;
+        },
+        dispose() {
+            subscriptions.splice(0).forEach((unsubscribe) => unsubscribe());
+        },
+    };
     eventBus.subscribe(EVENTS.UI.MP_PLAY_ALL, () =>
         multiPlayerService.playAll()
     );
@@ -152,4 +166,5 @@ export function initializeMultiPlayerController() {
     eventBus.subscribe(EVENTS.UI.MP_REMOVE_STREAM, ({ streamId }) =>
         useMultiPlayerStore.getState().removePlayer(streamId)
     );
+    return () => eventBus.dispose();
 }

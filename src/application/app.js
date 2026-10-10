@@ -1,5 +1,7 @@
 import { initializeCmafService } from '@/features/compliance/application/cmafService';
+import { stagingCommands } from '@/features/streamInput/application/staging-commands.js';
 import { saveToHistory } from '@/infrastructure/persistence/streamStorage';
+import { useAnalysisStore } from '@/state/analysisStore';
 import { uiActions, useUiStore } from '@/state/uiStore';
 import { EVENTS } from '@/types/events';
 
@@ -21,8 +23,20 @@ export class Application {
             EVENTS.STATE.ANALYSIS_COMPLETE,
             ({ streams }) => {
                 if (streams.length > 0) {
-                    saveToHistory(streams[0]);
-                    uiActions.loadHistory(); // Reactively update the history list in the UI
+                    const primaryStream = streams[0];
+                    const isProcessLocal =
+                        primaryStream.protocol === 'local' ||
+                        primaryStream.manifest?.profiles === 'local-file';
+                    if (!isProcessLocal) {
+                        const sourceInput = useAnalysisStore
+                            .getState()
+                            .streamInputs.find(
+                                (input) => input.id === primaryStream.id
+                            );
+                        saveToHistory(primaryStream, sourceInput);
+                        // Reactively update the history list in the UI.
+                        uiActions.loadHistory();
+                    }
                     const defaultTab =
                         streams.length > 1 ? 'comparison' : 'summary';
                     // Only set the default tab if a session isn't being restored, as the session
@@ -85,10 +99,7 @@ export class Application {
         // Check for shared state in URL hash first
         const sharedInputs = this.services.urlStateManager.getStateFromUrl();
         if (sharedInputs) {
-            this.analysisActions.setStreamInputs(sharedInputs);
-            this.eventBus.dispatch(EVENTS.UI.STREAM_ANALYSIS_REQUESTED, {
-                inputs: sharedInputs,
-            });
+            void stagingCommands.replaceAndAnalyzeSources(sharedInputs);
             // Clear the hash after consuming it to clean up the URL?
             // Maybe keep it so the user can refresh? Let's keep it for now.
             return;
@@ -105,12 +116,7 @@ export class Application {
                 name: '', // Name is not available from URL params
             }));
 
-            // Set the inputs in the store so the UI can reflect them if analysis fails
-            this.analysisActions.setStreamInputs(inputs);
-            // Dispatch event instead of calling use case directly
-            this.eventBus.dispatch(EVENTS.UI.STREAM_ANALYSIS_REQUESTED, {
-                inputs,
-            });
+            void stagingCommands.replaceAndAnalyzeSources(inputs);
         }
         // ARCHITECTURAL CHANGE: Removed automatic loading of last used streams here.
         // This allows the user to see the Landing Page and explicitly choose to "Resume".

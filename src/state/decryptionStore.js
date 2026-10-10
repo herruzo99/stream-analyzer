@@ -2,6 +2,19 @@ import { eventBus } from '@/application/event-bus';
 import { EVENTS } from '@/types/events';
 import { createStore } from 'zustand/vanilla';
 
+const DECRYPTION_RETENTION = Object.freeze({
+    sessions: 50,
+    eventsPerSession: 200,
+    keyCache: 256,
+});
+
+const keepNewest = (values, limit) => values.slice(-limit);
+
+function boundMap(map, limit) {
+    while (map.size > limit) map.delete(map.keys().next().value);
+    return map;
+}
+
 /**
  * @typedef {object} KeyStatus
  * @property {string} kid - Hex-encoded Key ID.
@@ -52,10 +65,13 @@ export const useDecryptionStore = createStore((set, get) => ({
                 keySystem: 'Unknown',
                 type: 'temporary',
                 startTime: Date.now(),
+                performanceStartTime:
+                    typeof performance === 'undefined' ? 0 : performance.now(),
                 keyStatuses: [],
                 events: [],
                 ...data,
             });
+            boundMap(newSessions, DECRYPTION_RETENTION.sessions);
 
             // Auto-select if it's the first session and none is selected
             const selectedSessionId = state.selectedSessionId || internalId;
@@ -80,14 +96,17 @@ export const useDecryptionStore = createStore((set, get) => ({
             const newSessions = new Map(state.sessions);
             const session = newSessions.get(internalId);
             if (session) {
-                const updatedEvents = [
-                    ...session.events,
-                    {
-                        ...event,
-                        timestamp: Date.now(),
-                        id: crypto.randomUUID(),
-                    },
-                ];
+                const updatedEvents = keepNewest(
+                    [
+                        ...session.events,
+                        {
+                            ...event,
+                            timestamp: Date.now(),
+                            id: crypto.randomUUID(),
+                        },
+                    ],
+                    DECRYPTION_RETENTION.eventsPerSession
+                );
                 newSessions.set(internalId, {
                     ...session,
                     events: updatedEvents,
@@ -104,7 +123,9 @@ export const useDecryptionStore = createStore((set, get) => ({
         set((state) => {
             const newCache = new Map(state.keyCache);
             newCache.set(uri, { status: 'pending' });
-            return { keyCache: newCache };
+            return {
+                keyCache: boundMap(newCache, DECRYPTION_RETENTION.keyCache),
+            };
         });
         eventBus.dispatch(EVENTS.DECRYPTION.KEY_STATUS_CHANGED, { uri });
     },
@@ -113,7 +134,9 @@ export const useDecryptionStore = createStore((set, get) => ({
         set((state) => {
             const newCache = new Map(state.keyCache);
             newCache.set(uri, { status: 'ready', key });
-            return { keyCache: newCache };
+            return {
+                keyCache: boundMap(newCache, DECRYPTION_RETENTION.keyCache),
+            };
         });
         eventBus.dispatch(EVENTS.DECRYPTION.KEY_STATUS_CHANGED, { uri });
     },
@@ -122,7 +145,9 @@ export const useDecryptionStore = createStore((set, get) => ({
         set((state) => {
             const newCache = new Map(state.keyCache);
             newCache.set(uri, { status: 'error', error });
-            return { keyCache: newCache };
+            return {
+                keyCache: boundMap(newCache, DECRYPTION_RETENTION.keyCache),
+            };
         });
         eventBus.dispatch(EVENTS.DECRYPTION.KEY_STATUS_CHANGED, { uri });
     },

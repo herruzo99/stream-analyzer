@@ -1,7 +1,16 @@
 import { workerService } from '@/infrastructure/worker/workerService';
-import { useAnalysisStore } from '@/state/analysisStore';
-import { uiActions } from '@/state/uiStore';
-import { showToast } from '@/ui/components/toast';
+import {
+    createLibraryEnvelope,
+    createWorkspaceExport,
+    parseLibraryEnvelope,
+    previewWorkspaceImport,
+    restoreLastDeletedLibraryRecord,
+    softDeleteLibraryRecord,
+} from '@/features/streamInput/application/library-contract.js';
+import {
+    deriveEffectiveSourceConfiguration,
+    projectPersistableEffectiveSource,
+} from '@/features/streamInput/application/effective-source-configuration.js';
 
 const HISTORY_KEY = 'stream-analyzer_history';
 const PRESETS_KEY = 'stream-analyzer_presets';
@@ -9,6 +18,30 @@ const LAST_USED_KEY = 'stream-analyzer_last-used';
 const WORKSPACES_KEY = 'stream-analyzer_workspaces';
 const MAX_HISTORY_ITEMS = 10;
 const MAX_PRESETS = 50;
+const COLLECTION_KIND_BY_KEY = Object.freeze({
+    [HISTORY_KEY]: 'history',
+    [PRESETS_KEY]: 'presets',
+    [WORKSPACES_KEY]: 'workspaces',
+});
+
+function recordQuarantine(key) {
+    const reason = 'invalid-or-unsupported-library-data';
+    try {
+        localStorage.setItem(
+            `${key}-quarantine`,
+            JSON.stringify({ version: 1, status: 'quarantined', reason })
+        );
+        localStorage.removeItem(key);
+    } catch (storageError) {
+        console.error(
+            '[Storage] Failed to quarantine invalid library metadata.',
+            storageError
+        );
+    }
+    console.warn(
+        '[Storage] Invalid library data was quarantined without exposing its contents.'
+    );
+}
 
 /**
  * A replacer for JSON.stringify that sorts object keys alphabetically.
@@ -107,6 +140,20 @@ function getItems(key) {
         if (!raw) return [];
 
         const stored = JSON.parse(raw);
+        const kind = COLLECTION_KIND_BY_KEY[key];
+        if (kind) {
+            const { envelope, migrated } = parseLibraryEnvelope(kind, stored);
+            if (migrated)
+                localStorage.setItem(key, canonicalStringify(envelope));
+            return envelope.records.map(restoreFromStorage);
+        }
+        if (
+            kind &&
+            stored?.type === 'stream-analyzer-library-collection' &&
+            Array.isArray(stored.records)
+        ) {
+            return stored.records.map(restoreFromStorage);
+        }
         if (!Array.isArray(stored)) {
             console.warn(
                 `[Storage] Data for key "${key}" is not an array. Resetting.`
@@ -117,6 +164,10 @@ function getItems(key) {
 
         return stored.map(restoreFromStorage);
     } catch (e) {
+        if (COLLECTION_KIND_BY_KEY[key]) {
+            recordQuarantine(key);
+            return [];
+        }
         console.error(
             `[Storage] Critical error reading key "${key}". Clearing corrupt data to allow boot.`,
             e
@@ -136,23 +187,35 @@ function getItems(key) {
 
 function setItems(key, items) {
     try {
+        const kind = COLLECTION_KIND_BY_KEY[key];
+        if (kind) {
+            let tombstones = [];
+            const raw = localStorage.getItem(key);
+            if (raw) {
+                try {
+                    tombstones = parseLibraryEnvelope(kind, raw).envelope
+                        .tombstones;
+                } catch {
+                    tombstones = [];
+                }
+            }
+            const envelope = createLibraryEnvelope(kind, items, tombstones);
+            localStorage.setItem(key, canonicalStringify(envelope));
+            return;
+        }
         const storableItems = items.map(prepareForStorage);
         // Safety check: Don't store massive blobs.
         // 5MB is roughly the limit, check if we're pushing dangerous sizes
         const str = JSON.stringify(storableItems);
         if (str.length > 4 * 1024 * 1024) {
-            console.warn(
-                `[Storage] Data for "${key}" exceeds 4MB. Aborting save to prevent quota errors.`
+            throw new RangeError(
+                `Data for "${key}" exceeds the 4MB persistence limit.`
             );
-            showToast({
-                message: 'Data too large to save history.',
-                type: 'warn',
-            });
-            return;
         }
         localStorage.setItem(key, str);
     } catch (e) {
         console.error(`Error writing to localStorage key "${key}":`, e);
+        throw e;
     }
 }
 
@@ -163,11 +226,18 @@ export const saveLastUsedStreams = (streams) =>
     setItems(LAST_USED_KEY, streams);
 export const getWorkspaces = () => getItems(WORKSPACES_KEY);
 
-export function saveToHistory(stream) {
-    const { streamInputs } = useAnalysisStore.getState();
-    const streamInput = streamInputs.find((input) => input.id === stream.id);
-
-    const canonicalUrl = streamInput?.url || stream.originalUrl;
+export function saveToHistory(stream, streamInput = null) {
+    const effective = deriveEffectiveSourceConfiguration(
+        streamInput ?? {
+            id: stream.id,
+            url: stream.originalUrl,
+            name: stream.name,
+            auth: stream.auth,
+            drmAuth: stream.drmAuth,
+        }
+    );
+    const persistable = projectPersistableEffectiveSource(effective);
+    const canonicalUrl = persistable.url;
     if (!canonicalUrl) return;
 
     const history = getHistory();
@@ -180,12 +250,10 @@ export function saveToHistory(stream) {
 
     // Only save minimal data for history
     newHistory.unshift({
+        ...persistable,
         name: stream.name,
-        url: canonicalUrl,
         protocol: stream.protocol,
         type: stream.manifest?.type === 'dynamic' ? 'live' : 'vod',
-        auth: streamInput?.auth || stream.auth,
-        drmAuth: streamInput?.drmAuth || stream.drmAuth,
     });
 
     if (newHistory.length > MAX_HISTORY_ITEMS) {
@@ -203,10 +271,7 @@ export function savePreset(preset) {
         newPresets.length = MAX_PRESETS;
     }
     setItems(PRESETS_KEY, newPresets);
-    showToast({
-        message: `Preset "${preset.name}" saved!`,
-        type: 'pass',
-    });
+    return preset;
 }
 
 export function saveWorkspace(workspace) {
@@ -214,11 +279,7 @@ export function saveWorkspace(workspace) {
     const newWorkspaces = workspaces.filter((w) => w.name !== workspace.name);
     newWorkspaces.unshift(workspace);
     setItems(WORKSPACES_KEY, newWorkspaces);
-    uiActions.loadWorkspaces();
-    showToast({
-        message: `Workspace "${workspace.name}" saved!`,
-        type: 'pass',
-    });
+    return workspace;
 }
 
 export function deleteHistoryItem(url) {
@@ -234,10 +295,17 @@ export function deletePreset(url) {
 }
 
 export function deleteWorkspace(name) {
-    const workspaces = getWorkspaces();
-    const newWorkspaces = workspaces.filter((w) => w.name !== name);
-    setItems(WORKSPACES_KEY, newWorkspaces);
-    uiActions.loadWorkspaces();
+    const raw = localStorage.getItem(WORKSPACES_KEY);
+    const current = raw
+        ? parseLibraryEnvelope('workspaces', raw).envelope
+        : createLibraryEnvelope('workspaces');
+    const next = softDeleteLibraryRecord(
+        'workspaces',
+        current,
+        (workspace) => workspace.name === name
+    );
+    localStorage.setItem(WORKSPACES_KEY, canonicalStringify(next));
+    return next;
 }
 
 export function exportWorkspace(workspaceName) {
@@ -245,16 +313,10 @@ export function exportWorkspace(workspaceName) {
     const workspace = workspaces.find((w) => w.name === workspaceName);
 
     if (!workspace) {
-        showToast({ message: 'Workspace not found for export.', type: 'fail' });
-        return;
+        throw new Error('Workspace not found for export.');
     }
 
-    const exportData = {
-        version: 1,
-        type: 'stream-analyzer-workspace',
-        exportedAt: new Date().toISOString(),
-        data: workspace,
-    };
+    const exportData = createWorkspaceExport(workspace);
 
     const jsonString = canonicalStringify(exportData);
     const blob = new Blob([jsonString], { type: 'application/json' });
@@ -262,71 +324,85 @@ export function exportWorkspace(workspaceName) {
 
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${workspaceName.replace(/[^a-z0-9]/gi, '_')}_workspace.json`;
+    const filename = `${workspaceName.replace(/[^a-z0-9]/gi, '_')}_workspace.json`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    showToast({ message: 'Workspace exported successfully!', type: 'pass' });
+    return filename;
 }
 
 export async function importWorkspace(file) {
+    const text = await file.text();
+    const imported = JSON.parse(text);
+
+    let workspaceData;
+    if (
+        imported.type === 'stream-analyzer-workspace' &&
+        imported.data &&
+        imported.data.name &&
+        Array.isArray(imported.data.inputs)
+    ) {
+        workspaceData = imported.data;
+    } else if (imported.name && Array.isArray(imported.inputs)) {
+        workspaceData = imported;
+    } else {
+        throw new Error('Invalid workspace file format.');
+    }
+
+    const workspaces = getWorkspaces();
+    let newName = workspaceData.name;
+    let counter = 1;
+    while (workspaces.some((w) => w.name === newName)) {
+        newName = `${workspaceData.name} (Imported ${counter})`;
+        counter++;
+    }
+    workspaceData.name = newName;
+
+    saveWorkspace(workspaceData);
+    return workspaceData;
+}
+
+export async function previewWorkspaceFile(file) {
+    const text = await file.text();
+    return previewWorkspaceImport(
+        text,
+        getWorkspaces().map(({ name }) => name)
+    );
+}
+
+export function restoreLastDeletedWorkspace() {
+    const raw = localStorage.getItem(WORKSPACES_KEY);
+    if (!raw) return false;
+    const current = parseLibraryEnvelope('workspaces', raw).envelope;
+    if (current.tombstones.length === 0) return false;
+    const next = restoreLastDeletedLibraryRecord('workspaces', current);
+    localStorage.setItem(WORKSPACES_KEY, canonicalStringify(next));
+    return true;
+}
+
+export function hasDeletedWorkspace() {
     try {
-        const text = await file.text();
-        const imported = JSON.parse(text);
-
-        let workspaceData;
-        if (
-            imported.type === 'stream-analyzer-workspace' &&
-            imported.data &&
-            imported.data.name &&
-            Array.isArray(imported.data.inputs)
-        ) {
-            workspaceData = imported.data;
-        } else if (imported.name && Array.isArray(imported.inputs)) {
-            workspaceData = imported;
-        } else {
-            throw new Error('Invalid workspace file format.');
-        }
-
-        const workspaces = getWorkspaces();
-        let newName = workspaceData.name;
-        let counter = 1;
-        while (workspaces.some((w) => w.name === newName)) {
-            newName = `${workspaceData.name} (Imported ${counter})`;
-            counter++;
-        }
-        workspaceData.name = newName;
-
-        saveWorkspace(workspaceData);
-        showToast({
-            message: `Workspace imported as "${newName}"`,
-            type: 'pass',
-        });
-    } catch (e) {
-        console.error('Import failed:', e);
-        showToast({
-            message: `Failed to import workspace: ${e.message}`,
-            type: 'fail',
-        });
+        const raw = localStorage.getItem(WORKSPACES_KEY);
+        return raw
+            ? parseLibraryEnvelope('workspaces', raw).envelope.tombstones
+                  .length > 0
+            : false;
+    } catch {
+        return false;
     }
 }
 
 export async function fetchStreamMetadata(url) {
-    showToast({ message: 'Fetching stream metadata...', type: 'info' });
-    try {
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status} fetching manifest`);
-        }
-        const manifestString = await response.text();
-
-        return await workerService.postTask('get-manifest-metadata', {
-            manifestString,
-        }).promise;
-    } catch (e) {
-        showToast({ message: `Error: ${e.message}`, type: 'fail' });
-        throw e;
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`HTTP ${response.status} fetching manifest`);
     }
+    const manifestString = await response.text();
+
+    return await workerService.postTask('get-manifest-metadata', {
+        manifestString,
+    }).promise;
 }

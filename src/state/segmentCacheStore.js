@@ -64,6 +64,16 @@ export const useSegmentCacheStore = createStore((set, get) => ({
 
     get: (url) => get().cache.get(url),
 
+    delete: (url) => {
+        const currentCache = get().cache;
+        if (!currentCache.delete(url)) return false;
+        const replacement = new LRUCache(currentCache.maxSize);
+        replacement.cache = currentCache.cache;
+        replacement.maxSize = currentCache.maxSize;
+        set({ cache: replacement });
+        return true;
+    },
+
     clear: () => {
         console.log('[SegmentCacheStore] Clearing all.');
         const limit =

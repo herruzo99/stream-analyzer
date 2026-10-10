@@ -1,5 +1,5 @@
-import { notificationService } from '@/application/services/notificationService';
+import { notificationTargetService } from './application/notification-target-service.js';
 
 export function initializeNotificationFeature() {
-    notificationService.initialize();
+    notificationTargetService.initialize();
 }

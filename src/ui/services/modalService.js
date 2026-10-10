@@ -1,5 +1,7 @@
 import { uiActions, useUiStore } from '@/state/uiStore';
 
+let focusReturnTarget = null;
+
 /**
  * Opens the global modal with specific content.
  * @param {object} options
@@ -14,6 +16,10 @@ export function openModalWithContent({
     content,
     isFullWidth = false,
 }) {
+    focusReturnTarget =
+        document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
     uiActions.setModalState({
         isModalOpen: true,
         modalTitle: title,
@@ -33,5 +39,10 @@ export function closeModal() {
 
     uiActions.setModalState({
         isModalOpen: false,
+    });
+    const target = focusReturnTarget;
+    focusReturnTarget = null;
+    queueMicrotask(() => {
+        if (target?.isConnected) target.focus({ preventScroll: true });
     });
 }

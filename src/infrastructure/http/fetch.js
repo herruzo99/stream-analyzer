@@ -8,7 +8,24 @@ const INITIAL_DELAY_MS = 250;
  * @param {number} ms - The number of milliseconds to wait.
  * @returns {Promise<void>}
  */
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms, signal) =>
+    new Promise((resolve, reject) => {
+        if (signal?.aborted) {
+            reject(signal.reason ?? new DOMException('Aborted', 'AbortError'));
+            return;
+        }
+        const timer = setTimeout(resolve, ms);
+        signal?.addEventListener(
+            'abort',
+            () => {
+                clearTimeout(timer);
+                reject(
+                    signal.reason ?? new DOMException('Aborted', 'AbortError')
+                );
+            },
+            { once: true }
+        );
+    });
 
 /**
  * Wraps the native fetch API to provide automatic retries with exponential backoff and jitter
@@ -21,6 +38,10 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * @throws {Error} Throws an error if the fetch fails after all retries.
  */
 export async function fetchWithRetry(url, options, attempt = 1) {
+    if (options?.signal?.aborted)
+        throw (
+            options.signal.reason ?? new DOMException('Aborted', 'AbortError')
+        );
     try {
         const response = await fetch(url, options);
 
@@ -31,16 +52,18 @@ export async function fetchWithRetry(url, options, attempt = 1) {
         ) {
             const delay = INITIAL_DELAY_MS * Math.pow(2, attempt - 1);
             const jitter = delay * 0.2 * secureRandom();
-            await sleep(delay + jitter);
+            await sleep(delay + jitter, options?.signal);
             return fetchWithRetry(url, options, attempt + 1);
         }
 
         return response;
     } catch (error) {
+        if (error?.name === 'AbortError' || options?.signal?.aborted)
+            throw error;
         if (attempt <= MAX_RETRIES) {
             const delay = INITIAL_DELAY_MS * Math.pow(2, attempt - 1);
             const jitter = delay * 0.2 * secureRandom();
-            await sleep(delay + jitter);
+            await sleep(delay + jitter, options?.signal);
             return fetchWithRetry(url, options, attempt + 1);
         }
         // After all retries, throw the last error

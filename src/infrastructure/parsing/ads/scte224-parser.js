@@ -1,4 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
+import { AD_XML_LIMITS, boundedAdItems, boundedAdXml } from './xml-limits.js';
 
 /**
  * @typedef {Object} Scte224MediaPoint
@@ -33,6 +34,9 @@ export function parseScte224(xmlString) {
         attributeNamePrefix: '',
         attributesGroupName: ':@',
         textNodeName: '#text',
+        processEntities: false,
+        maxNestedTags: 50,
+        strictReservedNames: true,
         removeNSPrefix: true,
         isArray: (tagName) =>
             ['MediaPoint', 'Audience', 'Zip'].includes(tagName),
@@ -48,7 +52,7 @@ export function parseScte224(xmlString) {
     };
 
     try {
-        const parsed = parser.parse(xmlString);
+        const parsed = parser.parse(boundedAdXml(xmlString));
         const root = parsed.Media || parsed.Audience; // Can be Media or Audience root
 
         if (!root) throw new Error('Unknown SCTE-224 Root Element');
@@ -61,18 +65,20 @@ export function parseScte224(xmlString) {
         if (parsed.Media) {
             const media = parsed.Media;
             if (media.MediaPoint) {
-                result.mediaPoints = media.MediaPoint.map((mp) => {
-                    const mpAttrs = mp[':@'] || {};
-                    return {
-                        id: mpAttrs.id,
-                        matchTime: mpAttrs.matchTime,
-                        source: mpAttrs.source,
-                        order: mpAttrs.order,
-                        expectedDuration: mpAttrs.expectedDuration,
-                        // Recurse for nested MediaPoints (simplified for now)
-                        hasChildren: !!mp.MediaPoint,
-                    };
-                });
+                result.mediaPoints = boundedAdItems(media.MediaPoint).map(
+                    (mp) => {
+                        const mpAttrs = mp[':@'] || {};
+                        return {
+                            id: mpAttrs.id,
+                            matchTime: mpAttrs.matchTime,
+                            source: mpAttrs.source,
+                            order: mpAttrs.order,
+                            expectedDuration: mpAttrs.expectedDuration,
+                            // Recurse for nested MediaPoints (simplified for now)
+                            hasChildren: !!mp.MediaPoint,
+                        };
+                    }
+                );
             }
         }
 
@@ -95,7 +101,8 @@ export function parseScte224(xmlString) {
             }
         }
     } catch (e) {
-        result.errors.push(`SCTE-224 Parse Error: ${e.message}`);
+        if (result.errors.length < AD_XML_LIMITS.errors)
+            result.errors.push(`SCTE-224 Parse Error: ${e.message}`);
     }
 
     return result;

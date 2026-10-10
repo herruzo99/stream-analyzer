@@ -1,4 +1,5 @@
 import { useAnalysisStore } from '@/state/analysisStore';
+import { projectShareableEffectiveSource } from '@/features/streamInput/application/effective-source-configuration.js';
 
 /**
  * Manages the serialization and deserialization of application state to/from the URL.
@@ -15,10 +16,11 @@ export class UrlStateManager {
      */
     encodeState() {
         const state = {
-            inputs: useAnalysisStore.getState().streamInputs.map((input) => ({
-                url: input.url,
-                name: input.name,
-            })),
+            version: 1,
+            inputs: useAnalysisStore
+                .getState()
+                .streamInputs.map(projectShareableEffectiveSource)
+                .filter(Boolean),
             // Future: Add active patches, player config, etc.
             // For now, we focus on stream inputs as the MVP.
         };

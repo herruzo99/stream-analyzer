@@ -4,7 +4,7 @@
  * @property {string} name
  * @property {string} path - Dot-notation path to property (e.g., 'manifest.type')
  * @property {string} operator - 'equals', 'notEquals', 'gt', 'lt', 'includes', 'exists'
- * @property {any} value - Target value
+ * @property {unknown} value - Target value
  * @property {string} [description]
  */
 
@@ -16,6 +16,7 @@ function getValue(obj, path) {
     if (!obj || !path) return undefined;
 
     const parts = path.split('.');
+    /** @type {unknown} */
     let current = obj;
 
     for (let i = 0; i < parts.length; i++) {
@@ -29,7 +30,8 @@ function getValue(obj, path) {
             return current.map((item) => getValue(item, remainingPath));
         }
 
-        current = current[key];
+        if (typeof current !== 'object') return undefined;
+        current = /** @type {Record<string, unknown>} */ (current)[key];
     }
     return current;
 }
@@ -37,7 +39,7 @@ function getValue(obj, path) {
 /**
  * Evaluates a single assertion against a stream context.
  */
-function evaluateAssertion(stream, assertion) {
+export function evaluateAssertion(stream, assertion) {
     // Create a context object that flattens useful properties for easier access
     const context = {
         stream,
@@ -55,8 +57,8 @@ function evaluateAssertion(stream, assertion) {
 
     // Normalization for comparison
     const normActual = actual;
-    const normExpected = !isNaN(parseFloat(expected))
-        ? parseFloat(expected)
+    const normExpected = !isNaN(Number.parseFloat(String(expected)))
+        ? Number.parseFloat(String(expected))
         : expected;
 
     switch (assertion.operator) {

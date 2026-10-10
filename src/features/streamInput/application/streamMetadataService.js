@@ -1,4 +1,5 @@
 import { workerService } from '@/infrastructure/worker/workerService';
+import { stagingCommands } from './staging-commands.js';
 import { appLog } from '@/shared/utils/debug';
 import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
 
@@ -44,10 +45,20 @@ function processStreamInputs() {
                     );
                 })
                 .catch((error) => {
-                    console.error(
-                        `Tier 0 analysis failed for ${input.url}:`,
+                    appLog(
+                        'streamMetadataService',
+                        'error',
+                        'Tier 0 analysis failed for a staged source.',
                         error
                     );
+                    analysisActions.updateStreamInput(input.id, 'tier0', {
+                        status: 0,
+                        protocol: 'Unknown',
+                        type: 'Unknown',
+                        isEncrypted: false,
+                        isLowLatency: false,
+                        error: 'Network check failed',
+                    });
                     analysisActions.updateStreamInput(
                         input.id,
                         'isTier0AnalysisLoading',
@@ -56,6 +67,7 @@ function processStreamInputs() {
                 })
                 .finally(() => {
                     inFlightRequests.delete(input.id);
+                    stagingCommands.recordPreflightCompletion();
                 });
         }
     }

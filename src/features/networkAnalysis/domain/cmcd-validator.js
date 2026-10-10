@@ -78,7 +78,9 @@ export function extractCmcdData(event) {
 function parseCmcdString(str, map) {
     if (!str) return;
     // Split by comma, avoiding commas inside quotes
-    const pairs = str.match(/(?:[^,"]+|"[^"]*")+/g) || [];
+    const pairs = /** @type {string[]} */ (
+        str.match(/(?:[^,"]+|"[^"]*")+/g) || []
+    );
 
     pairs.forEach((pair) => {
         const parts = pair.split('=');

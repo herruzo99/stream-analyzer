@@ -1,4 +1,6 @@
 import { useAnalysisStore } from '@/state/analysisStore';
+// because(domain-canvas): ECharts canvas palette for the buffer-timeline
+// chart. Confined to this chart-option factory; never leaks into DOM CSS.
 import { formatBitrate } from '../format';
 
 export const bufferTimelineChartOptions = (videoEl, eventLog, abrHistory) => {

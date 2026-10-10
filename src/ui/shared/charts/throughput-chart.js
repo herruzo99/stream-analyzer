@@ -1,3 +1,5 @@
+// because(domain-canvas): ECharts canvas palette for the throughput chart.
+// Confined to this chart-option factory; never leaks into DOM CSS.
 export const throughputChartOptions = (data) => {
     if (!data || data.length === 0) {
         return {

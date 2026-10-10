@@ -1,4 +1,6 @@
 import { appLog } from '@/shared/utils/debug';
+// CookieConsent v3 loads via CDN (see index.html); no npm dependency.
+const CookieConsent = window.CookieConsent;
 
 /**
  * @typedef {object} OnChangePayload
@@ -12,18 +14,14 @@ import { appLog } from '@/shared/utils/debug';
  * Implements Google Consent Mode v2 "Advanced Mode" logic.
  */
 export function initializeConsentManager() {
-    /** @type {any} */
-    const CookieConsent = window.CookieConsent;
-
     if (!CookieConsent) {
         appLog(
             'ConsentManager',
-            'error',
-            'CookieConsent library not found in window scope.'
+            'warn',
+            'CookieConsent library is not initialized.'
         );
         return;
     }
-
     // Expose a debug helper to clear consent for testing
     window.resetConsent = () => {
         CookieConsent.reset(true);
@@ -181,7 +179,6 @@ export function initializeConsentManager() {
                                 description:
                                     'Essential for the website to function. These cannot be disabled.',
                                 linkedCategory: 'necessary',
-                                readOnly: true,
                             },
                             {
                                 title: 'Performance & Analytics',

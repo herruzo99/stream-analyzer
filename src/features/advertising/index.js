@@ -5,6 +5,10 @@ import { initializeResolveAdAvailUseCase } from './application/resolveAdAvailUse
  * Initializes all application-layer logic for the Advertising feature.
  */
 export function initializeAdvertisingFeature() {
-    initializeResolveAdAvailUseCase();
-    initializeDetectStructuralAdsUseCase();
+    const disposeResolution = initializeResolveAdAvailUseCase();
+    const disposeStructural = initializeDetectStructuralAdsUseCase();
+    return () => {
+        disposeResolution();
+        disposeStructural();
+    };
 }

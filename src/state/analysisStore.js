@@ -1,5 +1,12 @@
 import { eventBus } from '@/application/event-bus';
 import {
+    moveStagedSource,
+    selectAfterStagedSourceRemoval,
+    selectAfterStagedSourcesRemoval,
+} from '@/features/streamInput/application/staging-contract.js';
+import { projectPersistableEffectiveSource } from '@/features/streamInput/application/effective-source-configuration.js';
+import { resolveManifestUpdateSelection } from './manifestUpdateSelection.js';
+import {
     applyPatches,
     generateBlobUrl,
 } from '@/features/manifestPatcher/domain/patchService';
@@ -8,13 +15,7 @@ import { generateDashSummary } from '@/infrastructure/parsing/dash/summary-gener
 import { parseManifest as parseHls } from '@/infrastructure/parsing/hls/index.js';
 import { generateHlsSummary } from '@/infrastructure/parsing/hls/summary-generator.js';
 import { rebaseManifest } from '@/infrastructure/parsing/utils/manifest-rebaser.js';
-import {
-    prepareForStorage,
-    restoreFromStorage,
-    canonicalStringify,
-} from '@/infrastructure/persistence/streamStorage';
 import { EVENTS } from '@/types/events';
-import { showToast } from '@/ui/components/toast.js';
 import { createStore } from 'zustand/vanilla';
 import { useMultiPlayerStore } from './multiPlayerStore.js';
 import { useSegmentCacheStore } from './segmentCacheStore.js';
@@ -23,15 +24,33 @@ import { uiActions } from './uiStore.js';
 // ... (Type definitions omitted for brevity) ...
 
 const createInitialAnalysisState = () => ({
+    analysisStatus: 'idle',
     streams: [],
     activeStreamId: null,
     streamIdCounter: 1,
     streamInputs: [],
     activeStreamInputId: null,
+    selectedStreamInputIds: new Set(),
     segmentsForCompare: [],
     decodedSamples: new Map(),
     urlAuthMap: new Map(),
 });
+
+function hydrateStagedInput(source, id) {
+    const persistable = projectPersistableEffectiveSource(source);
+    return {
+        id,
+        url: persistable.url || null,
+        name: persistable.name || null,
+        file: null,
+        auth: persistable.auth,
+        drmAuth: persistable.drmAuth,
+        detectedDrm: null,
+        isDrmInfoLoading: false,
+        tier0: null,
+        isTier0AnalysisLoading: !!persistable.url,
+    };
+}
 
 const hydrateStream = (s) => {
     const newStream = { ...s };
@@ -122,6 +141,62 @@ const hydrateStream = (s) => {
     return newStream;
 };
 
+const preparePatchedStream = async (stream, rules) => {
+    const patchedContent = applyPatches(stream.rawManifest, rules);
+    const rebasedContent = rebaseManifest(
+        patchedContent,
+        stream.baseUrl,
+        stream.protocol
+    );
+    const mimeType =
+        stream.protocol === 'dash'
+            ? 'application/dash+xml'
+            : 'application/x-mpegurl';
+    const newUrl = generateBlobUrl(rebasedContent, mimeType);
+    const parsingOptions = {
+        isPrimary: true,
+        isLive: stream.manifest.type === 'dynamic',
+        hls: {
+            masterPlaylist: stream.manifest.isMaster,
+        },
+    };
+
+    try {
+        let parsedResult;
+        let newManifest;
+        if (stream.protocol === 'hls') {
+            parsedResult = await parseHls(
+                rebasedContent,
+                newUrl,
+                undefined,
+                parsingOptions
+            );
+            newManifest = parsedResult.manifest;
+            const summaryResult = await generateHlsSummary(newManifest, {
+                mediaPlaylists: stream.mediaPlaylists,
+            });
+            newManifest.summary = summaryResult.summary;
+        } else {
+            parsedResult = await parseDash(
+                rebasedContent,
+                newUrl,
+                parsingOptions
+            );
+            newManifest = parsedResult.manifest;
+            const summary = await generateDashSummary(
+                newManifest,
+                parsedResult.serializedManifest
+            );
+            newManifest.summary = summary;
+        }
+
+        return { patchedContent, newUrl, newManifest };
+    } catch (error) {
+        URL.revokeObjectURL(newUrl);
+        throw error;
+    }
+};
+
 export const useAnalysisStore = createStore((set, get) => ({
     ...createInitialAnalysisState(),
 
@@ -130,7 +205,7 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
 
     startAnalysis: () => {
-        set(createInitialAnalysisState());
+        set({ ...createInitialAnalysisState(), analysisStatus: 'loading' });
         uiActions.reset();
         useSegmentCacheStore.getState().clear();
     },
@@ -151,6 +226,7 @@ export const useAnalysisStore = createStore((set, get) => ({
         const fullyFormedStreams = streams.map(hydrateStream);
 
         set({
+            analysisStatus: 'complete',
             streams: fullyFormedStreams,
             activeStreamId: fullyFormedStreams[0]?.id ?? null,
             urlAuthMap: new Map(urlAuthMapArray),
@@ -179,6 +255,7 @@ export const useAnalysisStore = createStore((set, get) => ({
         const updatedStreams = [...currentStreams, ...fullyFormedNewStreams];
 
         set({
+            analysisStatus: 'complete',
             streams: updatedStreams,
             urlAuthMap: new Map(currentAuthMap),
             activeStreamId:
@@ -249,22 +326,24 @@ export const useAnalysisStore = createStore((set, get) => ({
         set((state) => ({
             streams: state.streams.map((s) => {
                 if (s.id !== streamId) return s;
-
-                const activeId =
-                    s.activeMediaPlaylistId ||
-                    (s.protocol === 'hls' ? 'master' : null);
-                if (activeId) {
+                const selection = resolveManifestUpdateSelection(s, updateId);
+                if (selection.kind === 'playlist') {
                     const newMediaPlaylists = new Map(s.mediaPlaylists);
-                    const playlistData = newMediaPlaylists.get(activeId);
+                    const playlistData = newMediaPlaylists.get(
+                        selection.playlistId
+                    );
                     if (playlistData) {
-                        newMediaPlaylists.set(activeId, {
+                        newMediaPlaylists.set(selection.playlistId, {
                             ...playlistData,
                             activeUpdateId: updateId,
                         });
                         return { ...s, mediaPlaylists: newMediaPlaylists };
                     }
                 }
-                return { ...s, activeManifestUpdateId: updateId };
+                if (selection.kind === 'manifest') {
+                    return { ...s, activeManifestUpdateId: updateId };
+                }
+                return s;
             }),
         }));
     },
@@ -303,68 +382,10 @@ export const useAnalysisStore = createStore((set, get) => ({
     },
     addStreamInputFromPreset: (preset) => {
         const state = get();
-
-        const getComparable = (input) => {
-            const storable = prepareForStorage(input);
-            delete storable.id;
-            delete storable.detectedDrm;
-            delete storable.isDrmInfoLoading;
-            // NEW: Ignore name for duplicate check, so same URL = duplicate
-            delete storable.name;
-            return canonicalStringify(storable);
-        };
-
-        const newComparable = getComparable({
-            url: preset.url || null,
-            name: preset.name || null,
-            file: null,
-            auth: preset.auth || { headers: [], queryParams: [] },
-            drmAuth: preset.drmAuth || {
-                licenseServerUrl: null,
-                serverCertificate: null,
-                headers: [],
-                queryParams: [],
-            },
-        });
-
-        const existingInput = state.streamInputs.find(
-            (input) => getComparable(input) === newComparable
-        );
-
-        if (existingInput) {
-            showToast({
-                message:
-                    'This stream configuration already exists in the workspace.',
-                type: 'warn',
-            });
-            set({ activeStreamInputId: existingInput.id });
-            return;
-        }
-
         set({
             streamInputs: [
                 ...state.streamInputs,
-                {
-                    id: state.streamIdCounter,
-                    url: preset.url || null,
-                    name: preset.name || null,
-                    file: null,
-                    auth: preset.auth
-                        ? JSON.parse(JSON.stringify(preset.auth))
-                        : { headers: [], queryParams: [] },
-                    drmAuth: preset.drmAuth
-                        ? restoreFromStorage(prepareForStorage(preset.drmAuth))
-                        : {
-                              licenseServerUrl: null,
-                              serverCertificate: null,
-                              headers: [],
-                              queryParams: [],
-                          },
-                    detectedDrm: null,
-                    isDrmInfoLoading: false,
-                    tier0: null,
-                    isTier0AnalysisLoading: !!preset.url,
-                },
+                hydrateStagedInput(preset, state.streamIdCounter),
             ],
             streamIdCounter: state.streamIdCounter + 1,
             activeStreamInputId: state.streamIdCounter,
@@ -381,14 +402,11 @@ export const useAnalysisStore = createStore((set, get) => ({
                 (s) => s.streamId !== id
             );
 
-            let newActiveInputId = state.activeStreamInputId;
-            if (state.activeStreamInputId === id) {
-                if (remainingInputs.length === 0) {
-                    newActiveInputId = null;
-                } else {
-                    newActiveInputId = remainingInputs[0].id;
-                }
-            }
+            const newActiveInputId = selectAfterStagedSourceRemoval(
+                state.streamInputs,
+                id,
+                state.activeStreamInputId
+            );
 
             let newActiveStreamId = state.activeStreamId;
             if (state.activeStreamId === id) {
@@ -405,6 +423,65 @@ export const useAnalysisStore = createStore((set, get) => ({
                 activeStreamInputId: newActiveInputId,
                 activeStreamId: newActiveStreamId,
                 segmentsForCompare: remainingComparisons,
+                selectedStreamInputIds: new Set(
+                    [...state.selectedStreamInputIds].filter(
+                        (selectedId) => selectedId !== id
+                    )
+                ),
+            };
+        });
+        eventBus.dispatch(EVENTS.STATE.STREAM_UPDATED, { streamId: -1 });
+        eventBus.dispatch(EVENTS.STATE.COMPARE_LIST_CHANGED, {
+            count: get().segmentsForCompare.length,
+        });
+    },
+    reorderStreamInput: (id, direction) => {
+        set((state) => ({
+            streamInputs: moveStagedSource(state.streamInputs, id, direction),
+        }));
+    },
+    setSelectedStreamInputIds: (ids) => {
+        const available = new Set(get().streamInputs.map(({ id }) => id));
+        set({
+            selectedStreamInputIds: new Set(
+                [...ids].filter((id) => available.has(id))
+            ),
+        });
+    },
+    patchStreamInputs: (ids, patcher) => {
+        const selected = new Set(ids);
+        set((state) => ({
+            streamInputs: state.streamInputs.map((input, index) =>
+                selected.has(input.id)
+                    ? { ...input, ...patcher(input, index) }
+                    : input
+            ),
+        }));
+    },
+    removeStreamInputs: (ids) => {
+        const removing = new Set(ids);
+        if (removing.size === 0) return;
+        [...removing].forEach((id) =>
+            useMultiPlayerStore.getState().removePlayer(id)
+        );
+        set((state) => {
+            const remainingInputs = state.streamInputs.filter(
+                (input) => !removing.has(input.id)
+            );
+            return {
+                streamInputs: remainingInputs,
+                streams: state.streams.filter(
+                    (stream) => !removing.has(stream.id)
+                ),
+                segmentsForCompare: state.segmentsForCompare.filter(
+                    (segment) => !removing.has(segment.streamId)
+                ),
+                activeStreamInputId: selectAfterStagedSourcesRemoval(
+                    state.streamInputs,
+                    removing,
+                    state.activeStreamInputId
+                ),
+                selectedStreamInputIds: new Set(),
             };
         });
         eventBus.dispatch(EVENTS.STATE.STREAM_UPDATED, { streamId: -1 });
@@ -420,30 +497,18 @@ export const useAnalysisStore = createStore((set, get) => ({
             segmentsForCompare: [],
             activeStreamInputId: null,
             activeStreamId: null,
+            selectedStreamInputIds: new Set(),
         });
     },
     setStreamInputs: (inputs) => {
-        const newInputs = inputs.map((input, index) => ({
-            id: index,
-            url: input.url || null,
-            name: input.name || null,
-            file: null,
-            auth: input.auth || { headers: [], queryParams: [] },
-            drmAuth: input.drmAuth || {
-                licenseServerUrl: null,
-                serverCertificate: null,
-                headers: [],
-                queryParams: [],
-            },
-            detectedDrm: null,
-            isDrmInfoLoading: false,
-            tier0: null,
-            isTier0AnalysisLoading: !!input.url,
-        }));
+        const newInputs = inputs.map((input, index) =>
+            hydrateStagedInput(input, index)
+        );
         set({
             streamInputs: newInputs,
             streamIdCounter: newInputs.length,
-            activeStreamInputId: newInputs[0]?.id ?? 0,
+            activeStreamInputId: newInputs[0]?.id ?? null,
+            selectedStreamInputIds: new Set(),
         });
     },
     updateStreamInput: (id, field, value) => {
@@ -865,63 +930,8 @@ export const useAnalysisStore = createStore((set, get) => ({
         const state = get();
         const stream = state.streams.find((s) => s.id === streamId);
         if (!stream) return;
-
-        const patchedContent = applyPatches(
-            stream.rawManifest,
-            stream.patchRules
-        );
-
-        if (stream.patchedManifestUrl) {
-            URL.revokeObjectURL(stream.patchedManifestUrl);
-        }
-
-        const rebasedContent = rebaseManifest(
-            patchedContent,
-            stream.baseUrl,
-            stream.protocol
-        );
-
-        const mimeType =
-            stream.protocol === 'dash'
-                ? 'application/dash+xml'
-                : 'application/x-mpegurl';
-        const newUrl = generateBlobUrl(rebasedContent, mimeType);
-
-        const parsingOptions = {
-            isPrimary: true,
-            isLive: stream.manifest.type === 'dynamic',
-            hls: {
-                masterPlaylist: stream.manifest.isMaster,
-            },
-        };
-
-        let parsedResult;
-        let newManifest;
-        if (stream.protocol === 'hls') {
-            parsedResult = await parseHls(
-                rebasedContent,
-                newUrl,
-                undefined,
-                parsingOptions
-            );
-            newManifest = parsedResult.manifest;
-            const summaryResult = await generateHlsSummary(newManifest, {
-                mediaPlaylists: stream.mediaPlaylists,
-            });
-            newManifest.summary = summaryResult.summary;
-        } else {
-            parsedResult = await parseDash(
-                rebasedContent,
-                newUrl,
-                parsingOptions
-            );
-            newManifest = parsedResult.manifest;
-            const summary = await generateDashSummary(
-                newManifest,
-                parsedResult.serializedManifest
-            );
-            newManifest.summary = summary;
-        }
+        const { patchedContent, newUrl, newManifest } =
+            await preparePatchedStream(stream, stream.patchRules);
 
         set((state) => ({
             streams: state.streams.map((s) =>
@@ -935,6 +945,38 @@ export const useAnalysisStore = createStore((set, get) => ({
                     : s
             ),
         }));
+
+        if (stream.patchedManifestUrl)
+            URL.revokeObjectURL(stream.patchedManifestUrl);
+
+        eventBus.dispatch(EVENTS.STATE.STREAM_UPDATED, { streamId });
+    },
+    applyPatchDraftToStream: async (streamId, rules) => {
+        if (!Array.isArray(rules))
+            throw new TypeError('Patch draft rules must be an ordered list.');
+        const state = get();
+        const stream = state.streams.find((s) => s.id === streamId);
+        if (!stream) throw new Error('The selected stream is unavailable.');
+        const stagedRules = rules.map((rule) => ({ ...rule }));
+        const { patchedContent, newUrl, newManifest } =
+            await preparePatchedStream(stream, stagedRules);
+
+        set((currentState) => ({
+            streams: currentState.streams.map((currentStream) =>
+                currentStream.id === streamId
+                    ? {
+                          ...currentStream,
+                          patchRules: stagedRules,
+                          patchedRawManifest: patchedContent,
+                          patchedManifestUrl: newUrl,
+                          manifest: newManifest,
+                      }
+                    : currentStream
+            ),
+        }));
+
+        if (stream.patchedManifestUrl)
+            URL.revokeObjectURL(stream.patchedManifestUrl);
 
         eventBus.dispatch(EVENTS.STATE.STREAM_UPDATED, { streamId });
     },

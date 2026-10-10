@@ -64,6 +64,10 @@ export class LRUCache {
         return this.cache.has(key);
     }
 
+    delete(key) {
+        return this.cache.delete(key);
+    }
+
     /**
      * Executes a provided function once for each key/value pair in the cache.
      * @param {(value: any, key: any, map: Map<any, any>) => void} callback

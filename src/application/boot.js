@@ -37,13 +37,11 @@ import { initializeSettingsFeature } from '@/features/settings/index.js';
 import { initializeStreamInputFeature } from '@/features/streamInput/index';
 
 import '@/application/services/streamService';
-import { getShaka } from '@/infrastructure/player/shaka';
 
 export async function startApp() {
     const rootElement = document.body;
     const dom = {
         root: rootElement,
-        inputSection: rootElement.querySelector('#input-section'),
         appRoot: rootElement.querySelector('#app-root'),
         toastContainer: rootElement.querySelector('#toast-container'),
         globalLoader: rootElement.querySelector('#global-loader'),
@@ -58,8 +56,6 @@ export async function startApp() {
     };
 
     const { app } = container;
-
-    await getShaka();
 
     workerService.initialize();
 

@@ -1,68 +1,116 @@
+import {
+    commitSettings,
+    decodeSettingsRecord,
+    SETTINGS_DEFAULTS,
+    SETTINGS_PRESETS,
+} from '@/features/settings/application/settings-contract.js';
 import { createStore } from 'zustand/vanilla';
 
 const SETTINGS_KEY = 'stream-analyzer_app_settings';
+const DEFAULT_SETTINGS = SETTINGS_DEFAULTS;
+const PRESETS = SETTINGS_PRESETS;
 
-const DEFAULT_SETTINGS = {
-    // Limits
-    networkLogLimit: 500,
-    segmentCacheLimit: 50, // Number of segments
-    eventLogLimit: 200,
-
-    // Toggles
-    enableHighFreqStats: true,
-    preserveLogsOnReload: false,
-};
-
-const PRESETS = {
-    low: { networkLogLimit: 200, segmentCacheLimit: 20, label: 'Conservative' },
-    medium: { networkLogLimit: 500, segmentCacheLimit: 50, label: 'Balanced' },
-    high: {
-        networkLogLimit: 1000,
-        segmentCacheLimit: 200,
-        label: 'Performance',
-    },
-};
-
-function loadSettings() {
+function readStoredSettings() {
     try {
-        const stored = localStorage.getItem(SETTINGS_KEY);
-        if (stored) {
-            return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
-        }
-    } catch (e) {
-        console.warn('Failed to load settings:', e);
+        return localStorage.getItem(SETTINGS_KEY);
+    } catch {
+        return null;
     }
-    return DEFAULT_SETTINGS;
 }
 
-export const useSettingsStore = createStore((set, get) => ({
-    ...loadSettings(),
+function initialSettingsState() {
+    const decoded = decodeSettingsRecord(readStoredSettings());
+    if (decoded.state === 'migrated') {
+        const migrated = commitSettings(
+            localStorage,
+            SETTINGS_KEY,
+            decoded.settings,
+            decoded.settings
+        );
+        if (!migrated.ok) {
+            return {
+                ...decoded.settings,
+                lastValidSettings: { ...decoded.settings },
+                settingsStatus: {
+                    state: 'save-failed',
+                    message: migrated.error,
+                },
+                saveStatus: 'error',
+                saveError: migrated.error,
+            };
+        }
+    }
+    return {
+        ...decoded.settings,
+        lastValidSettings: { ...decoded.settings },
+        settingsStatus: {
+            state: decoded.state,
+            message:
+                decoded.state === 'migrated'
+                    ? 'Legacy settings migrated to version 1.'
+                    : decoded.message,
+        },
+        saveStatus: 'idle',
+        saveError: null,
+    };
+}
 
-    // Volatile state (not persisted)
+function currentSettings(state) {
+    return Object.fromEntries(
+        Object.keys(DEFAULT_SETTINGS).map((key) => [key, state[key]])
+    );
+}
+
+function commitTargetSettings(set, state, next) {
+    const current = currentSettings(state);
+    const result = commitSettings(localStorage, SETTINGS_KEY, current, next);
+    if (!result.ok) {
+        return {
+            saveStatus: 'error',
+            saveError: result.error,
+            settingsStatus: {
+                state: 'save-failed',
+                message: result.error,
+            },
+        };
+    }
+    return {
+        ...result.settings,
+        lastValidSettings: current,
+        saveStatus: 'saved',
+        saveError: null,
+        settingsStatus: { state: 'ready', message: null },
+    };
+}
+
+export const useSettingsStore = createStore((set) => ({
+    ...initialSettingsState(),
+
     systemHealth: {
-        status: 'nominal', // 'nominal' | 'warning' | 'critical'
+        status: 'nominal',
         message: null,
     },
 
     updateSetting: (key, value) => {
-        set((state) => {
-            const newSettings = { ...state, [key]: value };
-            // Persist to storage (excluding methods and volatile state)
-            const toSave = {};
-            Object.keys(DEFAULT_SETTINGS).forEach((k) => {
-                toSave[k] = newSettings[k];
-            });
-            localStorage.setItem(SETTINGS_KEY, JSON.stringify(toSave));
-            return { [key]: value };
-        });
+        if (!Object.hasOwn(DEFAULT_SETTINGS, key)) return;
+        set((state) =>
+            commitTargetSettings(set, state, {
+                ...currentSettings(state),
+                [key]: value,
+            })
+        );
     },
 
     applyPreset: (level) => {
         const preset = PRESETS[level];
-        if (preset) {
-            get().updateSetting('networkLogLimit', preset.networkLogLimit);
-            get().updateSetting('segmentCacheLimit', preset.segmentCacheLimit);
-        }
+        if (!preset) return;
+        set((state) =>
+            commitTargetSettings(set, state, {
+                ...currentSettings(state),
+                networkLogLimit: preset.networkLogLimit,
+                segmentCacheLimit: preset.segmentCacheLimit,
+            })
+        );
     },
 
     setSystemHealth: (status, message = null) => {
@@ -70,8 +118,20 @@ export const useSettingsStore = createStore((set, get) => ({
     },
 
     resetDefaults: () => {
-        set(DEFAULT_SETTINGS);
-        localStorage.setItem(SETTINGS_KEY, JSON.stringify(DEFAULT_SETTINGS));
+        set((state) =>
+            commitTargetSettings(set, state, { ...DEFAULT_SETTINGS })
+        );
+    },
+
+    revertLastValid: () => {
+        set((state) => {
+            const current = currentSettings(state);
+            const previous = state.lastValidSettings;
+            const committed = commitTargetSettings(set, state, previous);
+            return committed.saveStatus === 'saved'
+                ? { ...committed, lastValidSettings: current }
+                : committed;
+        });
     },
 }));
 

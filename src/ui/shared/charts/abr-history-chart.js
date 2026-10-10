@@ -1,3 +1,5 @@
+// because(domain-canvas): ECharts canvas palette (axis greys, cyan/amber data
+// series). Confined to this chart-option factory; never leaks into DOM CSS.
 export const abrHistoryChartOptions = (history) => {
     if (!history || history.length < 2) {
         return {}; // Return empty config if no data

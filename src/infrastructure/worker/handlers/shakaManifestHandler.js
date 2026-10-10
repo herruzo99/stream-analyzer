@@ -749,6 +749,7 @@ async function analyzeUpdateAndNotify(payload, newManifestString, finalUrl) {
             'Analysis failed during playback update',
             details
         );
+        throw err;
     }
 }
 
@@ -834,15 +835,7 @@ export async function handleShakaManifestFetch(payload, signal) {
     // If Shaka requested it (playback/buffering), we skip the heavy lift to prevent race conditions or state corruption.
     // We also support 'isPlayerLoadRequest' which is the *first* load, where we DO want to analyze.
     if ((isLive || payload.isPlayerLoadRequest) && purpose === 'analysis') {
-        // Use non-blocking call to ensure response returns quickly
-        analyzeUpdateAndNotify(payload, newManifestString, responseUri).catch(
-            (e) => {
-                console.error(
-                    '[shakaManifestHandler] Background analysis failed',
-                    e
-                );
-            }
-        );
+        await analyzeUpdateAndNotify(payload, newManifestString, responseUri);
     }
 
     return {

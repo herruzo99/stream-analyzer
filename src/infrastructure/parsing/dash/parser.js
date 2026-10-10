@@ -16,6 +16,9 @@ export async function parseManifest(xmlString, baseUrl, context) {
         attributesGroupName: ':@',
         textNodeName: '#text',
         allowBooleanAttributes: true,
+        processEntities: false,
+        maxNestedTags: 50,
+        strictReservedNames: true,
         removeNSPrefix: true,
         alwaysCreateTextNode: true,
         isArray: (tagName) => {
