@@ -58,7 +58,7 @@ export const aboutModalTemplate = () => html`
                     >
                         <div
                             class="w-16 h-16 bg-blue-500 drop-shadow-lg"
-                            style="mask-image: url(/icon.svg); mask-size: contain; mask-position: center; mask-repeat: no-repeat; -webkit-mask-image: url(/icon.svg); -webkit-mask-size: contain; -webkit-mask-position: center; -webkit-mask-repeat: no-repeat;"
+                            style="mask-image: url(/icon.png); mask-size: contain; mask-position: center; mask-repeat: no-repeat; -webkit-mask-image: url(/icon.png); -webkit-mask-size: contain; -webkit-mask-position: center; -webkit-mask-repeat: no-repeat;"
                         ></div>
                     </div>
                 </div>

@@ -1,6 +1,5 @@
 import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
 import * as icons from '@/ui/icons';
-import { uiActions } from '@/state/uiStore';
 import { html, render } from 'lit-html';
 import { styleMap } from 'lit-html/directives/style-map.js';
 import { bitrateLadderTemplate } from './components/bitrate-ladder.js';
@@ -36,9 +35,6 @@ function renderSummary() {
 
     // --- CASE: NO STREAM ---
     if (!stream) {
-        // Clear slots just in case
-        uiActions.setShellSlot('topBar', null);
-
         render(
             html`
                 <div
@@ -73,9 +69,6 @@ function renderSummary() {
 
     // --- CASE: BROKEN STREAM ---
     if (!vm) {
-        // Clear top bar so we don't show a broken hero
-        uiActions.setShellSlot('topBar', null);
-
         const handleRemove = () => {
             if (confirm(`Remove broken stream "${stream.name}"?`)) {
                 analysisActions.removeStreamInput(stream.id);
@@ -133,23 +126,23 @@ function renderSummary() {
         return;
     }
 
-    // --- LAYOUT INJECTION ---
-
-    // 1. Inject Hero Header into Top Bar
-    // ENABLE PADDING for visual breathing room as requested
-    uiActions.setShellSlot('topBar', html`
-        <div class="w-full h-full flex items-center">
+    // --- LAYOUT (in-container; 1.2.0 has no shell slots) ---
+    // 1. Hero Header (was topBar slot content)
+    const heroHeader = html`
+        <div class="w-full flex items-center">
             ${heroHeaderTemplate(vm)}
         </div>
-    `, { padding: true });
+    `;
 
     // 2. Render Main Content
     // We use a flex-col layout. The bottom part (Tracks) needs to stretch.
     const template = html`
         <div
-            class="flex flex-col h-full animate-fadeIn custom-scrollbar"
+            class="flex flex-col h-full animate-fadeIn custom-scrollbar overflow-y-auto"
             style="gap: 0.75rem"
         >
+            <!-- HERO HEADER -->
+            <div class="shrink-0 relative z-10">${heroHeader}</div>
             <!-- WARNINGS SECTION -->
             ${(() => {
             if (stream.warnings && stream.warnings.length > 0) {
@@ -294,9 +287,6 @@ export const summaryView = {
     mount(containerElement) {
         container = containerElement;
 
-        // Ensure main slot has padding for this view (default is true, but good to be explicit if switching from a view that disabled it)
-        uiActions.setShellSlot('main', null, { padding: true });
-
         if (analysisUnsubscribe) analysisUnsubscribe();
         analysisUnsubscribe = useAnalysisStore.subscribe(renderSummary);
         renderSummary();
@@ -304,8 +294,6 @@ export const summaryView = {
     unmount() {
         if (analysisUnsubscribe) analysisUnsubscribe();
         analysisUnsubscribe = null;
-        // Clean up slots
-        uiActions.setShellSlot('topBar', null);
         if (container) render(html``, container);
         container = null;
     },

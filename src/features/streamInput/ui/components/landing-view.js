@@ -273,7 +273,7 @@ class LandingViewComponent extends HTMLElement {
                     <!-- Header moved from input-view -->
                     <div class="absolute top-0 left-0 right-0 px-4 pt-2 sm:px-6 sm:pt-4 flex justify-between items-center z-50 pointer-events-none">
                         <div class="pointer-events-auto flex items-center gap-2 sm:gap-3">
-                            <div class="w-8 h-8 sm:w-10 sm:h-10 bg-blue-500 drop-shadow-[0_0_15px_#3b82f6]" style="mask-image: url(/icon.svg); mask-size: contain; mask-position: center; mask-repeat: no-repeat; -webkit-mask-image: url(/icon.svg); -webkit-mask-size: contain; -webkit-mask-position: center; -webkit-mask-repeat: no-repeat;"></div>
+                            <div class="w-8 h-8 sm:w-10 sm:h-10 bg-blue-500 drop-shadow-[0_0_15px_#3b82f6]" style="mask-image: url(/icon.png); mask-size: contain; mask-position: center; mask-repeat: no-repeat; -webkit-mask-image: url(/icon.png); -webkit-mask-size: contain; -webkit-mask-position: center; -webkit-mask-repeat: no-repeat;"></div>
                             <span class="font-bold text-xl sm:text-2xl text-transparent bg-clip-text bg-gradient-to-r from-slate-200 to-slate-300 tracking-tight">Stream Analyzer</span>
                         </div>
                         

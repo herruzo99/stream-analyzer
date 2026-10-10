@@ -1,7 +1,6 @@
 import { useAnalysisStore } from '@/state/analysisStore';
 import { networkActions, useNetworkStore } from '@/state/networkStore';
 import { usePlayerStore } from '@/state/playerStore';
-import { uiActions } from '@/state/uiStore'; // Added uiActions
 import { playerActiveWarningTemplate } from '@/ui/components/player-active-warning.js';
 import * as icons from '@/ui/icons';
 import { openModalWithContent } from '@/ui/services/modalService';
@@ -95,9 +94,9 @@ function renderNetworkView() {
         });
     };
 
-    // --- LAYOUT INJECTION ---
-    // Inject Title and Controls into Shell Top Bar
-    uiActions.setShellSlot('topBar', html`
+    // --- LAYOUT (in-container; 1.2.0 has no shell slots) ---
+    // Header (was topBar slot content)
+    const topBarHeader = html`
         <div class="w-full h-full flex items-center justify-between px-4">
             <h3 class="text-xl font-bold text-slate-100 flex items-center gap-3">
                  <div class="p-2 rounded-xl bg-blue-500/10 text-blue-400">
@@ -118,14 +117,15 @@ function renderNetworkView() {
             : ''}
             </button>
         </div>
-    `);
+    `;
 
     // Main Content
     const template = html`
         <div
-            class="flex flex-col h-full animate-fadeIn custom-scrollbar"
+            class="flex flex-col h-full animate-fadeIn custom-scrollbar overflow-y-auto"
             style="gap: 0.75rem; padding-bottom: 0.75rem;"
         >
+            <div class="shrink-0 relative z-10">${topBarHeader}</div>
             ${playerActiveWarningTemplate('Network Inspector')}
 
             <!-- Toolbar & Summary Section -->
@@ -221,9 +221,6 @@ export const networkAnalysisView = {
         networkUnsubscribe = null;
         analysisUnsubscribe = null;
         playerUnsubscribe = null;
-
-        // Clean up slots
-        uiActions.setShellSlot('topBar', null);
 
         if (container) render(html``, container);
         container = null;

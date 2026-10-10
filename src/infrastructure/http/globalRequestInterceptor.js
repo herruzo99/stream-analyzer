@@ -317,13 +317,7 @@ export async function initializeGlobalRequestInterceptor() {
     });
 
     try {
-        await worker.start({
-            onUnhandledRequest: 'bypass',
-            quiet: true,
-            serviceWorker: {
-                url: '/dev-network-interceptor.js',
-            },
-        });
+        await worker.start({ onUnhandledRequest: 'bypass', quiet: true });
     } catch (e) {
         console.error('MSW Start Failed', e);
     }
