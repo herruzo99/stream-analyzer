@@ -237,7 +237,7 @@ const verdictHero = (verdict) => {
             ? `<div style="font-family:monospace;font-size:11px;opacity:.75">segment ${verdict.segIndex} of ${verdict.segCount}</div>`
             : '';
     return (
-        `<div style="display:flex;align-items:center;gap:10px;margin:2px 0 10px;padding:9px 12px;border-radius:10px;` +
+        `<div style="display:flex;align-items:center;gap:10px;margin:2px 0 8px;padding:7px 10px;border-radius:10px;` +
         `background:${theme.bg};border:1px solid ${theme.border}">` +
         `${verdictDot(verdict.kind)}<div>` +
         `<div style="font-weight:800;font-size:14px;letter-spacing:.04em;color:${theme.fg}">${escapeHtml(theme.label)}</div>` +
@@ -251,9 +251,9 @@ const verdictHero = (verdict) => {
 const workedPanel = (workedText) => {
     if (!workedText) return '';
     return (
-        `<div style="margin:2px 0 10px;padding:9px 12px;border-radius:10px;` +
+        `<div style="margin:2px 0 8px;padding:7px 10px;border-radius:10px;` +
         `background:rgba(2,6,23,.55);border:1px solid rgba(148,163,184,.14)">` +
-        `<div style="font-size:9px;text-transform:uppercase;letter-spacing:.12em;opacity:.55;margin-bottom:6px">Worked calculation</div>` +
+        `<div style="font-size:9px;text-transform:uppercase;letter-spacing:.12em;opacity:.55;margin-bottom:4px">Worked calculation</div>` +
         `<div style="font-family:monospace;font-size:13px;color:#e2e8f0">${escapeHtml(workedText)}</div></div>`
     );
 };
@@ -330,14 +330,14 @@ const timelineStrip = ({ verdict, spd, isSpdActive, segDurMs }) => {
         status = `ENDED — ${escapeHtml(verdict.label)}`;
     }
     const row = (k, v) =>
-        `<div style="display:flex;justify-content:space-between;gap:1rem;padding:2px 0;">` +
+        `<div style="display:flex;justify-content:space-between;gap:1rem;padding:1px 0;">` +
         `<span style="opacity:.65">${escapeHtml(k)}</span>` +
         `<span style="font-family:monospace">${escapeHtml(v)}</span></div>`;
     return (
-        `<div style="margin:2px 0 10px;padding:9px 12px;border-radius:10px;` +
+        `<div style="margin:2px 0 8px;padding:7px 10px;border-radius:10px;` +
         `background:rgba(2,6,23,.55);border:1px solid rgba(148,163,184,.14)">` +
-        `<div style="font-size:9px;text-transform:uppercase;letter-spacing:.12em;opacity:.55;margin-bottom:8px">Timeline position</div>` +
-        `<div title="${escapeHtml(`run ${clock(start)} → ${end !== null ? clock(end) : 'open-ended'}`)}" style="position:relative;height:14px;border-radius:7px;background:rgba(148,163,184,.12);overflow:hidden;margin-bottom:8px">` +
+        `<div style="font-size:9px;text-transform:uppercase;letter-spacing:.12em;opacity:.55;margin-bottom:6px">Timeline position</div>` +
+        `<div title="${escapeHtml(`run ${clock(start)} → ${end !== null ? clock(end) : 'open-ended'}`)}" style="position:relative;height:14px;border-radius:7px;background:rgba(148,163,184,.12);overflow:hidden;margin-bottom:6px">` +
         `<span style="position:absolute;top:0;bottom:0;left:${runLeft.toFixed(2)}%;width:${runWidth.toFixed(2)}%;background:${runColor}"></span>` +
         ticks +
         `<span title="${escapeHtml(`live edge ${clock(edge)}`)}" style="position:absolute;top:-2px;bottom:-2px;left:${edgeX}%;width:2px;background:#f8fafc"></span>` +
@@ -356,10 +356,10 @@ const timelineStrip = ({ verdict, spd, isSpdActive, segDurMs }) => {
         row(
             'Now',
             spdSec > 0 && isSpdActive
-                ? `${clock(now)} (edge = now − SPD ${spdSec}s)`
+                ? `${clock(now)} (−SPD ${spdSec}s)`
                 : `${clock(now)} (edge = now)`
         ) +
-        `<div style="display:flex;align-items:center;gap:7px;margin-top:7px;padding-top:7px;border-top:1px solid rgba(148,163,184,.14);font-weight:700;font-size:12px;">` +
+        `<div style="display:flex;align-items:center;gap:7px;margin-top:6px;padding-top:6px;border-top:1px solid rgba(148,163,184,.14);font-weight:700;font-size:12px;">` +
         `<span style="display:inline-block;width:7px;height:7px;border-radius:99px;background:${dot}"></span>` +
         `<span>${escapeHtml(status)}</span></div>` +
         `</div>`

@@ -157,9 +157,9 @@ const detailTemplate = (item, isSelected) => {
 
             <!-- Header -->
             <div
-                class="relative z-10 p-6 border-b border-slate-800/30 backdrop-blur-xl shrink-0"
+                class="relative z-10 p-5 border-b border-slate-800/30 backdrop-blur-xl shrink-0"
             >
-                <div class="flex justify-between items-start mb-4">
+                <div class="flex justify-between items-start mb-3">
                     <span
                         class="px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest border ${typeColorClass} shadow-[0_0_15px_rgba(0,0,0,0.2)]"
                     >
@@ -181,7 +181,7 @@ const detailTemplate = (item, isSelected) => {
                 <div class="space-y-1">
                     <div class="flex items-center gap-3">
                         <h2
-                            class="text-3xl font-black text-slate-100 tracking-tight break-all leading-none drop-shadow-sm"
+                            class="text-2xl font-black text-slate-100 tracking-tight break-all leading-none drop-shadow-sm"
                         >
                             ${title}
                         </h2>
@@ -217,13 +217,13 @@ const detailTemplate = (item, isSelected) => {
 
             <!-- Scrollable Content -->
             <div
-                class="relative z-10 p-6 space-y-8 overflow-y-auto grow min-h-0 custom-scrollbar"
+                class="relative z-10 p-5 space-y-5 overflow-y-auto grow min-h-0 custom-scrollbar"
             >
                 <!-- 1. Raw Value Section -->
                 ${attributeValue
             ? html`
                           <div class="animate-fadeIn delay-75">
-                              <div class="flex items-center gap-2 mb-3">
+                              <div class="flex items-center gap-2 mb-2">
                                   <span
                                       class="text-slate-400"
                                       >${icons.code}</span
@@ -238,7 +238,7 @@ const detailTemplate = (item, isSelected) => {
                                   class="group relative bg-slate-800 rounded-xl border border-slate-800/50 overflow-hidden transition-all hover:border-blue-500/30 hover:shadow-[0_0_20px_rgba(0,0,0,0.2)]"
                               >
                                   <div
-                                      class="p-4 font-mono text-sm text-slate-100 break-all leading-relaxed"
+                                      class="p-3 font-mono text-sm text-slate-100 break-all leading-relaxed"
                                   >
                                       "${attributeValue}"
                                   </div>
@@ -264,7 +264,7 @@ const detailTemplate = (item, isSelected) => {
                 smartDetails.parentSmartDetails)
             ? html`
                           <div class="animate-fadeIn">
-                              <div class="flex items-center gap-2 mb-3">
+                              <div class="flex items-center gap-2 mb-2">
                                   <span class="text-teal-300"
                                       >${icons.cpu}</span
                                   >
@@ -280,7 +280,7 @@ const detailTemplate = (item, isSelected) => {
                     smartDetails.parsedValue
                     ? html`
                                         <div
-                                            class="sidebar-tooltip-content mb-4"
+                                            class="sidebar-tooltip-content mb-3"
                                         >
                                             ${smartDetails.tooltipHtml
                             ? unsafeHTML(
@@ -288,7 +288,7 @@ const detailTemplate = (item, isSelected) => {
                             )
                             : html`
                                                       <div
-                                                          class="bg-slate-800 rounded-xl p-4 border border-slate-800/50 shadow-sm"
+                                                          class="bg-slate-800 rounded-xl p-3 border border-slate-800/50 shadow-sm"
                                                       >
                                                           <div
                                                               class="text-[9px] uppercase tracking-wider text-slate-400 font-bold mb-1"
@@ -314,7 +314,7 @@ const detailTemplate = (item, isSelected) => {
                                                 class="absolute -left-3 top-0 bottom-0 w-0.5 bg-slate-800/30"
                                             ></div>
                                             <div
-                                                class="mb-2 text-[9px] font-bold uppercase tracking-widest text-slate-400 opacity-70 pl-2"
+                                                class="mb-1 text-[9px] font-bold uppercase tracking-widest text-slate-400 opacity-70 pl-2"
                                             >
                                                 Parent Context
                                                 (${item.parentTag})
@@ -332,7 +332,7 @@ const detailTemplate = (item, isSelected) => {
                             )
                             : html`
                                                           <div
-                                                              class="bg-slate-800 rounded-xl p-4 border border-slate-800/50 shadow-sm"
+                                                              class="bg-slate-800 rounded-xl p-3 border border-slate-800/50 shadow-sm"
                                                           >
                                                               <div
                                                                   class="text-blue-400 font-mono text-sm font-bold"
@@ -356,7 +356,7 @@ const detailTemplate = (item, isSelected) => {
 
                 <!-- 3. Documentation Section -->
                 <div class="animate-fadeIn delay-100">
-                    <div class="flex items-center gap-2 mb-3">
+                    <div class="flex items-center gap-2 mb-2">
                         <span class="text-slate-400"
                             >${icons.book}</span
                         >
@@ -368,7 +368,7 @@ const detailTemplate = (item, isSelected) => {
                     </div>
 
                     <div
-                        class="bg-slate-800/50 rounded-2xl p-5 border border-slate-800/50 space-y-4"
+                        class="bg-slate-800/50 rounded-2xl p-4 border border-slate-800/50 space-y-3"
                     >
                         <p
                             class="text-sm text-slate-100 leading-relaxed opacity-90"
@@ -378,7 +378,7 @@ const detailTemplate = (item, isSelected) => {
                         </p>
 
                         <div
-                            class="pt-4 border-t border-slate-800/30 flex items-center justify-between"
+                            class="pt-3 border-t border-slate-800/30 flex items-center justify-between"
                         >
                             <span
                                 class="text-[10px] font-bold uppercase tracking-wider text-slate-400 opacity-70"
