@@ -3,6 +3,15 @@ import {
     getAttr,
     getInheritedElement,
 } from '@/infrastructure/parsing/utils/recursive-parser';
+import { isDebugMode } from '@/shared/utils/env';
+
+/** Dev-only tracing (prints with ?debug=1). */
+const devLog = (...args) => {
+    if (isDebugMode) console.log(...args);
+};
+const devWarn = (...args) => {
+    if (isDebugMode) console.warn(...args);
+};
 
 /**
  * Extracts timing configuration from a Representation context.
@@ -169,8 +178,8 @@ export function calculateDashSegment(
         // We now assume targetTimeTicks is also in this absolute space (due to adding PTO).
         // So, we use 't' directly if present, otherwise it starts at 0 (relative to period start, then PTO is added to targetTimeTicks).
         // DEBUG: Log timeline start
-        if (currentIdx % 1000 === 0) {
-            console.log('[DashTiming] Timeline Check:', {
+        if (isDebugMode && currentIdx % 1000 === 0) {
+            devLog('[DashTiming] Timeline Check:', {
                 t0: timeline[0].t,
                 d0: timeline[0].d,
                 r0: timeline[0].r,
@@ -185,7 +194,7 @@ export function calculateDashSegment(
         } else {
             // Fallback: If t is missing on first element, default to PTO.
             currentTicks = pto || 0;
-            console.warn(
+            devWarn(
                 '[DashTiming] Missing t on first S element! Defaulting to PTO:',
                 currentTicks
             );

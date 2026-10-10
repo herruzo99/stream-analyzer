@@ -10,6 +10,8 @@ import {
 import { fetchWithRetry } from '@/infrastructure/http/fetch';
 import { workerService } from '@/infrastructure/worker/workerService';
 import { useAnalysisStore } from '@/state/analysisStore';
+import { isDebugMode } from '@/shared/utils/env';
+import { copyTextToClipboard } from '@/ui/shared/clipboard';
 // import { openModalWithContent } from '@/ui/services/modalService';
 import { EVENTS } from '@/types/events';
 import * as icons from '@/ui/icons';
@@ -19,6 +21,14 @@ import { parseDuration } from '../../components/badges/utils.js';
 import './time-controller'; // Import the new component
 
 // --- Tooltip Utils ---
+// Development-only tracing: passes through in normal use, prints with
+// ?debug=1 in the URL. Keeps the live-update console readable.
+const devLog = (...args) => {
+    if (isDebugMode) console.log(...args);
+};
+const devWarn = (...args) => {
+    if (isDebugMode) console.warn(...args);
+};
 const encodeTooltip = (htmlContent) => {
     try {
         return btoa(
@@ -336,14 +346,11 @@ class DashTimingCalculator extends HTMLElement {
         this._selectedRepId = null;
         this._selectedPeriodId = null;
         this._periods = [];
-        this._overrides = {};
         this.rafId = null;
         this._unsubscribe = null;
         this._isPlaying = false;
-        this._manualTime = null;
         this._useSPD = true; // Default to using SPD if available
         this._renderCount = 0;
-        this._selectedRepId = null; // Track selected representation ID
 
         // Panning State
         this._panOffset = 0;
@@ -351,20 +358,6 @@ class DashTimingCalculator extends HTMLElement {
         this._isDragging = false;
         this._lastMouseX = 0;
         this._zoomLevel = 50; // Default zoom level
-    }
-
-    handlePeriodChange(e) {
-        const periodId = e.target.value;
-        const period = this._periods.find((p) => p.id === periodId);
-        if (period) {
-            // Jump to period start
-            const ast = this._data.ast || 0;
-            const targetTime = ast + period.start * 1000;
-
-            this._isLive = false;
-            this._manualTime = targetTime;
-            this.render();
-        }
     }
 
     set data(val) {
@@ -442,16 +435,10 @@ class DashTimingCalculator extends HTMLElement {
         this._unsubscribe = eventBus.subscribe(
             EVENTS.LIVESTREAM.MANIFEST_UPDATED,
             ({ streamId }) => {
-                // DEBUG: Trace event reception
-                console.log('[DashTimingCalculator] Event Received:', {
-                    eventStreamId: streamId,
-                    currentStreamId: this._data?.streamId,
-                });
-
                 if (this._data && this._data.streamId === streamId) {
                     this.refreshData();
                 } else {
-                    console.log(
+                    devLog(
                         '[DashTimingCalculator] Ignoring update for different stream'
                     );
                 }
@@ -481,7 +468,7 @@ class DashTimingCalculator extends HTMLElement {
             this._stream = stream; // Keep reference for Init Segment lookup
         }
 
-        console.log('[DashTimingCalculator] refreshData:', {
+        devLog('[DashTimingCalculator] refreshData:', {
             targetStreamId: this._data.streamId,
             foundStream: !!stream,
             manifestType: stream?.manifest?.type,
@@ -567,11 +554,11 @@ class DashTimingCalculator extends HTMLElement {
                     findChildrenRecursive(as, 'InbandEventStream').length > 0
             );
             if (hasInband) {
-                console.log(
+                devLog(
                     '[DashTimingCalculator] SCTE-35/Inband detected in Period',
                     periodObj.id
                 );
-                console.log('AdaptationSets found:', adaptationSets.length);
+                devLog('AdaptationSets found:', adaptationSets.length);
             }
 
             for (const as of adaptationSets) {
@@ -589,7 +576,7 @@ class DashTimingCalculator extends HTMLElement {
                     if (config) {
                         periodTracks.push(config);
                     } else if (hasInband) {
-                        console.warn(
+                        devWarn(
                             '[DashTimingCalculator] Failed to extract timing config for rep',
                             getAttr(rep, 'id')
                         );
@@ -598,7 +585,7 @@ class DashTimingCalculator extends HTMLElement {
             }
             periodObj.tracks = periodTracks;
             if (hasInband) {
-                console.log(
+                devLog(
                     '[DashTimingCalculator] Tracks parsed for period:',
                     periodTracks.length
                 );
@@ -707,16 +694,27 @@ class DashTimingCalculator extends HTMLElement {
     startLoop() {
         if (this.rafId) return;
         let lastTime = performance.now();
+        let lastPaint = 0;
+        // The panel shows wall-clock to the second, so a full re-render at
+        // display rate is enough; throttling keeps long sessions (and other
+        // panels) from fighting one 60fps diff loop.
+        const PAINT_HZ = 15;
         const loop = () => {
             const now = performance.now();
             const delta = now - lastTime;
             lastTime = now;
 
             if (this._isLive) {
-                this.render();
+                if (now - lastPaint >= 1000 / PAINT_HZ) {
+                    lastPaint = now;
+                    this.render();
+                }
             } else if (this._isPlaying && this._manualTime !== null) {
                 this._manualTime += delta;
-                this.render();
+                if (now - lastPaint >= 1000 / PAINT_HZ) {
+                    lastPaint = now;
+                    this.render();
+                }
             }
             this.rafId = requestAnimationFrame(loop);
         };
@@ -795,119 +793,6 @@ class DashTimingCalculator extends HTMLElement {
         }
     }
 
-    renderUrlExploder(result, currentTrack) {
-        if (!result || result.error || !currentTrack.mediaTemplate) return '';
-
-        const { segmentIndex, presentationTime } = result;
-        const template = currentTrack.mediaTemplate;
-
-        // Split template into parts for visualization
-        // Simple parser to find tokens
-        const parts = [];
-        let lastIdx = 0;
-        const regex = /\$(RepresentationID|Bandwidth|Number|Time)(%0\d+d)?\$/g;
-        let match;
-
-        while ((match = regex.exec(template)) !== null) {
-            // Add static text before match
-            if (match.index > lastIdx) {
-                parts.push({
-                    type: 'text',
-                    value: template.slice(lastIdx, match.index),
-                });
-            }
-
-            // Add token
-            const token = match[1];
-            const format = match[2];
-            let value = '';
-            let label = token;
-
-            switch (token) {
-                case 'RepresentationID':
-                    value = currentTrack.id;
-                    break;
-                case 'Bandwidth':
-                    value = String(currentTrack.bandwidth);
-                    break;
-                case 'Number':
-                    value = String(segmentIndex);
-                    if (format) {
-                        const pad = parseInt(format.slice(2, -1));
-                        value = value.padStart(pad, '0');
-                    }
-                    break;
-                case 'Time':
-                    value = String(presentationTime);
-                    break;
-            }
-
-            parts.push({ type: 'token', token: match[0], value, label });
-            lastIdx = regex.lastIndex;
-        }
-
-        // Add remaining text
-        if (lastIdx < template.length) {
-            parts.push({ type: 'text', value: template.slice(lastIdx) });
-        }
-
-        return html`
-            <div
-                class="bg-slate-800 border border-slate-800 rounded-xl p-4 h-full flex flex-col justify-center"
-            >
-                <h3
-                    class="text-xs font-bold uppercase text-slate-400 tracking-widest mb-4 flex items-center gap-2"
-                >
-                    ${icons.link} URL Construction
-                </h3>
-
-                <div
-                    class="flex flex-wrap items-center gap-1 font-mono text-sm bg-slate-800 p-4 rounded-xl border border-slate-800 shadow-inner"
-                >
-                    ${parts.map((part) => {
-            if (part.type === 'text') {
-                return html`<span
-                                class="text-slate-400 opacity-70"
-                                >${part.value}</span
-                            >`;
-            }
-            return html`
-                            <div class="relative group cursor-help"
-                                data-tooltip-html-b64="${encodeTooltip(`
-                                    <div class="min-w-[150px]">
-                                        <div class="mb-2 pb-1 border-b border-slate-700">
-                                            <div class="text-[9px] font-bold uppercase text-slate-400">Template Token</div>
-                                            <div class="font-mono text-xs text-slate-200 break-all">${part.token}</div>
-                                        </div>
-                                         <div class="text-[10px] text-slate-400">
-                                            Replaced by calculated <span class="text-blue-400 font-bold">${part.label}</span>
-                                        </div>
-                                    </div>
-                                `)}"
-                            >
-                                <span
-                                    class="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold"
-                                >
-                                    ${part.value}
-                                </span>
-                            </div>
-                        `;
-        })}
-                </div>
-            </div>
-        `;
-    }
-
-    handleParamChange(e, param, isFloat = false) {
-        const val = isFloat
-            ? parseFloat(e.target.value)
-            : parseInt(e.target.value, 10);
-        if (isNaN(val)) return;
-        if (!this._overrides[this._selectedRepId])
-            this._overrides[this._selectedRepId] = {};
-        this._overrides[this._selectedRepId][param] = val;
-        this.render();
-    }
 
     _getPeriodForTime(timeSinceAstSec) {
         const periods = this._data.periods;
@@ -1016,9 +901,9 @@ class DashTimingCalculator extends HTMLElement {
         nowMs,
         wallClockTime
     ) {
-        const shouldLog = this._renderCount % 100 === 0;
+        const shouldLog = isDebugMode && this._renderCount % 100 === 0;
         if (shouldLog) {
-            console.log('[_generateTunnelSegments] Input:', {
+            devLog('[_generateTunnelSegments] Input:', {
                 centerSegment,
                 currentTrack,
                 activePeriod,
@@ -1153,6 +1038,40 @@ class DashTimingCalculator extends HTMLElement {
         return groups;
     }
 
+    /**
+     * Simulation time for the playhead. Single source of truth shared by
+     * the render path and click-to-seek (they must agree, or clicks land
+     * at the wrong wall-clock position).
+     * @param {number} [fallbackNow] Wall-clock ms (defaults to Date.now()).
+     * @returns {number} Simulation/wall-clock time in ms.
+     */
+    _getSimTime(fallbackNow) {
+        const wall = fallbackNow ?? Date.now();
+        const spd = this._data?.spd || 0;
+        if (this._isDynamicStream) {
+            if (this._isLive) return wall - (this._useSPD ? spd * 1000 : 0);
+            if (this._manualTime !== null && this._manualTime !== undefined) {
+                return this._manualTime;
+            }
+            return wall - (this._useSPD ? spd * 1000 : 0);
+        }
+        return this._manualTime ?? 0;
+    }
+
+    /**
+     * Wall-clock time the visual "live edge" represents: the simulation
+     * time plus any SPD offset (i.e. what the server can serve).
+     * @param {number} [fallbackNow]
+     * @returns {number}
+     */
+    _getLiveEdgeMs(fallbackNow) {
+        const spd = this._data?.spd || 0;
+        return (
+            this._getSimTime(fallbackNow) +
+            (this._useSPD ? spd * 1000 : 0)
+        );
+    }
+
     handleVizClick(e) {
         if (this._isDragging) return;
 
@@ -1169,18 +1088,8 @@ class DashTimingCalculator extends HTMLElement {
         let nowMs;
         const wallClockTime = Date.now();
         // const { min, max } = this._getStreamTimeRange();
-        const spd = this._data.spd || 0;
 
-        if (this._isDynamicStream) {
-            const delayMs = this._useSPD ? spd * 1000 : 0;
-            nowMs = this._isLive
-                ? wallClockTime - delayMs
-                : this._manualTime || wallClockTime - delayMs;
-            // Correct logic duplication from render()
-            if (this._manualTime) nowMs = this._manualTime;
-        } else {
-            nowMs = this._manualTime || 0;
-        }
+        nowMs = this._getSimTime(wallClockTime);
 
         const virtualCenterTimeMs = nowMs - (this._panOffset / pxPerSec) * 1000;
         const clickedTimeMs = virtualCenterTimeMs + (deltaX / pxPerSec) * 1000;
@@ -1359,10 +1268,10 @@ class DashTimingCalculator extends HTMLElement {
 
         const { ast, periods, spd, timeShiftBufferDepth } = this._data;
         this._renderCount++;
-        const shouldLog = this._renderCount % 100 === 0;
+        const shouldLog = isDebugMode && this._renderCount % 100 === 0;
 
         if (shouldLog) {
-            console.log('[DashTimingCalculator] Render start', {
+            devLog('[DashTimingCalculator] Render start', {
                 ast,
                 periodsCount: periods?.length,
                 spd,
@@ -1378,20 +1287,9 @@ class DashTimingCalculator extends HTMLElement {
         // Calculate valid range
         const { min, max } = this._getStreamTimeRange();
 
-        if (this._isDynamicStream) {
-            // If Live, use NOW - SPD. If Manual, use manualTime.
-            const delayMs = this._useSPD ? (spd || 0) * 1000 : 0;
-
-            if (this._isLive) {
-                nowMs = wallClockTime - delayMs;
-            } else {
-                nowMs = this._manualTime || wallClockTime - delayMs;
-            }
-            effectiveAst = ast;
-        } else {
-            nowMs = this._manualTime || 0;
-            effectiveAst = 0;
-        }
+        // Single source of truth: shared with click-to-seek (below).
+        nowMs = this._getSimTime(wallClockTime);
+        effectiveAst = this._isDynamicStream ? ast : 0;
 
         // Clamp nowMs to valid range
         if (nowMs < min) nowMs = min;
@@ -1438,13 +1336,6 @@ class DashTimingCalculator extends HTMLElement {
         }
 
         if (!currentTrack) return;
-
-        if (this._overrides && this._overrides[currentTrack.id]) {
-            currentTrack = {
-                ...currentTrack,
-                ...this._overrides[currentTrack.id],
-            };
-        }
 
         // Calculate the actual segment at "Now" (for highlighting/logic)
         const centerSegment = calculateDashSegment(
@@ -1540,6 +1431,17 @@ class DashTimingCalculator extends HTMLElement {
             virtualCenterSegment && !virtualCenterSegment.error
                 ? virtualPeriod
                 : activePeriod;
+
+        // Both the S-tag band and the segment band need the same tunnel, so
+        // generate it once per render instead of twice (halves the segment
+        // math at ~60fps).
+        const tunnelSegments = this._generateTunnelSegments(
+            renderCenterSegment,
+            currentTrack,
+            renderPeriod,
+            virtualCenterTime,
+            wallClockTime
+        );
 
         // const localIso = this._isDynamicStream
         //    ? new Date(nowMs - tzOffset).toISOString().slice(0, 23)
@@ -1847,16 +1749,9 @@ class DashTimingCalculator extends HTMLElement {
                 // Better: Let's render segments first in a variable?
                 // No, lit-html templates are evaluated in order.
 
-                // Let's call _generateTunnelSegments here again.
-                const tunnelSegments = this._generateTunnelSegments(
-                    renderCenterSegment,
-                    currentTrack,
-                    renderPeriod,
-                    virtualCenterTime,
-                    wallClockTime
-                );
-                const groups =
-                    this._generateSTagGroups(tunnelSegments);
+                // Tunnel segments are generated once in render scope and
+                // reused here (see above).
+                const groups = this._generateSTagGroups(tunnelSegments);
 
                 return groups.map((group) =>
                     STagGroupBlock({
@@ -1872,15 +1767,6 @@ class DashTimingCalculator extends HTMLElement {
                     <div class="absolute inset-0 w-full h-full top-12">
                         ${(() => {
                 const pxPerSec = this._zoomLevel;
-                // Use renderCenterSegment (based on virtualCenterTime) for generation
-                const tunnelSegments = this._generateTunnelSegments(
-                    renderCenterSegment,
-                    currentTrack,
-                    renderPeriod,
-                    virtualCenterTime,
-                    wallClockTime
-                );
-
                 return tunnelSegments.map((seg) =>
                     SegmentBlock({
                         segment: seg,
@@ -2130,7 +2016,6 @@ class DashTimingCalculator extends HTMLElement {
                                                       <div
                                                           class="h-4 w-[1px] bg-slate-800/50 mx-1"
                                                       ></div>
-                                                      </span>
                                                       <span
                                                           class="text-[10px] text-slate-400 italic opacity-70 truncate cursor-help border-b border-dashed border-slate-400/30"
                                                           data-tooltip-html-b64="${encodeTooltip(`<div class="max-w-[250px] text-xs font-medium text-slate-200">${step.note}</div>`)}"
@@ -2164,8 +2049,20 @@ class DashTimingCalculator extends HTMLElement {
                                                 ${step.action
                                 ? html`
                                                               <div
-                                                                  class="absolute right-0 top-0"
+                                                                  class="absolute right-0 top-0 flex items-center gap-1"
                                                               >
+                                                                  <button
+                                                                      @click=${() =>
+                                        copyTextToClipboard(
+                                            step.action.url,
+                                            'Segment URL copied!'
+                                        )}
+                                                                      class="bg-slate-700 hover:bg-slate-800 text-slate-300 border border-slate-800 px-2 py-1 rounded shadow-sm backdrop-blur-md mt-1 text-[10px] font-bold uppercase tracking-wider transition-colors flex items-center gap-1"
+                                                                      title="Copy segment URL"
+                                                                  >
+                                                                      ${icons.clipboardCopy}
+                                                                      Copy URL
+                                                                  </button>
                                                                   <button
                                                                       @click=${() =>
                                         this.handleInspect(
@@ -2387,41 +2284,42 @@ class DashTimingCalculator extends HTMLElement {
     }
 
     _getVarColor(varName) {
-        // Use CSS Variables for Theme Consistency
-        // Charts 1-27 assigned to unique variables
+        // because: whiteboard variable color-coding needs 27 distinct hues
+        // with no Heux chart tokens available; literals mirror the slate
+        // palette (inputs cool, calculations warm, results bright).
         const map = {
             // Inputs
-            Playhead: '--chart-1',
-            TargetPlayhead: '--chart-2',
-            SimulationTime: '--chart-3',
-            WallClock: '--chart-4',
-            AvailabilityStart: '--chart-5',
-            PeriodStart: '--chart-6',
-            Timescale: '--chart-7',
-            PTO: '--chart-8',
-            DurationSec: '--chart-9',
-            StartNumber: '--chart-10',
-            TimeShiftBufferDepth: '--chart-11',
-            LiveEdge: '--chart-12',
-            SuggestedDelay: '--chart-13',
+            Playhead: '#38bdf8',
+            TargetPlayhead: '#818cf8',
+            SimulationTime: '#22d3ee',
+            WallClock: '#e2e8f0',
+            AvailabilityStart: '#f59e0b',
+            PeriodStart: '#fbbf24',
+            Timescale: '#2dd4bf',
+            PTO: '#f472b6',
+            DurationSec: '#4ade80',
+            StartNumber: '#a78bfa',
+            TimeShiftBufferDepth: '#fb923c',
+            LiveEdge: '#34d399',
+            SuggestedDelay: '#c084fc',
 
             // Calculations
-            TimeSinceAST: '--chart-14',
-            TimeInPeriod: '--chart-15',
-            TargetTimeTicks: '--chart-16',
-            SegmentIndex: '--chart-17',
-            SegmentStartTicks: '--chart-18',
-            PresentationTime: '--chart-19',
-            SegmentEnd: '--chart-20',
-            DVRWindowStart: '--chart-21',
-            TemplateKey: '--chart-22',
-            TemplateValue: '--chart-23',
-            RelativeURL: '--chart-24',
+            TimeSinceAST: '#facc15',
+            TimeInPeriod: '#fdba74',
+            TargetTimeTicks: '#f87171',
+            SegmentIndex: '#e879f9',
+            SegmentStartTicks: '#bef264',
+            PresentationTime: '#5eead4',
+            SegmentEnd: '#fda4af',
+            DVRWindowStart: '#f97316',
+            TemplateKey: '#93c5fd',
+            TemplateValue: '#86efac',
+            RelativeURL: '#7dd3fc',
 
             // Results
-            WallClockStart: '--chart-25',
-            IsAvailable: '--chart-26',
-            IsWithinWindow: '--chart-27',
+            WallClockStart: '#a3e635',
+            IsAvailable: '#22c55e',
+            IsWithinWindow: '#f43f5e',
         };
         return map[varName] || null;
     }
@@ -2477,8 +2375,8 @@ class DashTimingCalculator extends HTMLElement {
             if (colorVar) {
                 return html`<span
                     class="border-b-2 mx-0.5 font-bold px-0.5 cursor-help"
-                    style="border-color: var(${colorVar}); color: var(${colorVar})"
-                    data-tooltip-html-b64="${encodeTooltip(`<div class="font-medium text-slate-200"><span style="color: var(${colorVar})">${trimmed}</span></div><div class="text-slate-400 text-[10px] mt-1">${this._getVarDescription(trimmed)}</div>`)}"
+                    style="border-color: ${colorVar}; color: ${colorVar}"
+                    data-tooltip-html-b64="${encodeTooltip(`<div class="font-medium text-slate-200"><span style="color: ${colorVar}">${trimmed}</span></div><div class="text-slate-400 text-[10px] mt-1">${this._getVarDescription(trimmed)}</div>`)}"
                     >${trimmed}</span
                 >`;
             }
@@ -2511,13 +2409,13 @@ class DashTimingCalculator extends HTMLElement {
 
                     const colorVar = this._getVarColor(varName);
                     const style = colorVar
-                        ? `border-color: var(${colorVar}); color: var(${colorVar})`
+                        ? `border-color: ${colorVar}; color: ${colorVar}`
                         : 'border-color: #94a3b8; color: #94a3b8';
 
                     return html`<span
                         class="border-b-2 mx-0.5 font-bold px-0.5 cursor-help"
                         style="${style}"
-                        data-tooltip-html-b64="${encodeTooltip(`<div class="font-medium text-slate-200"><span style="color: var(${colorVar || '--text-on-A-primary'})">${varName}</span> = ${value}</div><div class="text-slate-400 text-[10px] mt-1 text-wrap max-w-[200px]">${this._getVarDescription(varName)}</div>`)}"
+                        data-tooltip-html-b64="${encodeTooltip(`<div class="font-medium text-slate-200"><span style="color: ${colorVar || '#f8fafc'}">${varName}</span> = ${value}</div><div class="text-slate-400 text-[10px] mt-1 text-wrap max-w-[200px]">${this._getVarDescription(varName)}</div>`)}"
                         >${value}</span
                     >`;
                 }

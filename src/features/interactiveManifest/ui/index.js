@@ -489,7 +489,9 @@ class InteractiveManifestView {
                 <div class="flex items-center gap-3">
                      ${searchBar}
                      <div class="h-6 w-px bg-slate-800/50 mx-1"></div>
-                     ${stream.protocol === 'dash' ? html`<button @click=${handleTimingCalculator} class="p-2 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-slate-800 transition-colors relative group" title="Timing Calculator">${icons.calculator}</button>` : ''}
+                     ${stream.protocol === 'dash' ? html`<button @click=${handleTimingCalculator}
+                        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-500 text-slate-100 text-[11px] font-bold uppercase tracking-wider border border-blue-500 shadow-[0_0_15px_#3b82f6_40] hover:brightness-110 transition-all"
+                        title="Open the DASH Timing Calculator">${icons.calculator}<span class="hidden sm:inline">Calculator</span></button>` : ''}
                     <button @click=${handleDownloadDebug} class="p-2 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-slate-800 transition-colors relative group" title="Download Manifest & Debug Report">${icons.download}</button>
                     <button @click=${handlePatcher} class="p-2 rounded-lg text-slate-400 hover:text-teal-300 hover:bg-slate-800 transition-colors relative group" title="Manifest Patcher">${icons.code}</button>
                     <button @click=${() => copyTextToClipboard(stringToRender, 'Copied!')} class="p-2 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-slate-800 transition-colors relative group" title="Copy to Clipboard">${icons.clipboardCopy}</button>
