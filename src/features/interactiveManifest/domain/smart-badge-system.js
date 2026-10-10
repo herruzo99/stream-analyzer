@@ -95,6 +95,19 @@ const wallClock = (ms) => {
  * Live-edge verdict for a segment span. The SPD offset is applied here,
  * from the raw wall clock (see the manifest ticker comment in
  * `interactiveManifest/ui/index.js`): edge = now - SPD when active.
+ * Timeline ticks carrying the PTO base are wall-mapped as (t - pto);
+ * anything else keeps raw ticks (matches the calculator's own
+ * SegmentTimeline lookup convention).
+ * @returns {number} the PTO offset to subtract, or 0.
+ */
+const effectivePto = (t, d, ptoTicks) => {
+    const pto = Number(ptoTicks);
+    if (!Number.isFinite(pto) || pto <= 0 || !Number.isFinite(t)) return 0;
+    const tol = Number.isFinite(d) && d > 0 ? d : 0;
+    return t >= pto - tol ? pto : 0;
+};
+
+/**
  * @returns {{ kind: 'live'|'ago'|'future', label: string, title: string, startMs: number, endMs: number|null } | null}
  */
 const liveVerdict = ({
@@ -105,6 +118,7 @@ const liveVerdict = ({
     nowMs,
     spd,
     isSpdActive,
+    ptoTicks = 0,
 }) => {
     // Null clocks (VOD / unknown) must yield no verdict: Number(null)
     // is 0, which would otherwise fake a 1970 edge and label every span
@@ -127,7 +141,7 @@ const liveVerdict = ({
     if (Number.isNaN(t)) return null;
     if (d !== null && (!Number.isFinite(d) || d < 0)) return null;
     const edge = now - (isSpdActive ? spdSeconds(spd) * 1000 : 0);
-    const start = anchor + (t / ts) * 1000;
+    const start = anchor + ((t - effectivePto(t, d, ptoTicks)) / ts) * 1000;
     const end = d === null ? null : start + (d / ts) * 1000;
     const span = `${wallClock(start)}${end === null ? '' : ' → ' + wallClock(end)} UTC`;
     if (end !== null && edge >= start && edge <= end) {
@@ -272,6 +286,7 @@ function getDetails(key, value, context = {}) {
             nowMs: context.now ?? null,
             spd: context.spd,
             isSpdActive: context.isSpdActive,
+            ptoTicks: context.pto ?? null,
         });
         return {
             label: 'S Span Aggregator',
@@ -303,6 +318,7 @@ function getDetails(key, value, context = {}) {
                 nowMs: context.now ?? null,
                 spd: context.spd,
                 isSpdActive: context.isSpdActive,
+                ptoTicks: context.pto ?? null,
             });
             return {
                 label: 'Repeat Count',
@@ -361,7 +377,16 @@ function getDetails(key, value, context = {}) {
                 workedText =
                     shortKey === 'd'
                         ? `${num} / ${timescale} = ${formatDurationPill(seconds)}`
-                        : `wall = anchor + ${num} / ${timescale}`;
+                        : (() => {
+                              const ptoEff = effectivePto(
+                                  num,
+                                  siblingD,
+                                  context.pto
+                              );
+                              return ptoEff > 0
+                                  ? `wall = anchor + (${num} − ${ptoEff}) / ${timescale}`
+                                  : `wall = anchor + ${num} / ${timescale}`;
+                          })();
                 verdict = liveVerdict({
                     tTicks: siblingT,
                     dTicks: siblingD,
@@ -370,6 +395,7 @@ function getDetails(key, value, context = {}) {
                     nowMs: context.now ?? null,
                     spd: context.spd,
                     isSpdActive: context.isSpdActive,
+                    ptoTicks: context.pto ?? null,
                 });
             }
             return {
@@ -502,6 +528,7 @@ function renderBadge(key, value, context = {}) {
                 nowMs: context.now ?? null,
                 spd: context.spd,
                 isSpdActive: context.isSpdActive,
+                ptoTicks: context.pto ?? null,
             });
             const extra = verdictTreePill(verdict);
             return extra ? [main, extra] : main;
