@@ -26,6 +26,21 @@ class MultiPlayerService {
         this.tickerSubscription = null;
         this.retryTimers = new Map();
         this.errorStartTimes = new Map();
+        this.sessionGenerations = new Map();
+    }
+
+    #generation(streamId) {
+        return this.sessionGenerations.get(streamId) ?? 0;
+    }
+
+    #invalidate(streamId) {
+        const generation = this.#generation(streamId) + 1;
+        this.sessionGenerations.set(streamId, generation);
+        return generation;
+    }
+
+    #isCurrent(streamId, generation) {
+        return this.#generation(streamId) === generation;
     }
 
     initialize() {
@@ -57,12 +72,18 @@ class MultiPlayerService {
         const serializedOperation = async () => {
             if (!playerState) return;
             const { streamId } = playerState;
+            const generation = this.#generation(streamId);
             const videoElement = this.getVideoElement(streamId);
 
             if (!this.players.has(streamId)) {
                 const shaka = await getShaka();
+                if (!this.#isCurrent(streamId, generation)) return;
                 const player = new shaka.Player();
                 await player.attach(videoElement);
+                if (!this.#isCurrent(streamId, generation)) {
+                    await player.destroy();
+                    return;
+                }
 
                 this.players.set(streamId, player);
                 this.stallCalculators.set(streamId, new StallCalculator());
@@ -88,7 +109,8 @@ class MultiPlayerService {
                         streamDef,
                         player,
                         streamId,
-                        playerState.initialState
+                        playerState.initialState,
+                        generation
                     );
                 }
             }
@@ -102,7 +124,8 @@ class MultiPlayerService {
         streamDef,
         player,
         uniqueStreamId,
-        initialState
+        initialState,
+        generation = this.#generation(uniqueStreamId)
     ) {
         try {
             if (this.retryTimers.has(uniqueStreamId)) {
@@ -117,6 +140,7 @@ class MultiPlayerService {
 
             const drmConfig =
                 await playerConfigService.buildDrmConfig(streamDef);
+            if (!this.#isCurrent(uniqueStreamId, generation)) return;
             player.configure({ drm: drmConfig });
             this.applyStreamConfig(uniqueStreamId);
 
@@ -188,6 +212,7 @@ class MultiPlayerService {
 
             let startTime = initialState?.currentTime;
             await player.load(streamDef.originalUrl, startTime);
+            if (!this.#isCurrent(uniqueStreamId, generation)) return;
 
             const videoTracks = player.getVariantTracks();
             const activeVideoTrack = videoTracks.find((t) => t.active) || null;
@@ -218,6 +243,7 @@ class MultiPlayerService {
                 });
             }
         } catch (error) {
+            if (!this.#isCurrent(uniqueStreamId, generation)) return;
             this._handlePlayerError(uniqueStreamId, error);
         }
     }
@@ -475,6 +501,12 @@ class MultiPlayerService {
         this.retryTimers.forEach((timer) => clearTimeout(timer));
         this.retryTimers.clear();
         this.#loadQueue = Promise.resolve();
+        const sessionIds = new Set([
+            ...this.sessionGenerations.keys(),
+            ...this.videoElements.keys(),
+            ...this.players.keys(),
+        ]);
+        sessionIds.forEach((streamId) => this.#invalidate(streamId));
         for (const player of this.players.values()) await player.destroy();
         this.players.clear();
         this.videoElements.clear();
@@ -623,6 +655,7 @@ class MultiPlayerService {
     }
 
     async destroyPlayer(streamId) {
+        this.#invalidate(streamId);
         if (this.retryTimers.has(streamId)) {
             clearTimeout(this.retryTimers.get(streamId));
             this.retryTimers.delete(streamId);

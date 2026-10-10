@@ -8,6 +8,7 @@ let dropdownContainer = null;
 let activeDropdowns = [];
 let globalClickListener = null;
 let resizeObserver = null;
+let resizePositionFrame = null;
 
 export function initializeDropdownService(dom) {
     dropdownContainer = dom.dropdownContainer;
@@ -23,6 +24,10 @@ function closeAllDropdowns() {
     if (resizeObserver) {
         resizeObserver.disconnect();
         resizeObserver = null;
+    }
+    if (resizePositionFrame !== null) {
+        cancelAnimationFrame(resizePositionFrame);
+        resizePositionFrame = null;
     }
 }
 
@@ -202,11 +207,15 @@ export function toggleDropdown(triggerElement, templateFn, event) {
     // Observe size changes
     if (!resizeObserver) {
         resizeObserver = new ResizeObserver(() => {
-            activeDropdowns.forEach((d) => {
-                const el = /** @type {HTMLElement} */ (
-                    d.panel.firstElementChild
-                );
-                if (el) updatePosition(el, d.trigger);
+            if (resizePositionFrame !== null) return;
+            resizePositionFrame = requestAnimationFrame(() => {
+                resizePositionFrame = null;
+                activeDropdowns.forEach((d) => {
+                    const el = /** @type {HTMLElement} */ (
+                        d.panel.firstElementChild
+                    );
+                    if (el) updatePosition(el, d.trigger);
+                });
             });
         });
     }

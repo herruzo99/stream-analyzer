@@ -172,6 +172,122 @@ const badge = (label, colorVar = 'text-muted', filled = false) => {
 `;
 };
 
+const renderDescriptor = (desc, parentPacket) => {
+    return html`
+        <div
+            class="bg-slate-900 border border-slate-700/50 rounded-lg p-2.5 mb-2 last:mb-0"
+        >
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-bold text-amber-200"
+                    >${desc.name}</span
+                >
+                <span
+                    class="text-[9px] font-mono text-slate-500 bg-black/20 px-1.5 rounded"
+                    >Tag: 0x${desc.tag.toString(16).padStart(2, '0')}</span
+                >
+            </div>
+            <div class="pl-1">
+                ${renderDeepObject(desc.details, parentPacket)}
+            </div>
+        </div>
+    `;
+};
+
+const renderPmtContent = (pmt, packet) => {
+    return html`
+        <div class="bg-slate-800/30 rounded p-2 border border-slate-800 mb-4">
+            ${cardKV('PCR PID', pmt.pcr_pid, 'text-emerald-400 font-bold', packet)}
+        </div>
+
+        ${pmt.program_descriptors && pmt.program_descriptors.length > 0
+            ? html`
+                  <div class="mb-4">
+                      <div
+                          class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2"
+                      >
+                          Program Descriptors
+                      </div>
+                      ${pmt.program_descriptors.map((d) =>
+                          renderDescriptor(d, packet)
+                      )}
+                  </div>
+              `
+            : ''}
+
+        <div class="space-y-3">
+            <div
+                class="text-[10px] font-bold text-slate-500 uppercase tracking-wider"
+            >
+                Elementary Streams (${pmt.streams.length})
+            </div>
+            ${pmt.streams.map((stream) => {
+                const streamType = stream.stream_type.value;
+                const pid = stream.elementary_PID.value;
+                return html`
+                    <div
+                        class="bg-slate-800/50 rounded-lg border border-slate-700 overflow-hidden"
+                    >
+                        <div
+                            class="px-3 py-2 bg-slate-900/50 border-b border-slate-700/50 flex justify-between items-center"
+                        >
+                            <span class="text-xs font-bold text-blue-300"
+                                >PID ${pid}</span
+                            >
+                            <span class="text-[10px] text-slate-400"
+                                >Type: ${streamType}</span
+                            >
+                        </div>
+                        <div class="p-2">
+                            ${stream.es_descriptors &&
+                            stream.es_descriptors.length > 0
+                                ? stream.es_descriptors.map((d) =>
+                                      renderDescriptor(d, packet)
+                                  )
+                                : html`<div
+                                      class="text-[10px] text-slate-600 italic px-1"
+                                  >
+                                      No descriptors
+                                  </div>`}
+                        </div>
+                    </div>
+                `;
+            })}
+        </div>
+    `;
+};
+
+const renderCatContent = (cat, packet) => {
+    return html`
+        <div class="space-y-3">
+            ${cat.descriptors && cat.descriptors.length > 0
+                ? cat.descriptors.map((d) => renderDescriptor(d, packet))
+                : html`<div class="text-slate-500 italic text-xs">
+                      No descriptors in CAT.
+                  </div>`}
+        </div>
+    `;
+};
+
+const renderTsdtContent = (tsdt, packet) => {
+    return html`
+        <div class="space-y-3">
+            ${tsdt.descriptors && tsdt.descriptors.length > 0
+                ? tsdt.descriptors.map((d) => renderDescriptor(d, packet))
+                : html`<div class="text-slate-500 italic text-xs">
+                      No descriptors in TSDT.
+                  </div>`}
+        </div>
+    `;
+};
+
+const renderPsiContent = (packet) => {
+    const type = packet.psi?.type;
+    if (type === 'PMT') return renderPmtContent(packet.psi, packet);
+    if (type === 'CAT') return renderCatContent(packet.psi, packet);
+    if (type === 'TSDT') return renderTsdtContent(packet.psi, packet);
+    return renderDeepObject(packet.psi, packet);
+};
+
 const renderHeaderTab = (packet) => html`
     <div class="mb-6 animate-fadeIn">
         <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
@@ -261,7 +377,7 @@ export const tsInspectorDetailsTemplate = (packet) => {
                             ${icons.layers} <span class="opacity-80">Payload Data</span>
                         </h3>
                         <div class="bg-slate-800/40 rounded-xl border border-slate-800 shadow-sm overflow-hidden ring-1 ring-white/5 p-1">
-                             ${packet.psi ? renderDeepObject(packet.psi, packet) : ''}
+                             ${packet.psi ? renderPsiContent(packet) : ''}
                              ${packet.pes ? renderDeepObject(packet.pes, packet) : ''}
                              ${packet.videoDetails ? renderDeepObject(packet.videoDetails, packet) : ''}
                         </div>

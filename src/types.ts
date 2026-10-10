@@ -969,6 +969,7 @@ export interface UiState {
     streamLibraryActiveTab: 'workspaces' | 'presets' | 'history' | 'examples';
     streamLibrarySearchTerm: string;
     streamInputActiveMobileTab: 'library' | 'workspace' | 'inspector';
+    stagingActivePage?: 'queue' | 'configure';
     workspaces: any[];
     presets: any[];
     history: any[];
@@ -1307,6 +1308,21 @@ export interface Stream {
     isPolling: boolean;
     wasStoppedByInactivity?: boolean;
     pollingIntervalOverride?: number | null;
+    smartPollingInterval?: number;
+    pollingStatus?: {
+        state:
+            | 'active'
+            | 'checking'
+            | 'retrying'
+            | 'offline'
+            | 'stale'
+            | 'canceled'
+            | 'paused';
+        lastSuccessAt: number | null;
+        retryCount: number;
+        nextPollAt: number | null;
+        message: string;
+    };
     initialTimeOffset?: number;
     manifest: Manifest | null;
     rawManifest: string;

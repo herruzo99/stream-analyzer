@@ -290,12 +290,12 @@ class HeadlessJob {
             }
             const trackDetails = { video: videoLabel, audio: audioLabel };
 
-            qualityActions.initJob(
-                this.streamId,
-                totalSteps,
-                configSnapshot,
-                trackDetails
-            );
+            this.runId = `qc-run-${Date.now().toString(36)}-${this.instanceId}`;
+            this.runStartedAt = Date.now();
+            qualityActions.initJob(this.streamId, totalSteps, configSnapshot, trackDetails, {
+                runId: this.runId,
+                startedAt: this.runStartedAt,
+            });
             appLog(
                 'HeadlessJob',
                 'info',
@@ -305,7 +305,7 @@ class HeadlessJob {
             qualityActions.updateJobProgress(this.streamId, {
                 progress: 5,
                 statusMessage: 'Initializing Engines...',
-            });
+            }, this.runId);
 
             await this.videoProvider.initialize(
                 stream,
@@ -371,7 +371,7 @@ class HeadlessJob {
             // Store the absolute start time in the job state so UI can render timeline correctly
             qualityActions.updateJobProgress(this.streamId, {
                 mediaStartTime: currentTime,
-            });
+            }, this.runId);
 
             // Initial seek
             await this.videoProvider.seek(currentTime);
@@ -391,7 +391,7 @@ class HeadlessJob {
                 // Also ensure the UI store reflects this as the analysis start time
                 qualityActions.updateJobProgress(this.streamId, {
                     mediaStartTime: initialTimestamp,
-                });
+                }, this.runId);
             }
 
             while (framesProcessed < targetFrameCount) {
@@ -446,7 +446,7 @@ class HeadlessJob {
                     // Update UI store with the ACTUAL media start time to ensure seek alignment
                     qualityActions.updateJobProgress(this.streamId, {
                         mediaStartTime: initialTimestamp,
-                    });
+                    }, this.runId);
 
                     appLog(
                         'HeadlessJob',
@@ -649,7 +649,7 @@ class HeadlessJob {
                         // Add to store
                         qualityActions.addSceneChanges(this.streamId, [
                             sceneResult.sceneData,
-                        ]);
+                        ], this.runId);
                     }
                 }
 
@@ -871,7 +871,7 @@ class HeadlessJob {
                 );
 
                 if (dirtyIssues.length > 0) {
-                    qualityActions.upsertJobIssues(this.streamId, dirtyIssues);
+                    qualityActions.upsertJobIssues(this.streamId, dirtyIssues, this.runId);
                 }
 
                 if (
@@ -970,7 +970,7 @@ class HeadlessJob {
                         metrics: analysisResult.metrics, // Keep sending current for live chart updates
                         metricsBatch: [...this.pendingFrameMetrics], // Send batch for history
                         audioMetrics: newAudioMetrics, // Send the chunk
-                    });
+                    }, this.runId);
 
                     // Clear buffer after sending
                     this.pendingFrameMetrics = [];
@@ -993,7 +993,7 @@ class HeadlessJob {
                     : currentTime
             );
             if (closedIssues.length > 0) {
-                qualityActions.upsertJobIssues(this.streamId, closedIssues);
+                qualityActions.upsertJobIssues(this.streamId, closedIssues, this.runId);
             }
 
             if (!this.isCancelled) {
@@ -1022,7 +1022,7 @@ class HeadlessJob {
         } catch (e) {
             if (!this.isCancelled) {
                 console.error('[HeadlessJob] Error:', e);
-                qualityActions.failJob(this.streamId, e.message);
+                qualityActions.failJob(this.streamId, e.message, this.runId);
             }
         } finally {
             this.profiler.print();
@@ -1213,7 +1213,7 @@ class HeadlessJob {
             val: Math.max(0, score),
         };
 
-        qualityActions.completeJob(this.streamId, results, debugStats);
+        qualityActions.completeJob(this.streamId, results, this.runId);
     }
 
     _normalizeSpeed(speed) {

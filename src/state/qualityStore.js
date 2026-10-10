@@ -1,5 +1,14 @@
 import { createStore } from 'zustand/vanilla';
 
+export const QUALITY_CONTROL_STORE_LIMITS = Object.freeze({
+    jobs: 8,
+    issuesPerJob: 200,
+    frameMetricsPerJob: 50000,
+    audioMetricsPerJob: 100000,
+});
+
+const matchesRun = (job, runId) => !runId || job.runId === runId;
+
 const createInitialState = () => ({
     // Map of streamId -> JobState
     jobs: new Map(),
@@ -47,22 +56,40 @@ export const useQualityStore = createStore((set, get) => ({
     setSelectedJobId: (streamId) => set({ selectedJobId: streamId }),
 
     // --- Job Management ---
-    initJob: (streamId, totalFrames, config, trackDetails = null) =>
+    initJob: (
+        streamId,
+        totalFrames,
+        config,
+        trackDetails = null,
+        metadata = {}
+    ) =>
         set((state) => {
             const newJobs = new Map(state.jobs);
+            if (
+                !newJobs.has(streamId) &&
+                newJobs.size >= QUALITY_CONTROL_STORE_LIMITS.jobs
+            )
+                return {};
+            const startedAt = Number.isFinite(metadata.startedAt)
+                ? metadata.startedAt
+                : Date.now();
             newJobs.set(streamId, {
-                status: 'running', // 'running', 'complete', 'error'
+                runId: metadata.runId || null,
+                contractVersion: 1,
+                status: 'running', // 'running', 'complete', 'error', 'unsupported'
                 progress: 0,
                 statusMessage: 'Initializing...',
                 currentFrame: 0,
                 totalFrames,
                 issues: [],
+                sceneChanges: [], // Scene change detections
                 frameMetrics: [],
                 audioHistory: [], // High-resolution audio metrics
-                sceneChanges: [], // Scene change detections (ported: QC batch)
                 aggregateMetrics: null,
                 error: null,
-                startTime: Date.now(),
+                startTime: startedAt,
+                updatedAt: startedAt,
+                completedAt: null,
                 mediaStartTime: null, // Absolute media timestamp where analysis started
                 config, // Store the snapshot of configuration used for this job
                 trackDetails, // Store resolution/audio track info { video: '1080p', audio: 'ENG' }
@@ -70,11 +97,11 @@ export const useQualityStore = createStore((set, get) => ({
             return { jobs: newJobs };
         }),
 
-    updateJobProgress: (streamId, frameData) =>
+    updateJobProgress: (streamId, frameData, runId = null) =>
         set((state) => {
             const jobs = new Map(state.jobs);
             const job = jobs.get(streamId);
-            if (!job) return {};
+            if (!job || !matchesRun(job, runId)) return {};
 
             // Defensive Progress Calculation
             let progress = job.progress;
@@ -100,6 +127,7 @@ export const useQualityStore = createStore((set, get) => ({
                 ...job,
                 progress,
                 currentFrame,
+                updatedAt: Date.now(),
             };
 
             if (frameData.statusMessage) {
@@ -111,7 +139,7 @@ export const useQualityStore = createStore((set, get) => ({
                 updatedJob.frameMetrics = [
                     ...job.frameMetrics,
                     frameData.metrics,
-                ].slice(-50000);
+                ].slice(-QUALITY_CONTROL_STORE_LIMITS.frameMetricsPerJob);
             }
 
             if (
@@ -122,7 +150,7 @@ export const useQualityStore = createStore((set, get) => ({
                 updatedJob.frameMetrics = [
                     ...job.frameMetrics,
                     ...frameData.metricsBatch,
-                ].slice(-50000);
+                ].slice(-QUALITY_CONTROL_STORE_LIMITS.frameMetricsPerJob);
             }
 
             if (
@@ -133,7 +161,7 @@ export const useQualityStore = createStore((set, get) => ({
                 updatedJob.audioHistory = [
                     ...job.audioHistory,
                     ...frameData.audioMetrics,
-                ].slice(-100000);
+                ].slice(-QUALITY_CONTROL_STORE_LIMITS.audioMetricsPerJob);
             }
 
             if (frameData.segmentProgress) {
@@ -148,25 +176,28 @@ export const useQualityStore = createStore((set, get) => ({
             return { jobs };
         }),
 
-    addJobIssues: (streamId, newIssues) =>
+    addJobIssues: (streamId, newIssues, runId = null) =>
         set((state) => {
             const jobs = new Map(state.jobs);
             const job = jobs.get(streamId);
-            if (!job) return {};
+            if (!job || !matchesRun(job, runId)) return {};
 
             jobs.set(streamId, {
                 ...job,
-                issues: [...job.issues, ...newIssues],
+                issues: [...job.issues, ...newIssues].slice(
+                    -QUALITY_CONTROL_STORE_LIMITS.issuesPerJob
+                ),
+                updatedAt: Date.now(),
             });
             return { jobs };
         }),
 
     // NEW: Supports updating existing issues (e.g. extending duration) or adding new ones
-    upsertJobIssues: (streamId, updatedIssues) =>
+    upsertJobIssues: (streamId, updatedIssues, runId = null) =>
         set((state) => {
             const jobs = new Map(state.jobs);
             const job = jobs.get(streamId);
-            if (!job) return {};
+            if (!job || !matchesRun(job, runId)) return {};
 
             const existingIssuesMap = new Map(job.issues.map((i) => [i.id, i]));
             updatedIssues.forEach((issue) =>
@@ -175,18 +206,19 @@ export const useQualityStore = createStore((set, get) => ({
 
             jobs.set(streamId, {
                 ...job,
-                issues: Array.from(existingIssuesMap.values()).sort(
-                    (a, b) => a.startTime - b.startTime
-                ),
+                issues: Array.from(existingIssuesMap.values())
+                    .sort((a, b) => a.startTime - b.startTime)
+                    .slice(-QUALITY_CONTROL_STORE_LIMITS.issuesPerJob),
+                updatedAt: Date.now(),
             });
             return { jobs };
         }),
 
-    addSceneChanges: (streamId, newSceneChanges) =>
+    addSceneChanges: (streamId, newSceneChanges, runId = null) =>
         set((state) => {
             const jobs = new Map(state.jobs);
             const job = jobs.get(streamId);
-            if (!job) return {};
+            if (!job || !matchesRun(job, runId)) return {};
             jobs.set(streamId, {
                 ...job,
                 sceneChanges: [...job.sceneChanges, ...newSceneChanges].sort(
@@ -196,11 +228,12 @@ export const useQualityStore = createStore((set, get) => ({
             return { jobs };
         }),
 
-    completeJob: (streamId, aggregates) =>
+    completeJob: (streamId, aggregates, runId = null) =>
         set((state) => {
             const jobs = new Map(state.jobs);
             const job = jobs.get(streamId);
-            if (!job) return {};
+            if (!job || !matchesRun(job, runId)) return {};
+            const completedAt = Date.now();
 
             jobs.set(streamId, {
                 ...job,
@@ -208,28 +241,35 @@ export const useQualityStore = createStore((set, get) => ({
                 progress: 100,
                 statusMessage: 'Analysis Complete',
                 aggregateMetrics: aggregates,
+                updatedAt: completedAt,
+                completedAt,
             });
             return { jobs };
         }),
 
-    failJob: (streamId, error) =>
+    failJob: (streamId, error, runId = null, outcome = 'error') =>
         set((state) => {
             const jobs = new Map(state.jobs);
             const job = jobs.get(streamId);
-            if (!job) return {};
+            if (!job || !matchesRun(job, runId)) return {};
+            const completedAt = Date.now();
 
             jobs.set(streamId, {
                 ...job,
-                status: 'error',
+                status: outcome === 'unsupported' ? 'unsupported' : 'error',
                 error,
                 statusMessage: error, // Use the error message directly for UI visibility
+                updatedAt: completedAt,
+                completedAt,
             });
             return { jobs };
         }),
 
-    removeJob: (streamId) =>
+    removeJob: (streamId, runId = null) =>
         set((state) => {
             const jobs = new Map(state.jobs);
+            const job = jobs.get(streamId);
+            if (job && !matchesRun(job, runId)) return {};
             jobs.delete(streamId);
             return {
                 jobs,

@@ -66,23 +66,16 @@ export class LoaderFX {
     }
 
     updatePalette() {
-        const style = getComputedStyle(document.documentElement);
-        const getVar = (name, fallback) => {
-            const val = style.getPropertyValue(name).trim();
-            return val || fallback;
-        };
-
+        // Static neon-technical palette (no theme variables).
         this.palette = [
-            getVar('--primary-accent', '#3b82f6'),
-            getVar('--color-info', '#06b6d4'),
-            getVar('--secondary-accent', '#8b5cf6'),
-            getVar('--color-success', '#10b981'),
-            getVar('--color-warning', '#f59e0b'),
+            '#3b82f6',
+            '#06b6d4',
+            '#8b5cf6',
+            '#10b981',
+            '#f59e0b',
         ];
-
-        // Use theme border/text colors
-        this.railColor = getVar('--border-on-B', 'rgba(148, 163, 184, 0.1)');
-        this.headerColor = getVar('--text-on-B-primary', '#ffffff');
+        this.railColor = 'rgba(148, 163, 184, 0.1)';
+        this.headerColor = '#ffffff';
     }
 
     resize() {

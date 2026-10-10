@@ -5,8 +5,10 @@ import {
     getHistory,
     getPresets,
     getWorkspaces,
+    hasDeletedWorkspace,
 } from '@/infrastructure/persistence/streamStorage';
 import { createStore } from 'zustand/vanilla';
+import { createStagingWorkflow } from '@/features/streamInput/application/staging-workflow-contract.js';
 import { useAnalysisStore } from './analysisStore.js';
 
 const createInitialUiState = () => ({
@@ -87,6 +89,17 @@ const createInitialUiState = () => ({
     playerControlMode: 'standard',
     streamLibraryActiveTab: 'workspaces',
     streamLibrarySearchTerm: '',
+    streamLibraryWorkflow: {
+        status: 'idle',
+        preview: null,
+        notice: '',
+        error: '',
+    },
+    stagingActivePage: 'queue',
+    stagingQueueFilter: '',
+    stagingWorkflow: createStagingWorkflow(),
+    stagingBaseline: null,
+    canRestoreDeletedWorkspace: false,
     streamInputActiveMobileTab: 'library',
     inspectorActiveTab: 'stream',
     presetSaveStatus: 'idle',
@@ -428,6 +441,35 @@ export const useUiStore = createStore((set, get) => ({
     setStreamLibraryTab: (tab) => set({ streamLibraryActiveTab: tab }),
     setStreamLibrarySearchTerm: (term) =>
         set({ streamLibrarySearchTerm: term }),
+    openStreamLibrary: (tab) =>
+        set({
+            streamLibraryActiveTab: tab,
+            isLibraryModalOpen: true,
+        }),
+    setStreamLibraryWorkflow: (patch) =>
+        set((state) => ({
+            streamLibraryWorkflow: {
+                ...state.streamLibraryWorkflow,
+                ...patch,
+            },
+        })),
+    resetStreamLibraryWorkflow: () =>
+        set({
+            streamLibraryWorkflow: {
+                status: 'idle',
+                preview: null,
+                notice: '',
+                error: '',
+            },
+        }),
+    setStagingActivePage: (page) =>
+        set({
+            stagingActivePage: page === 'configure' ? 'configure' : 'queue',
+        }),
+    setStagingQueueFilter: (term) =>
+        set({ stagingQueueFilter: String(term ?? '') }),
+    setStagingWorkflow: (workflow) => set({ stagingWorkflow: workflow }),
+    setStagingBaseline: (baseline) => set({ stagingBaseline: baseline }),
     setStreamInputActiveMobileTab: (tab) =>
         set({ streamInputActiveMobileTab: tab }),
     setInspectorActiveTab: (tab) => set({ inspectorActiveTab: tab }),
@@ -437,6 +479,7 @@ export const useUiStore = createStore((set, get) => ({
             workspaces: getWorkspaces(),
             presets: getPresets(),
             history: getHistory(),
+            canRestoreDeletedWorkspace: hasDeletedWorkspace(),
         });
     },
     loadPresets: () => set({ presets: getPresets() }),

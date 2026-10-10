@@ -1,5 +1,4 @@
 import { html } from 'lit-html';
-import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 
 const cueRowTemplate = (cue, index) => html`
     <tr class="hover:bg-slate-800/50 transition-colors">
@@ -17,14 +16,7 @@ const cueRowTemplate = (cue, index) => html`
         <td
             class="p-3 border-b border-slate-700/50 text-slate-200 text-sm leading-relaxed break-all"
         >
-            ${cue.payload
-                ? unsafeHTML(
-                      cue.payload
-                          .replace(/&/g, '&amp;')
-                          .replace(/</g, '&lt;')
-                          .replace(/>/g, '&gt;')
-                  )
-                : ''}
+            ${cue.payload ?? ''}
         </td>
         <td
             class="p-3 border-b border-slate-700/50 font-mono text-xs text-slate-400"

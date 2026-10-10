@@ -1,4 +1,6 @@
+import { getOverviewEvidenceLinks } from '@/features/summary/application/overview-contract.js';
 import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
+import { uiActions } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
 import { html, render } from 'lit-html';
 import { styleMap } from 'lit-html/directives/style-map.js';
@@ -143,6 +145,54 @@ function renderSummary() {
         >
             <!-- HERO HEADER -->
             <div class="shrink-0 relative z-10">${heroHeader}</div>
+            <!-- EVIDENCE / TRACEABILITY -->
+            ${(() => {
+                const links = getOverviewEvidenceLinks(stream);
+                return html`<section
+                    aria-labelledby="overview-evidence-heading"
+                    class="shrink-0 rounded-xl border border-slate-800 bg-slate-900 p-4"
+                >
+                    <div class="flex items-center justify-between gap-2">
+                        <div>
+                            <p
+                                class="text-[11px] font-bold uppercase tracking-wider text-slate-500"
+                            >
+                                Traceability
+                            </p>
+                            <h2
+                                id="overview-evidence-heading"
+                                class="text-sm font-bold text-slate-100"
+                            >
+                                Evidence
+                            </h2>
+                        </div>
+                        <span
+                            class="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] text-slate-400"
+                            >${links.length} linked views</span
+                        >
+                    </div>
+                    ${links.length
+                        ? html`<nav
+                              class="mt-3 flex flex-wrap gap-2"
+                              aria-label="Overview evidence"
+                          >
+                              ${links.map(
+                                  (link) =>
+                                      html`<button
+                                          class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-700"
+                                          @click=${() =>
+                                              uiActions.setActiveTab(
+                                                  link.route
+                                              )}
+                                          >${link.label}</button
+                                      >`
+                              )}
+                          </nav>`
+                        : html`<p class="mt-2 text-xs text-slate-500" role="status">
+                              No linked evidence is available for this result.
+                          </p>`}
+                </section>`;
+            })()}
             <!-- WARNINGS SECTION -->
             ${(() => {
             if (stream.warnings && stream.warnings.length > 0) {

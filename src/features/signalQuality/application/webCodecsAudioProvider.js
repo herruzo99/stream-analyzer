@@ -412,6 +412,21 @@ export class WebCodecsAudioProvider {
         // Use frame timestamp (microseconds) converted to seconds
         const time = frame.timestamp / 1000000;
 
+        let driftInfo = '';
+        if (this.lastContextTime !== undefined) {
+            const drift = time - this.lastContextTime;
+            driftInfo = ` | Chart: ${this.lastContextTime.toFixed(
+                3
+            )}s | Drift: ${drift.toFixed(3)}s`;
+        }
+
+        if (this.logCounter++ % 50 === 0) {
+            appLog(
+                'WebCodecsAudioProvider',
+                'debug',
+                `Decoded audio frame at ${time.toFixed(3)}s${driftInfo}. Level: ${metrics.audioLevel.toFixed(1)}dB`
+            );
+        }
         this.decodedCache.set(time, metrics);
 
         // Emit metrics if callback is registered

@@ -1,5 +1,6 @@
 import { appLog } from '@/shared/utils/debug';
 import { isDebugMode } from '@/shared/utils/env';
+import { createEffectiveWorkerInputs } from './effective-source-configuration.js';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { EVENTS } from '@/types/events';
 
@@ -55,45 +56,11 @@ export async function startAnalysisUseCase({ inputs, options = {} }, services) {
         }));
     storage.saveLastUsedStreams(streamsToSave);
 
-    // --- Prepare inputs for the worker ---
-    const workerInputsPromises = validInputs.map(async (input) => {
-        const workerInput = {
-            ...input,
-            isDebug: isDebugMode,
-        };
-
-        if (input.drmAuth.serverCertificate instanceof File) {
-            appLog(
-                'startAnalysisUseCase',
-                'info',
-                `Reading certificate file "${input.drmAuth.serverCertificate.name}" into ArrayBuffer.`
-            );
-            workerInput.drmAuth.serverCertificate =
-                await input.drmAuth.serverCertificate.arrayBuffer();
-        } else if (
-            typeof input.drmAuth.serverCertificate === 'object' &&
-            input.drmAuth.serverCertificate !== null &&
-            !(input.drmAuth.serverCertificate instanceof ArrayBuffer)
-        ) {
-            // Handle the new object-based structure for multiple certificates
-            const certObject = input.drmAuth.serverCertificate;
-            /** @type {{ [keySystem: string]: string | ArrayBuffer | File; }} */
-            const processedCerts = {};
-            for (const key in certObject) {
-                const certValue = certObject[key];
-                if (certValue instanceof File) {
-                    processedCerts[key] = await certValue.arrayBuffer();
-                } else {
-                    processedCerts[key] = certValue;
-                }
-            }
-            workerInput.drmAuth.serverCertificate = processedCerts;
-        }
-
-        return workerInput;
+    // --- Prepare inputs for the worker (centralized effective-source configuration) ---
+    const workerInputs = await createEffectiveWorkerInputs(validInputs, {
+        isDebug: isDebugMode,
     });
 
-    const workerInputs = await Promise.all(workerInputsPromises);
 
     appLog(
         'startAnalysisUseCase',

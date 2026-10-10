@@ -7,12 +7,12 @@ import { useAnalysisStore } from '@/state/analysisStore';
 import { networkActions, useNetworkStore } from '@/state/networkStore';
 
 const IGNORED_HOSTS = new Set([
-    'fonts.gstatic.com',
-    'fonts.googleapis.com',
     'cdn.jsdelivr.net',
     'js-de.sentry-cdn.com',
     'www.googletagmanager.com',
     'clarity.ms',
+    'fonts.gstatic.com',
+    'fonts.googleapis.com',
 ]);
 const IGNORED_EXTENSIONS = new Set([
     '.js',

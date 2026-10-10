@@ -1,5 +1,6 @@
 import { appLog } from '@/shared/utils/debug';
 import { isDebugMode } from '@/shared/utils/env';
+import { createEffectiveWorkerInputs } from './effective-source-configuration.js';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { EVENTS } from '@/types/events';
@@ -46,39 +47,11 @@ export async function addStreamsToSessionUseCase({ inputs }, services) {
         message: 'Analyzing new streams...',
     });
 
-    // --- Prepare inputs for the worker (Logic copied from startAnalysis.js) ---
-    const workerInputsPromises = pendingInputs.map(async (input) => {
-        const workerInput = {
-            ...input,
-            isDebug: isDebugMode,
-        };
-
-        if (input.drmAuth.serverCertificate instanceof File) {
-            workerInput.drmAuth.serverCertificate =
-                await input.drmAuth.serverCertificate.arrayBuffer();
-        } else if (
-            typeof input.drmAuth.serverCertificate === 'object' &&
-            input.drmAuth.serverCertificate !== null &&
-            !(input.drmAuth.serverCertificate instanceof ArrayBuffer)
-        ) {
-            const certObject = input.drmAuth.serverCertificate;
-            /** @type {{ [key: string]: string | ArrayBuffer | File }} */
-            const processedCerts = {};
-            for (const key in certObject) {
-                const certValue = certObject[key];
-                if (certValue instanceof File) {
-                    processedCerts[key] = await certValue.arrayBuffer();
-                } else {
-                    processedCerts[key] = certValue;
-                }
-            }
-            workerInput.drmAuth.serverCertificate = processedCerts;
-        }
-
-        return workerInput;
+    // --- Prepare inputs for the worker (centralized effective-source configuration) ---
+    const workerInputs = await createEffectiveWorkerInputs(pendingInputs, {
+        isDebug: isDebugMode,
     });
 
-    const workerInputs = await Promise.all(workerInputsPromises);
 
     try {
         const {

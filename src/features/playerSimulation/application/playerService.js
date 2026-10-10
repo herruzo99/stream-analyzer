@@ -24,6 +24,15 @@ class PlayerService {
         this.tickerSubscription = null;
         this.stallCalculator = new StallCalculator();
         this.errorStartTime = null;
+        this.retryTimer = null;
+        this.lifecycleGeneration = 0;
+    }
+
+    cancelRetry() {
+        if (this.retryTimer !== null) {
+            clearTimeout(this.retryTimer);
+            this.retryTimer = null;
+        }
     }
 
     getActiveStreamIds() {
@@ -471,6 +480,7 @@ class PlayerService {
         }
 
         this.stallCalculator.reset();
+        this.cancelRetry();
         playerActions.setRetryCount(0);
 
         const networkingEngine = this.player.getNetworkingEngine();
@@ -619,6 +629,8 @@ class PlayerService {
 
     destroy() {
         if (!this.isInitialized) return;
+        this.cancelRetry();
+        this.lifecycleGeneration += 1;
         this.stopStatsCollection();
 
         if (this.player) {
@@ -784,8 +796,19 @@ class PlayerService {
             details: retryMessage,
         });
 
-        setTimeout(() => {
-            const { streams, activeStreamId } = useAnalysisStore.getState();
+        const generation = this.lifecycleGeneration;
+        const failedStreamId = useAnalysisStore.getState().activeStreamId;
+        this.cancelRetry();
+        this.retryTimer = setTimeout(() => {
+            this.retryTimer = null;
+            const { streams, activeStreamId } =
+                useAnalysisStore.getState();
+            if (
+                generation !== this.lifecycleGeneration ||
+                activeStreamId !== failedStreamId ||
+                !this.isInitialized
+            )
+                return;
             const streamToReload = streams.find((s) => s.id === activeStreamId);
             if (streamToReload) {
                 this.load(streamToReload, true);

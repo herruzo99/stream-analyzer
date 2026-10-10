@@ -1,4 +1,8 @@
 import * as icons from '@/ui/icons';
+// because(domain-canvas): ECharts canvas palette for bitstream charts.
+// Slate greys (#334155/#64748b/#94a3b8) for axes, near-white #f8fafc for
+// tooltip text, red #ef4444 for limit/danger markers. Confined to chart-option
+// objects in this module; never leaks into DOM/product CSS.
 import { disposeChart, renderChart } from '@/ui/shared/charts/chart-renderer';
 import { tooltipTriggerClasses } from '@/ui/shared/constants';
 import { html, render } from 'lit-html';

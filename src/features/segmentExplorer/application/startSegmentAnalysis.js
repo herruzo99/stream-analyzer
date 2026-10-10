@@ -1,5 +1,5 @@
-import { eventBus } from '@/application/event-bus';
-import { workerService } from '@/infrastructure/worker/workerService';
+import { eventBus } from '@/application/event-bus.js';
+import { workerService } from '@/infrastructure/worker/workerService.js';
 import { appLog } from '@/shared/utils/debug';
 import { analysisActions } from '@/state/analysisStore';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';

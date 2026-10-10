@@ -10,6 +10,7 @@ import { scte35DetailsTemplate } from '@/ui/shared/scte35-details.js';
 import { html, render } from 'lit-html';
 import { advancedBitstreamAnalysisTemplate } from './components/advanced-bitstream-analysis.js';
 import './components/general-summary.js';
+import './components/local-segment-analysis-view.js';
 import { seiInspectorTemplate } from './components/sei-inspector.js';
 import { ttmlAnalysisTemplate } from './ttml-analysis.js';
 import { createSegmentAnalysisViewModel } from './view-model.js';
@@ -264,6 +265,20 @@ class SegmentAnalysisComponent extends HTMLElement {
                 html`<div class="p-8">
                     Comparison Mode active (Not implemented in inspector view)
                 </div>`,
+                this
+            );
+            return;
+        }
+
+        if (parsedData?.localAnalysis?.generationId && !parsedDataB) {
+            render(
+                html`<local-segment-analysis-view
+                    .data=${{
+                        parsedData,
+                        isIFrame,
+                        uniqueId: this._data.uniqueId,
+                    }}
+                ></local-segment-analysis-view>`,
                 this
             );
             return;

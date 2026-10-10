@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "origin": "https://fixture.invalid",
+  "scenarios": [
+    {
+      "id": "network-success",
+      "status": 200,
+      "delayMs": 0,
+      "chunks": ["#EXTM3U\n", "#EXT-X-ENDLIST\n"],
+      "expected": "complete"
+    },
+    {
+      "id": "network-not-found",
+      "status": 404,
+      "delayMs": 0,
+      "chunks": ["not found"],
+      "expected": "http-error"
+    },
+    {
+      "id": "network-partial",
+      "status": 200,
+      "delayMs": 0,
+      "chunks": ["#EXTM3U\n", "#EXTINF:6,\n"],
+      "closeAfterChunk": 1,
+      "expected": "truncated"
+    },
+    {
+      "id": "network-timeout",
+      "status": 200,
+      "delayMs": 30000,
+      "chunks": [],
+      "expected": "timeout"
+    },
+    {
+      "id": "network-cancel",
+      "status": 200,
+      "delayMs": 1000,
+      "chunks": ["#EXTM3U\n"],
+      "abortAtMs": 10,
+      "expected": "cancelled"
+    }
+  ]
+}

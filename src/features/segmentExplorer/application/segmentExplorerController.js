@@ -1,4 +1,4 @@
-import { eventBus } from '@/application/event-bus';
+import { eventBus } from '@/application/event-bus.js';
 import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
 import { uiActions } from '@/state/uiStore';
 import { EVENTS } from '@/types/events';

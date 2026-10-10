@@ -193,6 +193,17 @@ class TsStructureViewer extends HTMLElement {
         this.resizeObserver.observe(this);
     }
 
+    disconnectedCallback() {
+        if (this.resizeObserver) {
+            this.resizeObserver.disconnect();
+            this.resizeObserver = null;
+        }
+        if (this.chartContainer) {
+            disposeChart(/** @type {HTMLElement} */ (this.chartContainer));
+            this.chartContainer = null;
+        }
+    }
+
     calculateStats() {
         if (!this._data || !this._data.packets) return;
 

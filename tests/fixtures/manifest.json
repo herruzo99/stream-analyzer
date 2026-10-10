@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "license": "CC0-1.0",
+  "authoredBy": "streamAnalyzer migration project",
+  "files": [
+    {
+      "id": "hls-master-basic",
+      "path": "hls/master-basic.m3u8",
+      "sha256": "45485f7c63275dd43e30904031b6f91966c219528d45440e6d7f1149680ba6a5",
+      "kind": "hls-master",
+      "expected": "valid"
+    },
+    {
+      "id": "hls-media-vod-basic",
+      "path": "hls/media-basic.m3u8",
+      "sha256": "9bfbc09f298440b39c2e965f07b459b08c50b577b84d1e9fdfc52c1a4cab0542",
+      "kind": "hls-media",
+      "expected": "valid"
+    },
+    {
+      "id": "dash-vod-basic",
+      "path": "dash/vod-basic.mpd",
+      "sha256": "d2761801debf7d50ffebd258562450e5dbb5003e593b25c68685ce596c74b92f",
+      "kind": "dash-mpd",
+      "expected": "valid"
+    },
+    {
+      "id": "hls-truncated",
+      "path": "invalid/truncated-hls.m3u8",
+      "sha256": "a304c8d504ead2130b344ae7fd2344821c09851128cdd2279d11f9945303a027",
+      "kind": "hls-media",
+      "expected": "parser-error"
+    },
+    {
+      "id": "dash-malformed",
+      "path": "invalid/malformed-dash.mpd",
+      "sha256": "86bd55f3e043a3417a9e8040190e01ee546568e3c226763653ca52e5b490c901",
+      "kind": "dash-mpd",
+      "expected": "parser-error"
+    },
+    {
+      "id": "input-empty",
+      "path": "inputs/empty.txt",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "kind": "input",
+      "expected": "empty-input"
+    },
+    {
+      "id": "input-unsupported",
+      "path": "inputs/unsupported.txt",
+      "sha256": "e9c1498f409b3c5b4880148a4396f9e9e55fd86e65fb7a899c3ef8a423401504",
+      "kind": "input",
+      "expected": "unsupported-format"
+    },
+    {
+      "id": "isobmff-minimal-init-hex",
+      "path": "segments/minimal-init.hex",
+      "sha256": "f868a18bf5f05fbc348140dc67673f3b3aa88f3d3b3dbccd1f2238b5f301ede2",
+      "kind": "isobmff-hex",
+      "expected": "valid-box-header"
+    },
+    {
+      "id": "isobmff-truncated-box-hex",
+      "path": "segments/truncated-box.hex",
+      "sha256": "bfe9ca1a6ec57611de0a11609e94b765b51c291ccebc2fc600805a6ee1d974d2",
+      "kind": "isobmff-hex",
+      "expected": "truncated-box"
+    },
+    {
+      "id": "network-scenarios",
+      "path": "network/scenarios.json",
+      "sha256": "0eba640cbde243e85bb1249bd046297207be45a02ac560a5b448cc25faebea58",
+      "kind": "network-script",
+      "expected": "five-deterministic-scenarios"
+    }
+  ],
+  "generated": [
+    {
+      "id": "hls-large-10000",
+      "kind": "large-input",
+      "construction": "EXTM3U header plus 10000 fixed EXTINF=6.000 and relative segment lines",
+      "expected": "bounded-large-input"
+    },
+    {
+      "id": "timing-boundaries",
+      "kind": "timing",
+      "construction": "fixed values 0, 0.001, 4.5, 6, and 9007199254740 milliseconds",
+      "expected": "explicit-boundary-disposition"
+    }
+  ],
+  "coverageGaps": [
+    "redistributable decodable audio/video media",
+    "encrypted media and license exchange",
+    "real codec and MSE playback",
+    "browser-specific CORS and DRM behavior"
+  ]
+}
