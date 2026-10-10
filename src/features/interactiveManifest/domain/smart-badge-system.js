@@ -25,9 +25,10 @@ const escapeHtml = (value) =>
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
 
-const pill = (cls, title, text) => html`<span
+// No native `title` here on purpose: every pill already feeds the custom
+// Smart Analysis tooltip/panel, and a browser tooltip would double up.
+const pill = (cls, text) => html`<span
     class="ml-0.5 mr-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${cls} inline-flex items-center select-none whitespace-nowrap align-middle leading-none h-4"
-    title=${title ?? ''}
     >${text}</span
 >`;
 
@@ -36,7 +37,6 @@ const verdictTreePill = (verdict) => {
     if (verdict.kind === 'live') {
         return html`<span
             class="ml-0.5 mr-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30 inline-flex items-center gap-1 select-none whitespace-nowrap align-middle leading-none h-4"
-            title=${verdict.title}
             ><span class="relative flex h-1.5 w-1.5"
                 ><span
                     class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"
@@ -51,7 +51,7 @@ const verdictTreePill = (verdict) => {
         verdict.kind === 'future'
             ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
             : 'bg-slate-700/60 text-slate-300 border border-slate-600';
-    return pill(cls, verdict.title, verdict.label);
+    return pill(cls, verdict.label);
 };
 
 const prettyKey = (key) =>
@@ -628,13 +628,11 @@ function renderBadge(key, value, context = {}) {
                     const totalSeconds = (count * d) / timescale;
                     return pill(
                         'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30',
-                        `${count} segments × ${(d / timescale).toFixed(3)}s`,
                         `Total: ${formatDurationPill(totalSeconds)}`
                     );
                 }
                 return pill(
                     'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30',
-                    'r=-1 repeats to period end',
                     'Repeat: Until End'
                 );
             }
@@ -646,7 +644,6 @@ function renderBadge(key, value, context = {}) {
         if (!isNaN(num)) {
             return pill(
                 'bg-blue-500/20 text-blue-300 border border-blue-500/30',
-                `${num} bps`,
                 formatBitrate(num)
             );
         }
@@ -658,7 +655,6 @@ function renderBadge(key, value, context = {}) {
             const size = end - start + 1;
             return pill(
                 'bg-gray-500/20 text-gray-300 border border-gray-500/30',
-                `${text} = ${size} bytes`,
                 formatBytes(size)
             );
         }
@@ -677,7 +673,6 @@ function renderBadge(key, value, context = {}) {
             const seconds = num / timescale;
             const main = pill(
                 'bg-teal-500/20 text-teal-300 border border-teal-500/30',
-                `Raw: ${text} / Scale: ${timescale}`,
                 formatDurationPill(seconds)
             );
             // Live-edge verdict only on the duration pill (the t pill
@@ -720,7 +715,6 @@ function renderBadge(key, value, context = {}) {
         if (parsed) {
             return pill(
                 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
-                text,
                 formatDurationPill(parsed.total)
             );
         }
@@ -736,7 +730,6 @@ function renderBadge(key, value, context = {}) {
         if (!isNaN(num)) {
             return pill(
                 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
-                `${num}s explicit`,
                 formatDurationPill(num)
             );
         }
@@ -756,7 +749,7 @@ function renderBadge(key, value, context = {}) {
     }
 
     if (shortKey === 'width' || shortKey === 'height') {
-        return pill('bg-transparent text-slate-500 border border-transparent', '', 'px');
+        return pill('bg-transparent text-slate-500 border border-transparent', 'px');
     }
 
     if (shortKey.includes('framerate')) {
@@ -769,7 +762,6 @@ function renderBadge(key, value, context = {}) {
         }
         return pill(
             'bg-orange-500/20 text-orange-300 border border-orange-500/30',
-            text,
             `${fps} fps`
         );
     }
@@ -777,7 +769,6 @@ function renderBadge(key, value, context = {}) {
     if (shortKey.includes('samplingrate')) {
         return pill(
             'bg-pink-500/20 text-pink-300 border border-pink-500/30',
-            text,
             `${text} Hz`
         );
     }
@@ -787,7 +778,6 @@ function renderBadge(key, value, context = {}) {
         if (!isNaN(w) && !isNaN(h)) {
             return pill(
                 'bg-slate-700 text-slate-300 border border-slate-600',
-                text,
                 `${(w / h).toFixed(2)}:1`
             );
         }
