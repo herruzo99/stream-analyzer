@@ -18,7 +18,11 @@ export const getSmartTokenDetails = (
     allAttributes = {},
     spd = null,
     now = null,
-    isSpdActive = false
+    isSpdActive = false,
+    // When the S-aggregator parent panel renders alongside (sidebar shows
+    // it as PARENT CONTEXT), the child d/t/r panel skips its own verdict
+    // hero + timeline strip so the run logic isn't duplicated.
+    suppressVerdictPanel = false
 ) => {
     const context = {
         timescale: contextTimescale,
@@ -28,6 +32,7 @@ export const getSmartTokenDetails = (
         spd,
         now,
         isSpdActive,
+        suppressVerdictPanel,
     };
 
     return SmartBadgeService.getDetails(key, value, context);

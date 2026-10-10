@@ -386,6 +386,10 @@ function getDetails(key, value, context = {}) {
     const timescale = context.timescale ?? null;
     const allAttributes = context.allAttributes ?? {};
     const text = value === null || value === undefined ? '' : String(value);
+    // Slim child (d/t/r) panels when the S-aggregator parent panel renders
+    // alongside: the parent already carries the run verdict + timeline.
+    // Tree pills (renderBadge) are unaffected — only sidebar panels slim.
+    const slimChildPanel = context.suppressVerdictPanel === true;
 
     // S-tag aggregator (SegmentTimeline spans): value carries the attributes.
     if (shortKey === 's' && value && typeof value === 'object') {
@@ -451,17 +455,20 @@ function getDetails(key, value, context = {}) {
                 typeof count === 'number'
                     ? `(${r} + 1) × ${d} / ${timescale} = ${formatDurationPill(((r + 1) * d) / timescale)}`
                     : null;
-            const verdict = liveVerdict({
-                tTicks: allAttributes['t'] ?? allAttributes['T'] ?? null,
-                dTicks: d,
-                timescale,
-                anchorTimeMs: context.anchorTime ?? null,
-                nowMs: context.now ?? null,
-                spd: context.spd,
-                isSpdActive: context.isSpdActive,
-                ptoTicks: context.pto ?? null,
-                rCount: r,
-            });
+            const verdict = slimChildPanel
+                ? null
+                : liveVerdict({
+                      tTicks:
+                          allAttributes['t'] ?? allAttributes['T'] ?? null,
+                      dTicks: d,
+                      timescale,
+                      anchorTimeMs: context.anchorTime ?? null,
+                      nowMs: context.now ?? null,
+                      spd: context.spd,
+                      isSpdActive: context.isSpdActive,
+                      ptoTicks: context.pto ?? null,
+                      rCount: r,
+                  });
             return {
                 label: 'Repeat Count',
                 parsedValue:
@@ -475,12 +482,14 @@ function getDetails(key, value, context = {}) {
                         `${detailRow('Timescale', String(timescale))}`,
                     workedText,
                     verdict,
-                    timeline: timelineStrip({
-                        verdict,
-                        spd: context.spd,
-                        isSpdActive: context.isSpdActive,
-                        segDurMs: (d / timescale) * 1000,
-                    }),
+                    timeline: slimChildPanel
+                        ? ''
+                        : timelineStrip({
+                              verdict,
+                              spd: context.spd,
+                              isSpdActive: context.isSpdActive,
+                              segDurMs: (d / timescale) * 1000,
+                          }),
                 }),
             };
         }
@@ -536,18 +545,22 @@ function getDetails(key, value, context = {}) {
                                   ? `wall = anchor + (${num} − ${ptoEff}) / ${timescale}`
                                   : `wall = anchor + ${num} / ${timescale}`;
                           })();
-                verdict = liveVerdict({
-                    tTicks: siblingT,
-                    dTicks: siblingD,
-                    timescale,
-                    anchorTimeMs: context.anchorTime ?? null,
-                    nowMs: context.now ?? null,
-                    spd: context.spd,
-                    isSpdActive: context.isSpdActive,
-                    ptoTicks: context.pto ?? null,
-                    rCount:
-                        allAttributes['r'] ?? allAttributes['R'] ?? null,
-                });
+                verdict = slimChildPanel
+                    ? null
+                    : liveVerdict({
+                          tTicks: siblingT,
+                          dTicks: siblingD,
+                          timescale,
+                          anchorTimeMs: context.anchorTime ?? null,
+                          nowMs: context.now ?? null,
+                          spd: context.spd,
+                          isSpdActive: context.isSpdActive,
+                          ptoTicks: context.pto ?? null,
+                          rCount:
+                              allAttributes['r'] ??
+                              allAttributes['R'] ??
+                              null,
+                      });
                 const segDurRaw =
                     shortKey === 'd' ? num : parseFloat(siblingD);
                 segDurMs =
@@ -564,12 +577,14 @@ function getDetails(key, value, context = {}) {
                         `${detailRow('Timescale', String(timescale))}`,
                     workedText,
                     verdict,
-                    timeline: timelineStrip({
-                        verdict,
-                        spd: context.spd,
-                        isSpdActive: context.isSpdActive,
-                        segDurMs,
-                    }),
+                    timeline: slimChildPanel
+                        ? ''
+                        : timelineStrip({
+                              verdict,
+                              spd: context.spd,
+                              isSpdActive: context.isSpdActive,
+                              segDurMs,
+                          }),
                 }),
             };
         }

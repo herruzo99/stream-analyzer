@@ -81,21 +81,12 @@ const detailTemplate = (item, isSelected) => {
             context.now,
             context.isSpdActive
         );
-        smartDetails = getSmartTokenDetails(
-            item.key,
-            item.value,
-            context.timescale,
-            context.anchorTime,
-            context.pto,
-            context.allAttributes,
-            context.spd,
-            context.now,
-            context.isSpdActive
-        );
-
-        // Check for Parent Tag Smart Details (specifically 'S' aggregator)
+        // Resolve the S-aggregator parent first: when it renders alongside
+        // as PARENT CONTEXT, the child d/t/r panel slims down to its own
+        // math + rows (no duplicate verdict hero / timeline strip).
+        let parentDetails = null;
         if (item.parentTag === 'S') {
-            const parentDetails = getSmartTokenDetails(
+            parentDetails = getSmartTokenDetails(
                 'S',
                 context.allAttributes, // Pass all attributes as value for aggregator
                 context.timescale,
@@ -106,14 +97,28 @@ const detailTemplate = (item, isSelected) => {
                 context.now,
                 context.isSpdActive
             );
+        }
+        const suppressChildVerdict = !!(parentDetails && parentDetails.label);
 
-            // If parent has details, merge or append them.
-            if (parentDetails && parentDetails.label) {
-                // We'll attach it to a new property to render it explicitly
-                smartDetails = smartDetails || { label: '' };
-                // @ts-ignore
-                smartDetails.parentSmartDetails = parentDetails;
-            }
+        smartDetails = getSmartTokenDetails(
+            item.key,
+            item.value,
+            context.timescale,
+            context.anchorTime,
+            context.pto,
+            context.allAttributes,
+            context.spd,
+            context.now,
+            context.isSpdActive,
+            suppressChildVerdict
+        );
+
+        // If parent has details, merge or append them.
+        if (suppressChildVerdict) {
+            // We'll attach it to a new property to render it explicitly
+            smartDetails = smartDetails || { label: '' };
+            // @ts-ignore
+            smartDetails.parentSmartDetails = parentDetails;
         }
     } else if (item.type === 'tag') {
         const context = item.context || {};
