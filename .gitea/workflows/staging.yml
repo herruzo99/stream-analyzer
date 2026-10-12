@@ -1,7 +1,13 @@
 # Gitea Actions (homelab staging) — private deploy to stream.local.herruzo.me
 #
 # Push to main = build + deploy to the Docker-host staging stack. GitHub Pages
-# workflow stays for the public site; Gitea runs only *.local.herruzo.me names.
+# workflow (.github/workflows/deploy.yml) stays for the public site; Gitea runs
+# only *.local.herruzo.me names.
+#
+# NOTE: single job, NO actions/upload-artifact — Gitea implements the v1
+# artifact backend and rejects @actions/artifact v2+ (upload-artifact@v4) with
+# "not currently supported on GHES". The runner runs on the Docker host with the
+# host docker.sock, so the job container can bind-mount the live dist/ directly.
 name: Staging (homelab)
 
 on:
@@ -14,41 +20,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm run build
-      - name: Upload dist
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: ./dist
-          retention-days: 14
-
-  # Deploy runs as a container the runner spawns on the Docker host with the
-  # staging dist bind-mounted. The act_runner container holds the host's
-  # docker.sock, so `container.volumes` mounts resolve against the HOST.
-  deploy:
-    needs: build
+  staging:
     runs-on: ubuntu-latest
     container:
-      image: alpine:3
+      image: node:20-bookworm
       volumes:
+        # <host path>:<container path> — resolved against the runner's host.
         - /opt/stacks/staging/stream-analyzer/dist:/dist
     steps:
-      - name: Download dist
-        uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: /dist
-      - name: Sanity check
+      - uses: actions/checkout@v4
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Lint + typecheck
         run: |
-          test -f /dist/index.html && echo "staging content in place"
+          npm run lint
+          npm run typecheck
+
+      - name: Build static site
+        run: npm run build
+
+      - name: Deploy to staging dist
+        run: |
+          test -f dist/index.html
+          # clear stale files, then publish the fresh build
+          find /dist -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+          cp -a dist/. /dist/
+          echo "deployed $(find /dist -type f | wc -l) files"
+
+      - name: Verify
+        run: |
+          test -f /dist/index.html && echo "staging content live"
