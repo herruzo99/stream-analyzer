@@ -1,0 +1,54 @@
+# Gitea Actions (homelab staging) — private deploy to stream.local.herruzo.me
+#
+# Push to main = build + deploy to the Docker-host staging stack. GitHub Pages
+# workflow stays for the public site; Gitea runs only *.local.herruzo.me names.
+name: Staging (homelab)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: staging-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: ./dist
+          retention-days: 14
+
+  # Deploy runs as a container the runner spawns on the Docker host with the
+  # staging dist bind-mounted. The act_runner container holds the host's
+  # docker.sock, so `container.volumes` mounts resolve against the HOST.
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:3
+      volumes:
+        - /opt/stacks/staging/stream-analyzer/dist:/dist
+    steps:
+      - name: Download dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: /dist
+      - name: Sanity check
+        run: |
+          test -f /dist/index.html && echo "staging content in place"
