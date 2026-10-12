@@ -1,4 +1,5 @@
 import { createStore } from 'zustand/vanilla';
+import { randomId } from '@/shared/utils/random.js';
 
 // ARCHITECTURAL FIX: Added 'forwardBuffer' to default stats to match the PlayerStats interface
 // and prevent UI crashes in MetricsHudComponent during initialization.
@@ -170,7 +171,7 @@ export const useMultiPlayerStore = createStore((set, get) => ({
     logEvent: (event) =>
         set((state) => ({
             eventLog: [
-                { ...event, id: crypto.randomUUID(), timestamp: new Date() },
+                { ...event, id: randomId(), timestamp: new Date() },
                 ...state.eventLog,
             ].slice(0, 100),
         })),

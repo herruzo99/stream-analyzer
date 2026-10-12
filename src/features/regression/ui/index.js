@@ -90,7 +90,7 @@ class RegressionView {
         // The Main Slot Content
         // We wrapp it in a div that fills height for the internal scroll
         return html`
-            <div class="h-full w-full animate-fadeIn">
+            <div class="h-full w-full">
                 ${testRunnerTemplate(stream)}
             </div>
         `;
@@ -113,13 +113,13 @@ class RegressionView {
         if (!stream || !stream.manifest) {
             render(
                 html`
-                    <div class="flex flex-col items-center justify-center h-full text-slate-400 animate-fadeIn">
-                        <div class="p-6 rounded-full bg-slate-800 mb-4">
-                             <!-- Simple Icon Placeholders if icons not avail in scope, but we imported them in components -->
-                             <span class="text-4xl opacity-50">?</span>
-                        </div>
-                        <p class="text-lg font-medium">No stream loaded.</p>
-                        <p class="text-sm opacity-70">Select a stream to begin regression testing.</p>
+                    <div class="flex flex-col items-center justify-center h-full p-8 text-center">
+                        <p class="text-[15px] font-medium text-slate-200 mb-1">
+                            No stream loaded.
+                        </p>
+                        <p class="mono text-[11px] text-slate-600">
+                            Analyze a manifest to run regression suites here.
+                        </p>
                     </div>
                 `,
                 this.container
@@ -129,14 +129,14 @@ class RegressionView {
 
         render(
             html`
-            <div class="flex flex-col h-full w-full overflow-hidden">
+            <div class="flex flex-col h-full w-full overflow-hidden bg-[#06090f]">
                 ${this._headerPanel
-                    ? html`<div class="shrink-0 px-2 pt-2">${this._headerPanel}</div>`
+                    ? html`<div class="shrink-0 px-4 pt-3">${this._headerPanel}</div>`
                     : ''}
                 <div class="grow min-h-0 flex overflow-hidden">
                     ${this._sidebarPanel
                         ? html`<div
-                              class="w-72 shrink-0 border-r border-slate-800 overflow-y-auto custom-scrollbar hidden md:block"
+                              class="w-72 shrink-0 border-r border-white/5 overflow-y-auto custom-scrollbar hidden md:block"
                           >
                               ${this._sidebarPanel}
                           </div>`

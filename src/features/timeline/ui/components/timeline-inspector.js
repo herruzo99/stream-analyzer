@@ -11,14 +11,13 @@ const renderRowContent = (key, value, depth = 0) => {
         if (value.length === 0) return '';
         return html`
             <div
-                class="flex flex-col border-b border-slate-800/50 py-1.5 last:border-0"
+                class="flex flex-col border-b border-white/10 py-1.5 last:border-0"
             >
                 <span
-                    class="text-xs font-bold text-slate-500 mb-1 ml-${depth *
-                    2}"
+                    class="text-xs font-bold text-slate-500 mb-1 ml-${depth * 2}"
                     >${key} (${value.length})</span
                 >
-                <div class="pl-2 border-l border-slate-700/50 ml-${depth * 2}">
+                <div class="pl-2 border-l border-white/10 ml-${depth * 2}">
                     ${value.map((item, i) =>
                         renderRowContent(`${i}`, item, depth + 1)
                     )}
@@ -31,14 +30,13 @@ const renderRowContent = (key, value, depth = 0) => {
     if (typeof value === 'object') {
         return html`
             <div
-                class="flex flex-col border-b border-slate-800/50 py-1.5 last:border-0"
+                class="flex flex-col border-b border-white/10 py-1.5 last:border-0"
             >
                 <span
-                    class="text-xs font-bold text-slate-500 mb-1 ml-${depth *
-                    2}"
+                    class="text-xs font-bold text-slate-500 mb-1 ml-${depth * 2}"
                     >${key}</span
                 >
-                <div class="pl-2 border-l border-slate-700/50 ml-${depth * 2}">
+                <div class="pl-2 border-l border-white/10 ml-${depth * 2}">
                     ${Object.entries(value).map(([k, v]) =>
                         renderRowContent(k, v, depth + 1)
                     )}
@@ -50,8 +48,7 @@ const renderRowContent = (key, value, depth = 0) => {
     // Handle Primitive Values
     return html`
         <div
-            class="flex justify-between items-baseline py-1.5 border-b border-slate-800 last:border-0 group ml-${depth *
-            2}"
+            class="flex justify-between items-baseline py-1.5 border-b border-white/10 last:border-0 group ml-${depth * 2}"
         >
             <span
                 class="text-xs font-medium text-slate-500 group-hover:text-slate-400 transition-colors"
@@ -73,7 +70,7 @@ export const timelineInspectorTemplate = () => {
     if (!timelineSelectedItem) {
         return html`
             <div
-                class="h-full flex flex-col items-center justify-center p-8 text-center border border-dashed border-slate-800 rounded-xl bg-slate-900/30"
+                class="h-full flex flex-col items-center justify-center p-8 text-center border border-dashed border-white/10 rounded-md bg-white/5"
             >
                 <div class="text-slate-600 mb-2">${icons.search}</div>
                 <span class="text-xs font-medium text-slate-500"
@@ -130,9 +127,9 @@ export const timelineInspectorTemplate = () => {
                 )}
                 ${messageData
                     ? html`
-                          <div class="mt-2 pt-2 border-t border-slate-700">
+                          <div class="mt-2 pt-2 border-t border-white/10">
                               <span
-                                  class="text-[10px] font-bold text-blue-400 uppercase tracking-wider block mb-1"
+                                  class="text-[10px] font-bold text-emerald-200 r block mb-1"
                                   >Event Payload</span
                               >
                               ${renderRowContent('Data', messageData)}
@@ -152,19 +149,19 @@ export const timelineInspectorTemplate = () => {
 
     return html`
         <div
-            class="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden flex flex-col h-full"
+            class="bg-white/5 border border-white/10 rounded-md overflow-hidden flex flex-col h-full"
         >
             <div
-                class="p-3 bg-slate-800 border-b border-slate-700 flex items-center justify-between"
+                class="p-3 bg-white/5 border-b border-white/10 flex items-center justify-between"
             >
                 <div class="flex items-center gap-2">
-                    <div class="w-2 h-2 rounded-full bg-blue-500"></div>
+                    <div class="w-2 h-2 rounded-full bg-emerald-500/10"></div>
                     <span
                         class="font-bold text-sm text-white truncate max-w-[150px]"
                         >${label}</span
                     >
                     <span
-                        class="text-[10px] uppercase tracking-wider font-bold text-slate-500 border border-slate-600 px-1.5 rounded"
+                        class="text-[10px] r font-bold text-slate-500 border border-slate-600 px-1.5 rounded"
                         >${type}</span
                     >
                 </div>

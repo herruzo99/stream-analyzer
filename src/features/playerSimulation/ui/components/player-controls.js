@@ -85,21 +85,17 @@ class PlayerControlsComponent extends HTMLElement {
         const audioValue = formatLang(activeAudioTrack);
         const textValue = activeTextTrack ? formatLang(activeTextTrack) : 'OFF';
 
-        // --- VISUAL ELEMENTS (The Glass Kit) ---
+        // --- VISUAL ELEMENTS (workbench kit) ---
 
-        // 1. The "Floating Orb" Play Button
+        // 1. Play / pause button
         const renderOrbButton = () => html`
-            <button @click=${handlePlayClick} 
-                class="group relative flex items-center justify-center w-14 h-14 rounded-full transition-all duration-300 ml-1
-                ${isPlaying
-                ? 'bg-slate-800 text-blue-400 shadow-[0_4px_12px_rgba(0,0,0,0.3)] border border-blue-500/20'
-                : 'bg-gradient-to-br from-blue-500 to-[#60a5fa] text-slate-100 shadow-[0_0_20px_-4px_#3b82f6] hover:shadow-[0_0_25px_-2px_#3b82f6] hover:scale-105'}">
-                
-                <!-- Inner gloss -->
-                <div class="absolute inset-0 rounded-full bg-gradient-to-b from-white/20 to-transparent opacity-50 pointer-events-none"></div>
-                
-                <div class="relative z-10 transition-transform duration-300 group-hover:scale-110 group-active:scale-95">
-                     ${isPlaying ? icons.pause : icons.play}
+            <button @click=${handlePlayClick}
+                class="group relative flex items-center justify-center w-14 h-14 rounded-full transition-all duration-300 ml-1 ${isPlaying ? 'bg-emerald-500/10 text-emerald-200 border border-emerald-400/25' : 'bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10 hover:text-slate-100 hover:scale-105'}"
+            >
+                <div
+                    class="relative z-10 transition-transform duration-300 group-hover:scale-110 group-active:scale-95"
+                >
+                    ${isPlaying ? icons.pause : icons.play}
                 </div>
             </button>
         `;
@@ -107,9 +103,7 @@ class PlayerControlsComponent extends HTMLElement {
         // 2. Glass Icon Button (Ghost)
         const renderGhostButton = (icon, label, onClick, isActive, isDanger = false) => html`
             <button @click=${onClick} title="${label}"
-                class="relative flex items-center justify-center w-10 h-10 rounded-full transition-all duration-200
-                ${isDanger ? 'text-red-400 hover:bg-red-500/10' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-100/10'}
-                ${isActive ? 'bg-slate-100/10 text-slate-100' : ''}">
+                class="relative flex items-center justify-center w-10 h-10 rounded-full transition-all duration-200 ${isDanger ? 'text-red-400 hover:bg-red-500/10' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-100/10'} ${isActive ? 'bg-slate-100/10 text-slate-100' : ''}">
                 <span class="scale-90">${icon}</span>
             </button>
         `;
@@ -117,13 +111,11 @@ class PlayerControlsComponent extends HTMLElement {
         // 3. Glass Tile Selector
         const renderGlassTile = (icon, label, value, onClick, isActive) => html`
             <button @click=${onClick}
-                class="group relative flex flex-col justify-center px-4 py-1 h-full min-w-[100px] border-r border-slate-800/30 last:border-0 transition-all duration-300
-                hover:bg-gradient-to-b hover:from-slate-100/5 hover:to-transparent
-                ${isActive ? 'bg-blue-500/10' : ''}">
+                class="group relative flex flex-col justify-center px-4 py-1 h-full min-w-[100px] border-r border-white/10 last:border-0 transition-all duration-300 hover:from-slate-100/5 hover:to-transparent ${isActive ? 'bg-emerald-500/10' : ''}">
                 
                 <div class="flex items-center gap-2 mb-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
                     <span class="scale-75 text-slate-400">${icon}</span>
-                    <span class="text-[9px] font-bold uppercase tracking-widest text-slate-400">${label}</span>
+                    <span class="text-[9px] font-bold text-slate-400">${label}</span>
                 </div>
                 
                 <div class="flex items-center justify-between w-full">
@@ -134,16 +126,15 @@ class PlayerControlsComponent extends HTMLElement {
                 </div>
 
                 <!-- Active Indicator Line -->
-                ${isActive ? html`<div class="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 shadow-[0_-2px_6px_#3b82f6]"></div>` : ''}
+                ${isActive ? html`<div class="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500/10"></div>` : ''}
             </button>
         `;
 
         // 4. Utility Toggles
-        const renderUtilToggle = (icon, label, onClick, isActive, colorClass = 'text-blue-400') => html`
+        const renderUtilToggle = (icon, label, onClick, isActive, colorClass = 'text-emerald-200') => html`
             <button @click=${onClick} title="${label}"
-                class="group relative w-10 h-full flex items-center justify-center transition-colors hover:bg-slate-100/5
-                ${isActive ? '' : 'text-slate-400 opacity-70 hover:opacity-100'}">
-                <span class="transition-transform duration-200 group-hover:scale-110 ${isActive ? colorClass + ' drop-shadow-md' : ''}">${icon}</span>
+                class="group relative w-10 h-full flex items-center justify-center transition-colors hover:bg-slate-100/5 ${isActive ? '' : 'text-slate-400 opacity-70 hover:opacity-100'}">
+                <span class="transition-transform duration-200 group-hover:scale-110 ${isActive ? colorClass + ' drop-' : ''}">${icon}</span>
                 ${isActive ? html`<div class="absolute bottom-1.5 w-1 h-1 rounded-full bg-current ${colorClass}"></div>` : ''}
             </button>
         `;
@@ -156,9 +147,9 @@ class PlayerControlsComponent extends HTMLElement {
                      The entire control set sits on one glass surface, or we treat them as sibling buttons 
                      on a transparent strip if we want "floating buttons". 
                      
-                     Based on "Prism Glass" requests, usually a single floating capsule is best.
+                     A single floating capsule reads best here; no chrome behind it.
                 -->
-                <div class="flex items-center p-1 bg-slate-800 overflow-hidden relative group grow"
+                <div class="flex items-center p-1 bg-white/5 overflow-hidden relative group grow"
                      style="${regionStyle}">
                     
                     <!-- Transport -->
@@ -174,7 +165,7 @@ class PlayerControlsComponent extends HTMLElement {
                     </div>
 
                     <!-- Divider -->
-                    <div class="w-px h-8 bg-slate-800 opacity-30 mx-4"></div>
+                    <div class="w-px h-8 bg-white/5 opacity-30 mx-4"></div>
 
                     <!-- Stream Config (Video/Audio/Subs) -->
                     <div class="flex items-stretch h-12 grow relative z-10 mr-4">
@@ -196,7 +187,7 @@ class PlayerControlsComponent extends HTMLElement {
                     </div>
 
                     <!-- Tools (Right Side) -->
-                    <div class="flex items-center gap-1 h-12 border-l border-slate-800/30 pl-2">
+                    <div class="flex items-center gap-1 h-12 border-l border-white/10 pl-2">
                          ${renderUtilToggle(
             icons.activity, 'Scope',
             () => uiActions.toggleSignalMonitor(),

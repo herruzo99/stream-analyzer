@@ -1,20 +1,20 @@
 import { html } from 'lit-html';
 
 const cueRowTemplate = (cue, index) => html`
-    <tr class="hover:bg-slate-800/50 transition-colors">
+    <tr class="hover:bg-white/5 transition-colors">
         <td
-            class="p-3 border-b border-slate-700/50 font-mono text-slate-500 text-right w-12"
+            class="p-3 border-b border-white/10 font-mono text-slate-500 text-right w-12"
         >
             ${index + 1}
         </td>
         <td
-            class="p-3 border-b border-slate-700/50 font-mono text-cyan-300 whitespace-nowrap"
+            class="p-3 border-b border-white/10 font-mono text-cyan-300 whitespace-nowrap"
         >
             ${cue.startTime?.toFixed(3)}
             <span class="text-slate-600">→</span> ${cue.endTime?.toFixed(3)}
         </td>
         <td
-            class="p-3 border-b border-slate-700/50 text-slate-200 text-sm leading-relaxed"
+            class="p-3 border-b border-white/10 text-slate-200 text-sm leading-relaxed"
         >
             ${(Array.isArray(cue.payload)
                 ? cue.payload
@@ -27,7 +27,7 @@ const cueRowTemplate = (cue, index) => html`
             )}
         </td>
         <td
-            class="p-3 border-b border-slate-700/50 font-mono text-xs text-yellow-500/80 break-all"
+            class="p-3 border-b border-white/10 font-mono text-xs text-yellow-500/80 break-all"
         >
             ${Object.keys(cue.settings).length
                 ? Object.entries(cue.settings)
@@ -40,9 +40,9 @@ const cueRowTemplate = (cue, index) => html`
 
 const styleBlockTemplate = (style, index) => html`
     <div
-        class="mb-4 last:mb-0 p-3 bg-slate-800/50 rounded border border-slate-700"
+        class="mb-4 last:mb-0 p-3 bg-white/5 rounded border border-white/10"
     >
-        <div class="text-xs font-bold text-slate-500 mb-2 uppercase">
+        <div class="text-xs font-bold text-slate-500 mb-2">
             Style Block #${index + 1}
         </div>
         <pre
@@ -55,16 +55,16 @@ ${style}</pre
 
 const regionBlockTemplate = (region, index) => html`
     <div
-        class="mb-4 last:mb-0 p-3 bg-slate-800/50 rounded border border-slate-700"
+        class="mb-4 last:mb-0 p-3 bg-white/5 rounded border border-white/10"
     >
-        <div class="text-xs font-bold text-slate-500 mb-2 uppercase">
+        <div class="text-xs font-bold text-slate-500 mb-2">
             Region #${index + 1}
         </div>
         <div class="grid grid-cols-2 gap-2 text-xs font-mono">
             ${Object.entries(region).map(
                 ([k, v]) => html`
                     <div
-                        class="flex justify-between border-b border-slate-700/50 py-1"
+                        class="flex justify-between border-b border-white/10 py-1"
                     >
                         <span class="text-slate-400">${k}</span>
                         <span class="text-slate-200">${v}</span>
@@ -83,9 +83,9 @@ export const vttAnalysisTemplate = (vttData) => {
         <div class="space-y-6">
             <!-- Cues Section -->
             <div
-                class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden"
+                class="bg-white/5 rounded-md border border-white/10 overflow-hidden"
             >
-                <div class="p-4 border-b border-slate-800 bg-slate-950/30">
+                <div class="p-4 border-b border-white/10 bg-slate-950/30">
                     <h3
                         class="font-bold text-slate-200 flex items-center gap-2"
                     >
@@ -98,7 +98,7 @@ export const vttAnalysisTemplate = (vttData) => {
                 <div class="overflow-x-auto max-h-[500px] custom-scrollbar">
                     <table class="w-full text-left">
                         <thead
-                            class="bg-slate-800/50 text-xs uppercase font-bold text-slate-500 sticky top-0 z-10"
+                            class="bg-white/5 text-xs font-bold text-slate-500 sticky top-0 z-10"
                         >
                             <tr>
                                 <th class="p-3 text-right">#</th>
@@ -121,10 +121,10 @@ export const vttAnalysisTemplate = (vttData) => {
                           ${hasStyles
                               ? html`
                                     <div
-                                        class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden h-full"
+                                        class="bg-white/5 rounded-md border border-white/10 overflow-hidden h-full"
                                     >
                                         <div
-                                            class="p-4 border-b border-slate-800 bg-slate-950/30"
+                                            class="p-4 border-b border-white/10 bg-slate-950/30"
                                         >
                                             <h3
                                                 class="font-bold text-slate-200"
@@ -145,10 +145,10 @@ export const vttAnalysisTemplate = (vttData) => {
                           ${hasRegions
                               ? html`
                                     <div
-                                        class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden h-full"
+                                        class="bg-white/5 rounded-md border border-white/10 overflow-hidden h-full"
                                     >
                                         <div
-                                            class="p-4 border-b border-slate-800 bg-slate-950/30"
+                                            class="p-4 border-b border-white/10 bg-slate-950/30"
                                         >
                                             <h3
                                                 class="font-bold text-slate-200"

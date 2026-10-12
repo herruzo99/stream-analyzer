@@ -3,89 +3,66 @@ import { highlightDash, highlightHls } from '@/ui/shared/syntax-highlighter';
 import { html } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 
+// Flat severity tints shared by line highlights. Data-driven only:
+// red/amber mark failing/warning lines, nothing decorative.
 const highlightColors = {
-    fail: 'background-color: color-mix(in srgb, #ef4444 30%, transparent)',
-    warn: 'background-color: color-mix(in srgb, #f59e0b 30%, transparent)',
-    pass: 'background-color: color-mix(in srgb, #10b981 30%, transparent)',
+    fail: 'background-color: rgba(239,68,68,0.12)',
+    warn: 'background-color: rgba(245,158,11,0.12)',
+    pass: 'background-color: rgba(16,185,129,0.08)',
 };
 
+const tooltipDot = (status) => {
+    const color =
+        status === 'fail'
+            ? '#f87171'
+            : status === 'warn'
+              ? '#fbbf24'
+              : status === 'pass'
+                ? '#34d399'
+                : '#64748b';
+    return `<span style="display:inline-block;width:6px;height:6px;border-radius:9999px;background:${color};flex:none;margin-top:5px"></span>`;
+};
+
+const escapeTooltipText = (value) =>
+    String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
 const formatTooltipContent = (results, filter) => {
-    let filteredResults = results;
-    if (filter !== 'all') {
-        filteredResults = results.filter((r) => r.status === filter);
-    }
+    const list = Array.isArray(results) ? results : [];
+    const filteredResults =
+        filter !== 'all' ? list.filter((r) => r?.status === filter) : list;
 
     if (filteredResults.length === 0) {
         return { b64TooltipHtml: '' };
     }
 
-    // Header with counts
-    const counts = {
-        fail: filteredResults.filter((r) => r.status === 'fail').length,
-        warn: filteredResults.filter((r) => r.status === 'warn').length,
-        pass: filteredResults.filter((r) => r.status === 'pass').length,
-        info: filteredResults.filter((r) => r.status === 'info').length,
-    };
-
-    const header = `
-        <div class="flex items-center gap-3 mb-3 pb-2 border-b border-slate-800">
-            <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Compliance Check</span>
-            <div class="flex gap-2 ml-auto">
-                ${counts.fail > 0 ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold border" style="background: color-mix(in srgb, #ef4444 20%, transparent); color: #ef4444; border-color: color-mix(in srgb, #ef4444 30%, transparent)">${counts.fail} ERR</span>` : ''}
-                ${counts.warn > 0 ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold border" style="background: color-mix(in srgb, #f59e0b 20%, transparent); color: #f59e0b; border-color: color-mix(in srgb, #f59e0b 30%, transparent)">${counts.warn} WARN</span>` : ''}
-            </div>
-        </div>
-    `;
-
     const rows = filteredResults
-        .map((r, index) => {
-            const statusConfig = {
-                fail: {
-                    colorValue: '#ef4444',
-                    icon: '✕',
-                },
-                warn: {
-                    colorValue: '#f59e0b',
-                    icon: '⚠',
-                },
-                pass: {
-                    colorValue: '#10b981',
-                    icon: '✓',
-                },
-                info: {
-                    colorValue: '#3b82f6',
-                    icon: 'ℹ',
-                },
-            }[r.status];
+        .map((r) => {
+            const status = r?.status || 'info';
             return `
-            <div class="mb-2 last:mb-0 p-3 rounded-lg border backdrop-blur-md relative overflow-hidden group"
-                style="background: color-mix(in srgb, ${statusConfig.colorValue} 10%, transparent); border-color: color-mix(in srgb, ${statusConfig.colorValue} 20%, transparent);">
-                <div class="absolute inset-0 opacity-50 blur-xl" style="background: color-mix(in srgb, ${statusConfig.colorValue} 10%, transparent);"></div>
-                <div class="relative z-10">
-                    <div class="flex items-start gap-2">
-                        <span class="font-mono font-bold text-lg leading-none mt-0.5 drop-shadow-md" style="color: ${statusConfig.colorValue}">${statusConfig.icon}</span>
-                        <div class="min-w-0">
-                            <p class="font-bold text-sm leading-tight mb-1" style="color: ${statusConfig.colorValue}">${r.text}</p>
-                            <p class="text-xs leading-relaxed opacity-90" style="color: #94a3b8">${r.details}</p>
-                            <div class="flex items-center gap-2 mt-2">
-                                <span class="text-[10px] font-mono px-1.5 py-0.5 rounded border"
-                                    style="background: #1e293b; border-color: #1e293b; color: #94a3b8">${r.isoRef}</span>
-                                <span class="text-[10px] font-bold uppercase tracking-wider opacity-70" style="color: ${statusConfig.colorValue}">${r.status}</span>
-                            </div>
-                        </div>
-                    </div>
+            <div style="display:flex;gap:8px;padding:8px 10px;border:1px solid rgba(255,255,255,0.05);border-radius:6px;background:rgba(255,255,255,0.02);margin-bottom:4px">
+                ${tooltipDot(status)}
+                <div style="min-width:0">
+                    <p style="margin:0;font-size:13px;color:#e2e8f0;line-height:1.4">${escapeTooltipText(r.text)}</p>
+                    ${r.details ? `<p style="margin:2px 0 0;font-size:11px;color:#64748b;line-height:1.5">${escapeTooltipText(r.details)}</p>` : ''}
+                    <p style="margin:4px 0 0;font-family:monospace;font-size:10px;color:#475569">${escapeTooltipText(r.isoRef || status)}</p>
                 </div>
             </div>
             `;
         })
         .join('');
 
-    const tooltipHtml = `<div class="min-w-[300px] max-w-[400px] p-1" > ${header} <div class="space-y-2">${rows}</div></div > `;
+    const tooltipHtml = `<div style="min-width:280px;max-width:380px">${rows}</div>`;
 
     try {
-        return {
-            b64TooltipHtml: btoa(unescape(encodeURIComponent(tooltipHtml))),
-        };
+        const bytes = new TextEncoder().encode(tooltipHtml);
+        let binary = '';
+        bytes.forEach((b) => {
+            binary += String.fromCharCode(b);
+        });
+        return { b64TooltipHtml: btoa(binary) };
     } catch (e) {
         console.error('Failed to encode tooltip', e);
         return { b64TooltipHtml: '' };
@@ -116,7 +93,7 @@ const renderDashNode = (
     const elementId = `loc - path - ${path.replace(/[[].]/g, '-')} `;
     const isHoverHighlighted = highlightedCompliancePathId === elementId;
     const hoverHighlightStyle = isHoverHighlighted
-        ? 'background-color: color-mix(in srgb, #3b82f6 30%, transparent);'
+        ? 'background-color: rgba(255,255,255,0.06);'
         : '';
 
     if (resultsForPath.length > 0) {
@@ -304,7 +281,7 @@ export const manifestViewTemplate = (
             const isHoverHighlighted =
                 highlightedCompliancePathId === locationId;
             const hoverHighlightStyle = isHoverHighlighted
-                ? 'background-color: color-mix(in srgb, #3b82f6 30%, transparent);'
+                ? 'background-color: rgba(255,255,255,0.06);'
                 : '';
 
             // prettier-ignore

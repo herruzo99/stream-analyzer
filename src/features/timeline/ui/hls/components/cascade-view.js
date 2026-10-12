@@ -22,7 +22,7 @@ export const hlsCascadeViewTemplate = (stream) => {
     );
 
     return html`
-        <div class="space-y-6 animate-fadeIn">
+        <div class="space-y-6">
             ${renditionGroupCardTemplate(
                 'Variant Streams',
                 variants,

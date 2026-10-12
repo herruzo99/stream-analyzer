@@ -29,7 +29,7 @@ const statCard = ({
     const tooltipContent = formatTooltip(tooltip);
 
     return html`
-        <div class="bg-slate-800 p-3 rounded-lg">
+        <div class="bg-white/5 p-3 rounded-md">
             <h5
                 class="text-xs font-semibold text-slate-400 truncate flex items-center gap-1.5"
             >
@@ -55,7 +55,7 @@ const statCard = ({
 const statSection = (title, content) => html`
     <section>
         <h4
-            class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2"
+            class="text-sm font-bold r text-slate-400 mb-2"
         >
             ${title}
         </h4>

@@ -22,14 +22,14 @@ export const patchRuleCardTemplate = ({
 
     // Resolve classes manually to avoid DOMTokenList whitespace errors in classMap
     const baseClasses =
-        'group relative flex flex-col gap-2 p-3 rounded-lg border transition-all duration-200 bg-slate-800';
+        'group relative flex flex-col gap-2 p-3 rounded-md border transition-all duration-200 bg-white/5';
     let statusClasses = '';
 
     if (!rule.active) {
-        statusClasses = 'border-slate-800 opacity-60';
+        statusClasses = 'border-white/10 opacity-60';
     } else if (isValidRegex) {
         statusClasses =
-            'border-slate-800 hover:border-blue-500/50';
+            'border-white/10 hover:border-emerald-400/50';
     } else {
         statusClasses =
             'border-red-500/40 bg-red-500/10';
@@ -56,22 +56,18 @@ export const patchRuleCardTemplate = ({
                             e.stopPropagation();
                             onUpdate(rule.id, 'active', !rule.active);
                         }}
-                        class="relative inline-flex h-4 w-7 items-center rounded-full transition-colors cursor-pointer ${rule.active
-                            ? 'bg-blue-500'
-                            : 'bg-slate-800 border border-slate-800'}"
+                        class="relative inline-flex h-4 w-7 items-center rounded-full transition-colors cursor-pointer ${rule.active ? 'bg-emerald-500/10' : 'bg-white/5 border border-white/10'}"
                         title="${rule.active ? 'Disable Rule' : 'Enable Rule'}"
                     >
                         <span
-                            class="inline-block h-2.5 w-2.5 transform rounded-full bg-white transition-transform ${rule.active
-                                ? 'translate-x-3.5'
-                                : 'translate-x-0.5'}"
+                            class="inline-block h-2.5 w-2.5 transform rounded-full bg-white transition-transform ${rule.active ? 'translate-x-3.5' : 'translate-x-0.5'}"
                         ></span>
                     </button>
 
                     <!-- Type Selector (Compact) -->
                     <div class="relative">
                         <select
-                            class="appearance-none bg-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 border border-slate-800 rounded px-2 py-0.5 pr-4 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none cursor-pointer"
+                            class="appearance-none bg-white/5 text-[10px] font-bold r text-slate-400 border border-white/10 rounded px-2 py-0.5 pr-4 focus:border-emerald-400/25 focus:ring-1 focus:ring-emerald-400/25 outline-none cursor-pointer"
                             .value=${rule.type}
                             @change=${(e) =>
                                 onUpdate(rule.id, 'type', e.target.value)}
@@ -94,7 +90,7 @@ export const patchRuleCardTemplate = ({
                         type="button"
                         @click=${() => onMove(index, -1)}
                         ?disabled=${index === 0}
-                        class="p-1 text-slate-400 hover:text-slate-200 disabled:opacity-30 rounded hover:bg-slate-800 transition-colors"
+                        class="p-1 text-slate-400 hover:text-slate-200 disabled:opacity-30 rounded hover:bg-white/5 transition-colors"
                     >
                         ${icons.arrowLeft}
                         <!-- Up -->
@@ -103,12 +99,12 @@ export const patchRuleCardTemplate = ({
                         type="button"
                         @click=${() => onMove(index, 1)}
                         ?disabled=${index === totalCount - 1}
-                        class="p-1 text-slate-400 hover:text-slate-200 disabled:opacity-30 rounded hover:bg-slate-800 transition-colors"
+                        class="p-1 text-slate-400 hover:text-slate-200 disabled:opacity-30 rounded hover:bg-white/5 transition-colors"
                     >
                         ${icons.arrowRight}
                         <!-- Down -->
                     </button>
-                    <div class="w-px h-3 bg-slate-800 mx-1"></div>
+                    <div class="w-px h-3 bg-white/5 mx-1"></div>
                     <button
                         type="button"
                         @click=${() => onRemove(rule.id)}
@@ -124,9 +120,7 @@ export const patchRuleCardTemplate = ({
                 <div class="relative">
                     <input
                         type="text"
-                        class="w-full bg-slate-800 border ${isValidRegex
-                            ? 'border-slate-800 focus:border-blue-500'
-                            : 'border-red-500/50 focus:border-red-500'} rounded px-2 py-1.5 text-xs font-mono text-slate-200 placeholder-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all"
+                        class="w-full bg-white/5 border ${isValidRegex ? 'border-white/10 focus:border-emerald-400/25' : 'border-red-500/50 focus:border-red-500'} rounded px-2 py-1.5 text-xs font-mono text-slate-200 placeholder-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-400/25 transition-all"
                         placeholder=${isRegex ? 'Pattern...' : 'Find...'}
                         .value=${rule.target}
                         @input=${(e) =>
@@ -145,7 +139,7 @@ export const patchRuleCardTemplate = ({
                 <div class="relative">
                     <input
                         type="text"
-                        class="w-full bg-slate-800 border border-slate-800 rounded px-2 py-1.5 text-xs font-mono text-slate-200 placeholder-slate-300 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/50 transition-all"
+                        class="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs font-mono text-slate-200 placeholder-slate-300 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/50 transition-all"
                         placeholder="Replace..."
                         .value=${rule.replacement}
                         @input=${(e) =>

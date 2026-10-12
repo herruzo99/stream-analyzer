@@ -3,35 +3,19 @@ import { disposeChart } from '@/ui/shared/charts/chart-renderer';
 import { init as initChart } from 'echarts/core';
 import { html } from 'lit-html';
 
-// --- High Contrast Neon Palette ---
-const getColors = () => {
-    const getCssVar = (name, fallback) => {
-        const val = getComputedStyle(document.documentElement)
-            .getPropertyValue(name)
-            .trim();
-        return val || fallback;
-    };
-
-    return {
-        segment: getCssVar('--primary-accent', '#60a5fa'),
-        segment_short: getCssVar('--color-warning', '#fbbf24'),
-        period: getCssVar('--secondary-accent', '#c084fc'),
-        content: getCssVar('--tertiary-accent', '#34d399'),
-        ad: getCssVar('--secondary-accent-hover', '#f472b6'),
-        gap: getCssVar('--color-error', '#f87171'),
-        drift: getCssVar('--color-warning', '#fbbf24'),
-        bg_track: getCssVar('--text-on-B-primary', '#f8fafc'),
-        textMuted: getCssVar('--text-on-B-secondary', '#94a3b8'),
-        textMain: getCssVar('--text-on-B-primary', '#f8fafc'),
-        bgPanel: getCssVar('--bg-surface-B-panel', '#1e293b'),
-        borderMain: getCssVar('--border-on-B', 'rgba(255,255,255,0.1)'),
-        primary500: getCssVar('--primary-accent', '#3b82f6'),
-        backdropFilter: getCssVar('--region-backdrop', 'blur(10px)'),
-    };
+// Workbench chart palette: slate tracks, red diffs. Amber/red data hues
+// stay reserved for warning/error semantics.
+const COLORS = {
+    segment: '#94a3b8',
+    diff: '#f87171',
+    gap: '#f87171',
+    bgPanel: '#0b111c',
+    borderMain: 'rgba(255,255,255,0.08)',
+    textMuted: '#64748b',
+    textMain: '#e2e8f0',
 };
 
 export class SemanticDiffChart extends HTMLElement {
-    // Port note: was `extends BaseChartComponent` (never committed).
     constructor() {
         super();
         this.chartContainer = document.createElement('div');
@@ -41,8 +25,11 @@ export class SemanticDiffChart extends HTMLElement {
         this._data = null;
     }
 
+    // No deep-equal dedup here: calculateSemanticDiff returns a fresh
+    // object per renderComparison, and JSON.stringify over large timelines
+    // costs more than the occasional redundant setOption. Renders are
+    // already gated upstream by the view's watched-key subscription.
     set data(val) {
-        if (JSON.stringify(val) === JSON.stringify(this._data)) return;
         this._data = val;
         this.render();
     }
@@ -80,9 +67,13 @@ export class SemanticDiffChart extends HTMLElement {
     render() {
         if (!this._data || !this.chart) return;
 
-        const COLORS = getColors();
-        const { trackA, trackB, diffTrack, minTime, maxTime } = this._data;
-        const categories = [trackB.name, 'Difference', trackA.name];
+        const data = this._data || {};
+        const trackA = data.trackA || { name: 'A', items: [] };
+        const trackB = data.trackB || { name: 'B', items: [] };
+        const diffTrack = data.diffTrack || { items: [] };
+        const minTime = data.minTime ?? 0;
+        const maxTime = data.maxTime ?? 0;
+        const categories = [trackB.name, 'difference', trackA.name];
 
         if (trackA.items.length === 0 && trackB.items.length === 0) {
             this.chart.setOption(
@@ -143,11 +134,14 @@ export class SemanticDiffChart extends HTMLElement {
             const y = start[1] - barHeight / 2;
             const width = Math.max(2, end[0] - start[0]);
 
-            // Color Resolution
-            let color = COLORS[itemMeta.type] || COLORS.content;
-            if (itemMeta.type === 'segment' && itemMeta.duration < 1.0) {
-                color = COLORS.segment_short;
-            }
+            // Color resolution: diffs read red, everything else slate;
+            // the difference lane carries the signal, not rainbow tracks.
+            const isDiffLane = categoryIndex === 1;
+            const color = isDiffLane
+                ? COLORS.diff
+                : itemMeta.type === 'gap'
+                  ? COLORS.gap
+                  : COLORS.segment;
 
             const rects = [];
 
@@ -179,13 +173,10 @@ export class SemanticDiffChart extends HTMLElement {
                         y: y + barHeight / 2,
                         align: 'center',
                         verticalAlign: 'middle',
-                        fill: '#fff', // Keep white for contrast on colored bars
+                        fill: '#e2e8f0',
                         fontSize: 10,
-                        fontWeight: 'bold',
                         overflow: 'truncate',
                         width: width - 4,
-                        textShadowBlur: 2,
-                        textShadowColor: 'rgba(0,0,0,0.5)',
                     },
                     silent: true,
                 });
@@ -214,7 +205,7 @@ export class SemanticDiffChart extends HTMLElement {
                     height: barHeight,
                     r: 6,
                 },
-                style: { fill: COLORS.bg_track, fillOpacity: 0.03 },
+                style: { fill: '#ffffff', fillOpacity: 0.03 },
                 silent: true,
             };
         };
@@ -226,21 +217,20 @@ export class SemanticDiffChart extends HTMLElement {
                 trigger: 'item',
                 backgroundColor: COLORS.bgPanel,
                 borderColor: COLORS.borderMain,
-                textStyle: { color: COLORS.textMain },
-                padding: [12, 16],
-                borderRadius: 12,
-                backdropFilter: COLORS.backdropFilter,
+                textStyle: { color: COLORS.textMain, fontSize: 12 },
+                padding: [10, 12],
+                borderRadius: 6,
                 formatter: (params) => {
-                    const d = params.data?.meta; // Tooltip usually receives the full object
+                    const d = params.data?.meta;
                     if (!d) return '';
-
-                    let html = `<div class="font-bold text-sm mb-2 border-b border-slate-800 pb-2" style="color:${COLORS[d.type] || '#fff'}">${d.label || d.type.toUpperCase()}</div>`;
-                    html += `<div class="text-xs text-slate-400 font-mono space-y-1.5">
-                        <div class="flex justify-between gap-4"><span>Start:</span> <span class="text-[#60a5fa] font-bold">${d.start.toFixed(3)}s</span></div>
-                        <div class="flex justify-between gap-4"><span>End:</span>   <span class="text-[#60a5fa] font-bold">${d.end.toFixed(3)}s</span></div>
-                        <div class="flex justify-between gap-4"><span>Dur:</span>   <span class="text-emerald-400 font-bold">${d.duration.toFixed(3)}s</span></div>
-                        <div class="text-slate-400 uppercase text-[10px] mt-2 pt-1 border-t border-slate-800 tracking-wider">${d.type}</div>
-                    </div>`;
+                    const num = (v) =>
+                        typeof v === 'number' && Number.isFinite(v)
+                            ? v.toFixed(3)
+                            : 'n/a';
+                    // Scroll with mouse wheel; hold ctrl to zoom (also via the slider below).
+                    let html = `<div style="margin-bottom:4px">${d.label || d.type}</div>`;
+                    html += `<div>start: ${num(d.start)}s · end: ${num(d.end)}s · dur: ${num(d.duration)}s</div>`;
+                    html += `<div style="opacity:0.6">${d.type}</div>`;
                     return html;
                 },
             },
@@ -265,9 +255,9 @@ export class SemanticDiffChart extends HTMLElement {
                 },
                 axisLabel: {
                     color: COLORS.textMuted,
-                    formatter: (val) => `${val.toFixed(0)}s`,
+                    formatter: (val) =>
+                        typeof val === 'number' ? `${val.toFixed(0)}s` : val,
                     margin: 14,
-                    fontWeight: 'bold',
                 },
                 axisLine: { lineStyle: { color: COLORS.borderMain } },
             },
@@ -275,13 +265,12 @@ export class SemanticDiffChart extends HTMLElement {
                 type: 'category',
                 data: categories,
                 axisLabel: {
-                    color: COLORS.textMain,
-                    fontWeight: 'bold',
-                    fontSize: 13,
+                    color: COLORS.textMuted,
+                    fontSize: 11,
                     width: 100,
                     overflow: 'break',
-                    lineHeight: 16,
-                    margin: 15,
+                    lineHeight: 15,
+                    margin: 12,
                 },
                 axisLine: { show: false },
                 axisTick: { show: false },
@@ -294,17 +283,16 @@ export class SemanticDiffChart extends HTMLElement {
                     height: 24,
                     borderColor: 'transparent',
                     backgroundColor: COLORS.bgPanel,
-                    fillerColor: COLORS.primary500 + '1A', // 10% opacity
+                    fillerColor: 'rgba(52,211,153,0.15)',
                     handleStyle: {
-                        color: COLORS.primary500,
-                        borderColor: COLORS.primary500,
-                        shadowBlur: 5,
+                        color: '#34d399',
+                        borderColor: '#34d399',
                     },
                     textStyle: { color: COLORS.textMuted, fontSize: 10 },
-                    start: 0, // percentages
+                    start: 0,
                     end: 100,
                     brushSelect: false,
-                    borderRadius: 12,
+                    borderRadius: 6,
                 },
                 {
                     type: 'inside',

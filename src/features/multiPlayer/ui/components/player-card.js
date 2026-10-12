@@ -115,18 +115,18 @@ export class PlayerCardComponent extends HTMLElement {
 
         // Container styling - Glass Layout Card
         // Focused/Selected states use semantic accents on borders/shadows
-        let stateStyle = ' shadow-[0 8px 30px rgb(0 0 0 / 0.35)]';
-        let bgStyle = 'bg-slate-800'; // Default heavy glass
+        let stateStyle = 'border-white/10';
+        let bgStyle = 'bg-white/5';
 
         if (isFocused && layoutMode === 'focus') {
-            stateStyle = 'border-blue-500 shadow-[0_0_30px_rgba(59, 130, 246,0.3)] ring-1 ring-blue-500';
+            stateStyle = 'border-emerald-400/30 ring-1 ring-emerald-400/25';
         } else if (isSelected) {
-            stateStyle = 'border-purple-500 shadow-[0_0_20px_rgba(168,85,247,0.2)] ring-1 ring-purple-500';
+            stateStyle = 'border-white/15 ring-1 ring-white/10';
         } else {
-            stateStyle += ' hover:border-slate-400 hover:shadow-xl transition-all';
+            stateStyle = 'border-white/10 hover:border-white/20';
         }
 
-        const containerClass = `group relative flex flex-col overflow-hidden rounded-xl backdrop-blur-[blur(12px)] w-full aspect-video transition-all duration-300 ${stateStyle} ${bgStyle}`;
+        const containerClass = `group relative flex flex-col overflow-hidden rounded-md w-full aspect-video transition-all duration-300 ${stateStyle} ${bgStyle}`;
 
         const progressPercent = (player.normalizedPlayheadTime || 0) * 100;
         const currentTimeLabel = formatPlayerTime(player.stats.playheadTime);
@@ -177,20 +177,18 @@ export class PlayerCardComponent extends HTMLElement {
             >
                 <!-- TOP CONTROLS (Floating Header) -->
                 <div
-                    class="absolute top-0 left-0 right-0 p-3 flex justify-between items-start z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-gradient-to-b from-slate-800/80 to-transparent pointer-events-none"
+                    class="absolute top-0 left-0 right-0 p-3 flex justify-between items-start z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none"
                 >
                     <!-- Left: Identity & Selection -->
                     <div class="flex items-center gap-2 pointer-events-auto">
                         <div
                             @click=${this._toggleSelection}
-                            class="w-5 h-5 rounded cursor-pointer border transition-colors flex items-center justify-center ${isSelected
-                ? 'bg-purple-500 border-purple-500 text-white'
-                : 'bg-slate-800 border-slate-800 hover:border-slate-100'}"
+                            class="w-5 h-5 rounded cursor-pointer border transition-colors flex items-center justify-center ${isSelected ? 'bg-white/5 border-white/10 text-white' : 'bg-white/5 border-white/10 hover:border-slate-100'}"
                         >
                             ${isSelected ? icons.checkCircle : ''}
                         </div>
                         <span
-                            class="text-[10px] font-bold text-slate-100 bg-slate-800 backdrop-blur px-2 py-0.5 rounded border border-slate-800 shadow-sm truncate max-w-[150px]"
+                            class="text-[10px] font-bold text-slate-100 bg-white/5 px-2 py-0.5 rounded border border-white/10 truncate max-w-[150px]"
                         >
                             ${player.streamName}
                         </span>
@@ -206,14 +204,14 @@ export class PlayerCardComponent extends HTMLElement {
                     { streamId: this.streamId }
                 );
             }}
-                            class="w-6 h-6 flex items-center justify-center bg-slate-800 hover:bg-slate-800 text-slate-400 hover:text-slate-100 rounded backdrop-blur border border-slate-800 transition-colors scale-90 hover:scale-100"
+                            class="w-6 h-6 flex items-center justify-center bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-100 rounded border border-white/10 transition-colors scale-90 hover:scale-100"
                             title="Clone"
                         >
                             ${icons.copy}
                         </button>
                         <button
                             @click=${handleMaximize}
-                            class="w-6 h-6 flex items-center justify-center bg-slate-800 hover:bg-slate-800 text-slate-400 hover:text-slate-100 rounded backdrop-blur border border-slate-800 transition-colors scale-90 hover:scale-100"
+                            class="w-6 h-6 flex items-center justify-center bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-100 rounded border border-white/10 transition-colors scale-90 hover:scale-100"
                             title="${isFocused && layoutMode === 'focus'
                 ? 'Grid View'
                 : 'Focus View'}"
@@ -230,9 +228,7 @@ export class PlayerCardComponent extends HTMLElement {
                         this.streamId
                     );
             }}
-                            class="w-6 h-6 flex items-center justify-center bg-slate-800 rounded backdrop-blur border border-slate-800 transition-colors scale-90 hover:scale-100 ${isRemovable
-                ? 'text-slate-400 hover:text-red-400 hover:bg-red-500/30'
-                : 'text-slate-400 opacity-50 cursor-not-allowed'}"
+                            class="w-6 h-6 flex items-center justify-center bg-white/5 rounded border border-white/10 transition-colors scale-90 hover:scale-100 ${isRemovable ? 'text-slate-400 hover:text-red-400 hover:bg-red-500/30' : 'text-slate-400 opacity-50 cursor-not-allowed'}"
                             ?disabled=${!isRemovable}
                             title="Close"
                         >
@@ -260,7 +256,7 @@ export class PlayerCardComponent extends HTMLElement {
                                   class="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none z-10"
                               >
                                   <div
-                                      class="p-4 bg-slate-800/80 rounded-full backdrop-blur-md border border-slate-800 shadow-2xl scale-75 group-hover:scale-100 transition-transform duration-300"
+                                      class="p-4 bg-white/5 rounded-full border border-white/10 scale-75 group-hover:scale-100 transition-transform duration-300"
                                   >
                                       ${icons.play}
                                   </div>
@@ -273,11 +269,11 @@ export class PlayerCardComponent extends HTMLElement {
                         class="absolute bottom-3 left-3 right-3 z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                     >
                         <div
-                            class="bg-slate-800 backdrop-blur-xl border border-slate-800 rounded-lg p-2 shadow-xl flex flex-col gap-1"
+                            class="bg-white/5 border border-white/10 rounded-md p-2 flex flex-col gap-1"
                         >
                             <!-- Progress Rail -->
                             <div
-                                class="relative h-1.5 w-full bg-slate-900/50 rounded-full cursor-pointer group/slider overflow-hidden interactive-slider"
+                                class="relative h-1.5 w-full bg-white/5 rounded-full cursor-pointer group/slider overflow-hidden interactive-slider"
                                 @click=${this._handleSeek}
                             >
                                 <div
@@ -285,7 +281,7 @@ export class PlayerCardComponent extends HTMLElement {
                                     style="width: ${bufferPercent}%"
                                 ></div>
                                 <div
-                                    class="absolute top-0 left-0 bottom-0 bg-blue-500 transition-all duration-100 shadow-[0_0_10px_#3b82f6]"
+                                    class="absolute top-0 left-0 bottom-0 bg-emerald-500/10 transition-all duration-100"
                                     style="width: ${progressPercent}%"
                                 ></div>
                             </div>
@@ -298,7 +294,7 @@ export class PlayerCardComponent extends HTMLElement {
                 multiPlayerService.togglePlay(
                     this.streamId
                 )}
-                                        class="text-slate-400 hover:text-slate-100 transition-colors p-1 hover:bg-slate-800 rounded"
+                                        class="text-slate-400 hover:text-slate-100 transition-colors p-1 hover:bg-white/10 rounded"
                                     >
                                         <div class="scale-90">
                                             ${player.state === 'playing' ||
@@ -308,7 +304,7 @@ export class PlayerCardComponent extends HTMLElement {
                                         </div>
                                     </button>
                                     <span
-                                        class="text-[10px] font-mono font-bold text-slate-400 select-none tracking-wide"
+                                        class="text-[10px] font-mono font-bold text-slate-400 select-none"
                                         >${currentTimeLabel}</span
                                     >
                                 </div>
@@ -316,7 +312,7 @@ export class PlayerCardComponent extends HTMLElement {
                                 <div class="flex items-center gap-1">
                                     <button
                                         @click=${this._handleSync}
-                                        class="text-slate-400 hover:text-blue-400 transition-colors p-1 rounded hover:bg-slate-800"
+                                        class="text-slate-400 hover:text-emerald-200 transition-colors p-1 rounded hover:bg-white/10"
                                         title="Sync others to this"
                                     >
                                         <div class="scale-90">
@@ -332,9 +328,7 @@ export class PlayerCardComponent extends HTMLElement {
                     this.render();
                 }
             }}
-                                        class="p-1 rounded hover:bg-slate-800 transition-colors ${isMuted
-                ? 'text-red-400'
-                : 'text-slate-400 hover:text-slate-100'}"
+                                        class="p-1 rounded hover:bg-white/10 transition-colors ${isMuted ? 'text-red-400' : 'text-slate-400 hover:text-slate-100'}"
                                     >
                                         <div class="scale-90">
                                             ${isMuted

@@ -45,7 +45,7 @@ export const mediaPlaylistCardTemplate = (item, stream, type) => {
     const codecBadge = codecs
         ? html`
               <span
-                  class="text-[9px] font-mono text-slate-400 bg-slate-800 border border-slate-700 px-1.5 py-0.5 rounded truncate max-w-[80px]"
+                  class="text-[9px] font-mono text-slate-400 bg-white/5 border border-white/10 px-1.5 py-0.5 rounded truncate max-w-[80px]"
                   title="${codecs}"
               >
                   ${codecs.split(',')[0]}
@@ -56,7 +56,7 @@ export const mediaPlaylistCardTemplate = (item, stream, type) => {
     const bwBadge = bw
         ? html`
               <span
-                  class="text-[9px] font-mono text-blue-300 bg-blue-900/20 border border-blue-500/30 px-1.5 py-0.5 rounded"
+                  class="text-[9px] font-mono text-emerald-200 bg-emerald-500/10 border border-emerald-400/25 px-1.5 py-0.5 rounded"
               >
                   ${formatBitrate(bw)}
               </span>
@@ -65,7 +65,7 @@ export const mediaPlaylistCardTemplate = (item, stream, type) => {
 
     return html`
         <div
-            class="group bg-slate-950 border border-slate-800 rounded p-3 hover:border-blue-500/40 hover:bg-slate-900 transition-all cursor-default relative overflow-hidden flex flex-col"
+            class="group bg-slate-950 border border-white/10 rounded p-3 hover:border-emerald-400/50 hover:bg-white/10 transition-all cursor-default relative overflow-hidden flex flex-col"
         >
             <div class="flex justify-between items-start mb-1">
                 <div
@@ -88,7 +88,7 @@ export const mediaPlaylistCardTemplate = (item, stream, type) => {
             ${preloadCount > 0 || reportCount > 0
                 ? html`
                       <div
-                          class="flex flex-col gap-2 mb-2 border-t border-slate-800/50 pt-2"
+                          class="flex flex-col gap-2 mb-2 border-t border-white/10 pt-2"
                       >
                           <!-- Preload Hints -->
                           ${preloadCount > 0
@@ -188,7 +188,7 @@ export const mediaPlaylistCardTemplate = (item, stream, type) => {
                 : ''}
 
             <div
-                class="flex items-center justify-between pt-2 border-t border-slate-800/50 mt-auto"
+                class="flex items-center justify-between pt-2 border-t border-white/10 mt-auto"
             >
                 ${codecBadge}
                 ${type === 'video' && res

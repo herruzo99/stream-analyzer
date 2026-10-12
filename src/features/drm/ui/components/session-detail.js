@@ -23,9 +23,9 @@ const keyRow = (key) => {
 
     return html`
         <div
-            class="flex items-center text-xs border-b border-slate-800 py-3 last:border-0 hover:bg-slate-800 px-3 rounded-lg transition-colors group"
+            class="flex items-center text-xs border-b border-white/10 py-3 last:border-0 hover:bg-white/10 px-3 rounded-md transition-colors group"
         >
-            <div class="w-8 text-slate-400 group-hover:text-blue-400 transition-colors">
+            <div class="w-8 text-slate-400 group-hover:text-emerald-200 transition-colors">
                 ${icons.key}
             </div>
             <div
@@ -33,7 +33,7 @@ const keyRow = (key) => {
             >
                 ${key.kid}
             </div>
-            <div class="font-bold uppercase text-[10px] ${color}">
+            <div class="font-bold text-[10px] ${color}">
                 ${key.status}
             </div>
         </div>
@@ -45,10 +45,10 @@ const payloadPreview = (data) => {
     const { format, content } = parseLicensePayload(data);
     return html`
         <div
-            class="mt-2 bg-slate-900/50 rounded-lg p-3 border border-slate-800 relative overflow-hidden group/code"
+            class="mt-2 bg-white/5 rounded-md p-3 border border-white/10 relative overflow-hidden group/code"
         >
              <div
-                class="text-[9px] text-slate-400 font-bold uppercase mb-1 flex justify-between"
+                class="text-[9px] text-slate-400 font-bold mb-1 flex justify-between"
             >
                 <span>${format}</span>
             </div>
@@ -69,35 +69,35 @@ const timelineItem = (item) => {
             ? icons.alertTriangle
             : icons.activity;
 
-    // Glass Card style for items
+    // Flat row style for items
     const cardClass = item.isError
         ? 'border-red-500/30 bg-red-500/5'
-        : 'border-slate-800 bg-slate-800 hover:bg-slate-800 hover:border-blue-500/30';
+        : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-emerald-400/50';
 
     const textClass = item.isError
         ? 'text-red-400'
         : 'text-slate-100';
 
-    const iconBg = item.isError ? 'bg-red-500/10 text-red-400' : 'bg-slate-800 text-slate-400';
+    const iconBg = item.isError ? 'bg-red-500/10 text-red-400' : 'bg-white/5 text-slate-400';
 
     return html`
         <div class="flex gap-4 relative pb-6 last:pb-0 group">
             <!-- Timeline Line -->
             <div
-                class="absolute left-[19px] top-8 bottom-0 w-px bg-slate-800 group-last:hidden"
+                class="absolute left-[19px] top-8 bottom-0 w-px bg-white/5 group-last:hidden"
             ></div>
 
             <div
-                class="relative z-10 w-10 h-10 rounded-full border border-slate-800 flex items-center justify-center shrink-0 shadow-sm transition-colors ${iconBg}"
+                class="relative z-10 w-10 h-10 rounded-full border border-white/10 flex items-center justify-center shrink-0 transition-colors ${iconBg}"
             >
                 ${icon}
             </div>
 
             <div class="grow min-w-0">
-                <div class="rounded-xl border p-4 transition-all duration-200 ${cardClass} shadow-sm">
+                <div class="rounded-md border p-4 transition-all duration-200 ${cardClass}">
                     <div class="flex justify-between items-start mb-1">
                         <span
-                            class="text-xs font-bold ${textClass} uppercase tracking-wider flex items-center gap-2"
+                            class="text-xs font-bold ${textClass} r flex items-center gap-2"
                             >
                             ${item.source} 
                             <span class="w-1 h-1 rounded-full bg-slate-400 opacity-50"></span>
@@ -111,9 +111,7 @@ const timelineItem = (item) => {
                                   class="flex gap-3 text-[10px] text-slate-400 font-mono mb-2"
                               >
                                   <span
-                                      class="px-1.5 rounded-sm bg-slate-900/30 border border-slate-800 ${item.data.status >= 400
-                    ? 'text-red-400 border-red-500/20'
-                    : 'text-emerald-400 border-emerald-500/20'}"
+                                      class="px-1.5 rounded-sm bg-white/5 border border-white/10 ${item.data.status >= 400 ? 'text-red-400 border-red-500/20' : 'text-emerald-400 border-emerald-500/20'}"
                                       >HTTP ${item.data.status}</span
                                   >
                                   <span class="opacity-70"
@@ -136,7 +134,7 @@ const timelineItem = (item) => {
                               ${item.data.message
                     ? html`
                                         <div
-                                            class="mt-2 text-[10px] font-bold text-slate-400 uppercase"
+                                            class="mt-2 text-[10px] font-bold text-slate-400"
                                         >
                                             Message Buffer
                                         </div>
@@ -154,10 +152,10 @@ export const sessionDetailTemplate = (session, timeline) => {
     if (!session)
         return html`
             <div
-                class="flex flex-col items-center justify-center h-full text-slate-400 animate-fadeIn"
+                class="flex flex-col items-center justify-center h-full text-slate-400"
             >
                 <div 
-                    class="scale-150 opacity-50 mb-6 p-8 rounded-full bg-slate-800 border border-slate-800 shadow-lg"
+                    class="scale-150 opacity-50 mb-6 p-8 rounded-full bg-white/5 border border-white/10"
                 >
                     ${icons.shield}
                 </div>
@@ -168,7 +166,7 @@ export const sessionDetailTemplate = (session, timeline) => {
 
     return html`
         <div
-            class="flex flex-col h-full w-full overflow-hidden relative transition-all duration-300 animate-fadeIn"
+            class="flex flex-col h-full w-full overflow-hidden relative transition-all duration-300"
              style=${styleMap({
         ...layoutCardStyles,
         background: '#1e293b',
@@ -177,7 +175,7 @@ export const sessionDetailTemplate = (session, timeline) => {
         >
             <!-- Header -->
             <div
-                class="p-6 border-b border-slate-800 bg-slate-800 shrink-0 backdrop-blur-xl"
+                class="p-6 border-b border-white/10 bg-white/5 shrink-0"
             >
                 <div class="flex items-center gap-3 mb-2">
                     <h2
@@ -186,7 +184,7 @@ export const sessionDetailTemplate = (session, timeline) => {
                         Session Inspector
                     </h2>
                     <span
-                        class="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs font-mono shadow-[0_0_10px_#3b82f6]"
+                        class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-200 border border-emerald-400/25 text-xs font-mono"
                     >
                         ${session.sessionId}
                     </span>
@@ -196,13 +194,13 @@ export const sessionDetailTemplate = (session, timeline) => {
                 >
                     <span class="flex items-center gap-1"
                         >System:
-                        <span class="text-slate-100 font-bold px-1.5 py-0.5 rounded bg-slate-900/30 border border-slate-800"
+                        <span class="text-slate-100 font-bold px-1.5 py-0.5 rounded bg-white/5 border border-white/10"
                             >${session.keySystem}</span
                         ></span
                     >
                     <span class="flex items-center gap-1"
                         >Keys:
-                        <span class="text-slate-100 font-bold px-1.5 py-0.5 rounded bg-slate-900/30 border border-slate-800"
+                        <span class="text-slate-100 font-bold px-1.5 py-0.5 rounded bg-white/5 border border-white/10"
                             >${session.keyStatuses.length}</span
                         ></span
                     >
@@ -213,12 +211,12 @@ export const sessionDetailTemplate = (session, timeline) => {
                 <!-- Key Table -->
                 <section>
                     <h3
-                        class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"
+                        class="text-xs font-bold text-slate-400 mb-3 flex items-center gap-2"
                     >
                         ${icons.key} Decryption Keys
                     </h3>
                     <div
-                        class="bg-slate-800 rounded-2xl border border-slate-800 overflow-hidden shadow-sm"
+                        class="bg-white/5 rounded-md border border-white/10 overflow-hidden"
                     >
                         ${session.keyStatuses.length > 0
             ? session.keyStatuses.map(keyRow)
@@ -233,7 +231,7 @@ export const sessionDetailTemplate = (session, timeline) => {
                 <!-- Unified Timeline -->
                 <section>
                     <h3
-                        class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"
+                        class="text-xs font-bold text-slate-400 mb-4 flex items-center gap-2"
                     >
                         ${icons.activity} Transaction History
                     </h3>

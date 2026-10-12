@@ -6,9 +6,8 @@ import { html } from 'lit-html';
 const filterButton = (isActive, icon, label, onClick) => html`
     <button
         @click=${onClick}
-        class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${isActive
-        ? 'bg-gradient-to-r from-blue-500 to-purple-500 border-transparent text-white shadow-[#3b82f6]'
-        : 'bg-slate-800 border-slate-800 text-slate-400 hover:border-blue-500/50 hover:text-slate-200 hover:bg-slate-800'}"
+        aria-pressed=${isActive}
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-md mono text-[11px] border transition-colors ${isActive ? 'border-emerald-400/25 bg-emerald-500/[0.06] text-emerald-200' : 'border-white/10 text-slate-400 hover:text-slate-100 hover:border-white/25'}"
     >
         ${icon}
         <span>${label}</span>
@@ -17,25 +16,23 @@ const filterButton = (isActive, icon, label, onClick) => html`
 
 const modeSwitch = (currentMode, onChange) => html`
     <div
-        class="flex bg-slate-800 p-1 rounded-xl border border-slate-800 backdrop-blur-sm"
+        class="flex border border-white/10 rounded-md p-0.5"
+        role="group"
+        aria-label="Interaction mode"
     >
         <button
             @click=${() => onChange('inspect')}
-            class="px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all ${currentMode ===
-        'inspect'
-        ? 'bg-slate-800 text-slate-200 shadow-sm border border-slate-800'
-        : 'text-slate-400 hover:text-slate-200'}"
+            aria-pressed=${currentMode === 'inspect'}
+            class="px-3 py-1.5 rounded mono text-[11px] transition-colors flex items-center gap-1.5 ${currentMode === 'inspect' ? 'bg-white/[0.06] text-slate-100' : 'text-slate-500 hover:text-slate-200'}"
         >
-            ${icons.searchCode} Inspect
+            ${icons.searchCode} inspect
         </button>
         <button
             @click=${() => onChange('compare')}
-            class="px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all ${currentMode ===
-        'compare'
-        ? 'bg-gradient-to-r from-purple-500 to-purple-500 text-white shadow-[0_0_15px_#a855f7]'
-        : 'text-slate-400 hover:text-slate-200'}"
+            aria-pressed=${currentMode === 'compare'}
+            class="px-3 py-1.5 rounded mono text-[11px] transition-colors flex items-center gap-1.5 ${currentMode === 'compare' ? 'bg-white/[0.06] text-slate-100' : 'text-slate-500 hover:text-slate-200'}"
         >
-            ${icons.comparison} Compare
+            ${icons.comparison} compare
         </button>
     </div>
 `;
@@ -49,82 +46,70 @@ export const explorerToolbarTemplate = () => {
 
     return html`
         <div
-            class="h-auto md:h-16 px-6 py-2 md:py-0 w-full flex flex-col md:flex-row items-center justify-between gap-4 shrink-0 z-20 relative"
+            class="w-full flex flex-col md:flex-row md:items-center gap-2 shrink-0"
         >
-            <!-- Left: Content Filters -->
-            <div
-                class="flex items-center gap-2 w-full md:w-auto overflow-x-auto scrollbar-hide"
-            >
+            <div class="flex items-center gap-1.5 overflow-x-auto custom-scrollbar">
                 ${filterButton(
-        segmentExplorerActiveTab === 'video',
-        icons.clapperboard,
-        'Video',
-        () => setActiveTab('video')
-    )}
+                    segmentExplorerActiveTab === 'video',
+                    icons.clapperboard,
+                    'video',
+                    () => setActiveTab('video')
+                )}
                 ${filterButton(
-        segmentExplorerActiveTab === 'audio',
-        icons.audioLines,
-        'Audio',
-        () => setActiveTab('audio')
-    )}
+                    segmentExplorerActiveTab === 'audio',
+                    icons.audioLines,
+                    'audio',
+                    () => setActiveTab('audio')
+                )}
                 ${filterButton(
-        segmentExplorerActiveTab === 'text',
-        icons.fileText,
-        'Text',
-        () => setActiveTab('text')
-    )}
+                    segmentExplorerActiveTab === 'text',
+                    icons.fileText,
+                    'text',
+                    () => setActiveTab('text')
+                )}
             </div>
 
-            <!-- Center: Interaction Mode -->
-            <div
-                class="w-full md:w-auto flex justify-center md:absolute md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2"
-            >
+            <div class="flex md:mx-auto">
                 ${modeSwitch(
-        segmentMatrixClickMode,
-        uiActions.setSegmentMatrixClickMode
-    )}
+                    segmentMatrixClickMode,
+                    uiActions.setSegmentMatrixClickMode
+                )}
             </div>
 
-            <!-- Right: Actions -->
-            <div class="flex items-center gap-3 w-full md:w-auto justify-end">
+            <div class="flex items-center gap-2 md:justify-end">
                 <span
-                    class="text-[10px] text-slate-400 opacity-70 hidden md:inline-block select-none mr-2"
+                    class="mono text-[10px] text-slate-600 hidden lg:inline-block select-none"
                 >
-                    Use
-                    <kbd
-                        class="font-sans bg-slate-800 px-1 rounded border border-slate-800 text-slate-100"
-                        >Arrows</kbd
-                    >
-                    to navigate
+                    arrows navigate
                 </span>
                 ${segmentsForCompare.length > 0
-            ? html`
+                    ? html`
                           <div
-                              class="flex items-center gap-2 bg-purple-500/20 border border-purple-500/30 pl-3 pr-1 py-1 rounded-full animate-fadeIn backdrop-blur-md"
+                              class="flex items-center gap-2 border border-white/10 rounded-md pl-3 pr-1 py-1"
                           >
-                              <span
-                                  class="text-xs font-bold text-purple-300"
+                              <span class="mono text-[11px] text-slate-300"
                                   >${segmentsForCompare.length} selected</span
                               >
                               <button
                                   @click=${() =>
-                    analysisActions.clearSegmentsToCompare()}
-                                  class="p-1 hover:bg-purple-500/20 rounded-full text-purple-300 hover:text-white transition-colors"
+                                      analysisActions.clearSegmentsToCompare()}
+                                  aria-label="Clear selection"
+                                  class="p-1 rounded text-slate-500 hover:text-slate-100 hover:bg-white/10 transition-colors"
                               >
-                                  ${icons.xCircle}
+                                  ${icons.x}
                               </button>
                               <button
                                   @click=${() =>
-                    uiActions.setActiveTab(
-                        'segment-comparison'
-                    )}
-                                  class="bg-gradient-to-r from-purple-500 to-purple-500 hover:brightness-110 text-white text-xs font-bold px-3 py-1 rounded-full transition-all shadow-[0_0_10px_#a855f7] flex items-center gap-1 ml-1"
+                                      uiActions.setActiveTab(
+                                          'segment-comparison'
+                                      )}
+                                  class="px-3 py-1 rounded-md mono text-[11px] border border-emerald-400/25 bg-emerald-500/[0.06] text-emerald-200 transition-colors flex items-center gap-1.5"
                               >
-                                  ${icons.comparison} Compare
+                                  ${icons.comparison} compare
                               </button>
                           </div>
                       `
-            : ''}
+                    : ''}
             </div>
         </div>
     `;

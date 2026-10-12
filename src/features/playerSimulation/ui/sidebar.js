@@ -33,7 +33,7 @@ export class PlayerSidebarComponent extends HTMLElement {
                           class="absolute -top-1 -right-2.5 flex h-2 w-2"
                       >
                           <span
-                              class="relative inline-flex rounded-full h-2 w-2 bg-blue-500"
+                              class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500/10"
                           ></span>
                       </span>`
                     : ''}
@@ -68,7 +68,7 @@ export class PlayerSidebarComponent extends HTMLElement {
                     )}
                 </div>
                 <div
-                    class="grow overflow-y-auto bg-slate-800 rounded-b-lg min-h-0 p-4"
+                    class="grow overflow-y-auto bg-white/5 rounded-b-lg min-h-0 p-4"
                 >
                     ${content}
                 </div>

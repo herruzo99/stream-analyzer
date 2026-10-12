@@ -35,35 +35,50 @@ export function createFeatureViewModel(
     protocol,
     standardVersion
 ) {
+    // Hardened: callers pass raw store data. Anything malformed yields
+    // an empty (but shaped) model instead of throwing mid-render.
+    const results =
+        analysisResultsMap instanceof Map ? analysisResultsMap : new Map();
+    const version = Number(standardVersion);
+
     let applicableDefinitions;
 
     if (protocol === 'hls') {
+        const cutoff = Number.isFinite(version) ? version : 0;
         applicableDefinitions = hlsFeatureDefinitions.filter(
-            (def) => def.version <= standardVersion
+            (def) => Number(def.version) <= cutoff
         );
-    } else {
+    } else if (protocol === 'dash') {
         applicableDefinitions = dashFeatureDefinitions;
+    } else {
+        applicableDefinitions = [];
     }
 
     let totalWeightedScore = 0;
     let maxPossibleScore = 0;
 
     const features = applicableDefinitions.map((def) => {
-        const result = analysisResultsMap.get(def.name) || {
-            used: false,
-            details: 'Not detected in manifest.',
-        };
+        const raw = results.get(def.name);
+        const result =
+            raw && typeof raw === 'object'
+                ? raw
+                : { used: false, details: 'Not detected in manifest.' };
 
         // @ts-ignore - dynamic property access on definition
-        const weight = def.complexityScore || 1;
+        const weight = Number(def.complexityScore) || 1;
         maxPossibleScore += weight;
-        if (result.used) {
+        if (result.used === true) {
             totalWeightedScore += weight;
         }
 
         return {
             ...def,
             ...result,
+            used: result.used === true,
+            details:
+                typeof result.details === 'string'
+                    ? result.details
+                    : 'Not detected in manifest.',
         };
     });
 

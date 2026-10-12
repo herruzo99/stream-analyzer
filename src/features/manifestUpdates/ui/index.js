@@ -147,18 +147,18 @@ class ManifestUpdatesView {
 
         // 1. Update feed panel (in-flow left column; 1.2.0 has no shell slots)
         const feedPanel = html`
-            <div class="h-full flex flex-col overflow-hidden bg-slate-800"
+            <div class="h-full flex flex-col overflow-hidden bg-white/5"
                  style=" border-radius: 0.75rem; backdrop-filter: blur(12px); box-shadow: 0 8px 30px rgb(0 0 0 / 0.35);">
                 <!-- Lock Controls -->
-                 <div class="pt-6 px-4 pb-2 border-b border-slate-800 bg-slate-800 shrink-0">
+                 <div class="pt-6 px-4 pb-2 border-b border-white/10 bg-white/5 shrink-0">
                     <button @click=${() => this.toggleSticky()}
-                        class="w-full flex items-center justify-center gap-2 py-2 rounded-md text-xs font-bold transition-all ${this.isStickToLive ? 'bg-blue-500 text-white shadow-[0_0_15px_#3b82f680]' : 'bg-slate-800 text-slate-400 hover:bg-slate-800 hover:text-slate-200'}">
+                        class="w-full flex items-center justify-center gap-2 py-2 rounded-md text-xs font-bold transition-all ${this.isStickToLive ? 'bg-emerald-500/10 text-white ' : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200'}">
                         ${this.isStickToLive ? icons.lockClosed : icons.lockOpen}
                         ${this.isStickToLive ? 'Following Live' : 'History Mode'}
                     </button>
                     <div class="mt-2 text-center hidden lg:block">
                         <span class="text-[9px] text-slate-400 opacity-50">
-                            Use <kbd class="font-sans bg-slate-800 px-1 rounded border border-slate-800">↑/↓</kbd> to navigate
+                            Use <kbd class="font-sans bg-white/5 px-1 rounded border border-white/10">↑/↓</kbd> to navigate
                         </span>
                     </div>
                 </div>
@@ -182,13 +182,13 @@ class ManifestUpdatesView {
                 <div class="grow flex flex-col min-h-0 min-w-0" style="gap: 0.75rem">
                     ${metricsPanel}
                 <!-- Diff Viewer -->
-                <div class="grow min-h-0 relative rounded-xl overflow-hidden">
+                <div class="grow min-h-0 relative rounded-md overflow-hidden">
                     ${diffViewerTemplate(vm.activeUpdate, stream.protocol)}
                 </div>
 
                 <!-- HLS Delta Visualization -->
                 ${showHlsViz ? html`
-                      <div class="h-48 shrink-0 rounded-xl overflow-hidden">
+                      <div class="h-48 shrink-0 rounded-md overflow-hidden">
                           ${hlsDeltaVisualizerTemplate(vm.activeUpdate)}
                       </div>
                   ` : ''}

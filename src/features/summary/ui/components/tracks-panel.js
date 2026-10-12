@@ -6,17 +6,27 @@ import { renderCodecInfo } from './shared.js';
 
 const formatFrameRate = (fr) => {
     if (!fr) return 'N/A';
-    if (typeof fr === 'number') return fr.toFixed(2);
+    if (typeof fr === 'number')
+        return Number.isFinite(fr) ? fr.toFixed(2) : 'N/A';
     if (typeof fr === 'string') {
         if (fr.includes('/')) {
             const [num, den] = fr.split('/').map(Number);
-            if (den) return (num / den).toFixed(2);
+            if (
+                Number.isFinite(num) &&
+                Number.isFinite(den) &&
+                den !== 0
+            ) {
+                return (num / den).toFixed(2);
+            }
+            return 'N/A';
         }
         const num = parseFloat(fr);
-        return isNaN(num) ? 'N/A' : num.toFixed(2);
+        return Number.isFinite(num) ? num.toFixed(2) : 'N/A';
     }
     return 'N/A';
 };
+
+const trackTitle = (track) => track.label || track.id || 'Untitled track';
 
 const isVideoCodec = (codecString) => {
     if (!codecString) return false;
@@ -41,6 +51,7 @@ class SummaryTracksPanel extends HTMLElement {
         super();
         this.activeTab = 'video';
         this._vm = null;
+        this._streamKey = null;
     }
 
     set vm(val) {
@@ -59,24 +70,43 @@ class SummaryTracksPanel extends HTMLElement {
         }
 
         const vm = this._vm;
+        // Reset to a tab that actually has tracks when the stream changes,
+        // but keep the user's tab across store re-renders of the same stream.
+        const streamKey = vm.streamKey || 'default';
+        if (this._streamKey !== streamKey) {
+            this._streamKey = streamKey;
+            const counts = {
+                video: (vm.videoTracks || []).length,
+                audio: (vm.audioTracks || []).length,
+                text: (vm.textTracks || []).length,
+            };
+            if ((counts[this.activeTab] || 0) === 0) {
+                this.activeTab =
+                    (['video', 'audio', 'text'].find(
+                        (t) => counts[t] > 0
+                    ) || 'video');
+            }
+        }
         const activeTab = this.activeTab;
 
         // --- Tab Button Helper ---
+        const counts = {
+            video: (vm.videoTracks || []).length,
+            audio: (vm.audioTracks || []).length,
+            text: (vm.textTracks || []).length,
+        };
         const renderTabButton = (id, label, icon) => {
             const isActive = activeTab === id;
-            const activeClasses =
-                'bg-blue-500/10 text-blue-400 border-blue-500/30';
-            const inactiveClasses =
-                'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-900/80';
-
             return html`
                 <button
                     @click=${() => this.setActiveTab(id)}
-                    class="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border transition-all flex items-center gap-2 ${isActive
-                    ? activeClasses
-                    : inactiveClasses}"
+                    aria-pressed=${isActive}
+                    class="px-3 py-1.5 rounded-md mono text-[11px] border transition-colors flex items-center gap-1.5 ${isActive
+                        ? 'bg-emerald-500/10 text-emerald-200 border-emerald-400/25'
+                        : 'bg-transparent text-slate-500 border-white/10 hover:text-slate-200 hover:border-white/25'}"
                 >
-                    ${icon} ${label}
+                    ${icon} ${label.toLowerCase()}
+                    <span class="text-slate-600">${counts[id]}</span>
                 </button>
             `;
         };
@@ -89,16 +119,14 @@ class SummaryTracksPanel extends HTMLElement {
         if (activeTab === 'video') {
             gridCols = 'grid-cols-12';
             header = html`
-                <div class="col-span-4 pl-2">Label</div>
-                <div class="col-span-2">Bitrate</div>
-                <div class="col-span-2">Resolution</div>
-                <div class="col-span-1">Frame Rate</div>
-                <div class="col-span-1">Video Codec(s)</div>
-                <div class="col-span-1">Muxed Audio</div>
-                <div class="col-span-1">Roles / Info</div>
+                <div class="col-span-3">label</div>
+                <div class="col-span-2">bitrate</div>
+                <div class="col-span-2">resolution</div>
+                <div class="col-span-1">fps</div>
+                <div class="col-span-2">codecs</div>
+                <div class="col-span-2">roles</div>
             `;
-            content = vm.videoTracks.map((track, index) => {
-                const isEven = index % 2 === 0;
+            content = (vm.videoTracks || []).map((track, index) => {
 
                 // Bitrate
                 const effectiveBitrate = formatBitrate(track.bandwidth);
@@ -110,9 +138,9 @@ class SummaryTracksPanel extends HTMLElement {
                 ) {
                     bitrate = html`${effectiveBitrate}
                         <span
-                            class="block text-[10px] text-amber-400 ${tooltipTriggerClasses}"
+                            class="mono block text-[10px] text-amber-300/90 ${tooltipTriggerClasses}"
                             data-tooltip="The manifest @bandwidth is ${manifestBitrate}, but the effective max bitrate from the 'btrt' box in the init segment is ${effectiveBitrate}. The effective rate is shown."
-                            >(Manifest: ${manifestBitrate})</span
+                            >(manifest: ${manifestBitrate})</span
                         >`;
                 } else {
                     bitrate = effectiveBitrate;
@@ -137,8 +165,8 @@ class SummaryTracksPanel extends HTMLElement {
                 if (isTrickPlay) {
                     const otherRoles = roleValues.filter((r) => r !== 'trick');
                     const trickBadge = html`<span
-                        class="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400"
-                        >Trick Play</span
+                        class="mono text-[10px] px-1.5 py-px rounded border bg-white/5 text-slate-400 border-white/10"
+                        >trick play</span
                     >`;
                     roles =
                         otherRoles.length > 0
@@ -151,60 +179,45 @@ class SummaryTracksPanel extends HTMLElement {
 
                 // Extra Props
                 let extraProps = [];
+                const propChip = (text, title) => html`<span
+                    class="mono px-1.5 py-px bg-white/5 text-slate-500 border border-white/10 rounded text-[10px]"
+                    title=${title || text}
+                    >${text}</span
+                >`;
                 if (track.scanType)
-                    extraProps.push(
-                        html`<span
-                            class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-800 text-[10px]"
-                            >${track.scanType}</span
-                        >`
-                    );
+                    extraProps.push(propChip(track.scanType));
                 if (track.hdcpLevel)
                     extraProps.push(
-                        html`<span
-                            class="px-1.5 py-0.5 bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] flex items-center gap-1"
-                            >${icons.hdcp} ${track.hdcpLevel}</span
-                        >`
+                        propChip(`hdcp ${track.hdcpLevel}`, 'HDCP level')
                     );
                 if (track.sar)
                     extraProps.push(
-                        html`<span
-                            class="px-1.5 py-0.5 bg-slate-800 text-slate-400 border border-slate-800 text-[10px]"
-                            title="Sample Aspect Ratio"
-                            >SAR ${track.sar}</span
-                        >`
+                        propChip(`sar ${track.sar}`, 'Sample aspect ratio')
                     );
                 if (track.codingDependency)
-                    extraProps.push(
-                        html`<span
-                            class="px-1.5 py-0.5 bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px]"
-                            >Dependent</span
-                        >`
-                    );
+                    extraProps.push(propChip('dependent'));
                 if (track.maxPlayoutRate)
-                    extraProps.push(
-                        html`<span
-                            class="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[10px]"
-                            >${track.maxPlayoutRate}x</span
-                        >`
-                    );
+                    extraProps.push(propChip(`${track.maxPlayoutRate}x rate`));
 
+                const videoCodecList = (track.codecs || []).filter((c) =>
+                    isVideoCodec(c.value)
+                );
+                const muxedCodecList = track.muxedAudio?.codecs?.length > 0
+                    ? track.muxedAudio.codecs
+                    : [];
                 return html`
                     <div
-                        class="grid grid-cols-12 gap-4 px-6 py-4 border-b border-slate-800/50 hover:bg-slate-900/30 transition-colors text-sm items-center group ${isEven
-                        ? 'bg-slate-900/5'
-                        : ''}"
+                        class="grid grid-cols-12 gap-3 px-4 py-2.5 border-b border-white/5 hover:bg-white/[0.02] transition-colors text-[13px] items-center"
                     >
                         <!-- Label -->
-                        <div class="col-span-4 flex items-center gap-3 pl-2">
-                            <div
-                                class="p-1.5 rounded bg-slate-900/50 text-slate-400 border border-slate-800/50 group-hover:border-blue-500/30 transition-colors"
+                        <div class="col-span-3 flex items-center gap-2.5 min-w-0">
+                            <span class="text-slate-600 shrink-0"
+                                >${icons.film}</span
                             >
-                                ${icons.film}
-                            </div>
                             <span
-                                class="font-mono font-bold text-slate-100 truncate"
-                                title="${track.label || track.id}"
-                                >${track.label || track.id}</span
+                                class="font-mono text-[13px] text-slate-100 truncate"
+                                title="${trackTitle(track)}"
+                                >${trackTitle(track)}</span
                             >
                         </div>
                         <!-- Bitrate -->
@@ -221,44 +234,34 @@ class SummaryTracksPanel extends HTMLElement {
                         </div>
                         <!-- Frame Rate -->
                         <div
-                            class="col-span-1 font-mono text-slate-100"
+                            class="col-span-1 font-mono text-[12px] text-slate-400"
                         >
                             ${formatFrameRate(track.frameRate)}
                         </div>
-                        <!-- Video Codecs -->
+                        <!-- Codecs: video first, muxed audio below -->
                         <div
-                            class="col-span-1 font-mono text-slate-100 space-y-1"
+                            class="col-span-2 font-mono text-slate-100 space-y-1 min-w-0"
                         >
-                            ${(track.codecs || [])
-                        .filter((c) => isVideoCodec(c.value))
-                        .map((c) => html`<div>${renderCodecInfo(c)}</div>`)}
-                        </div>
-                        <!-- Muxed Audio -->
-                        <div
-                            class="col-span-1 font-mono text-slate-100 space-y-1"
-                        >
-                            ${track.muxedAudio?.codecs?.length > 0
-                        ? track.muxedAudio.codecs.map(
-                            (c) =>
-                                html`<div>
-                                          ${renderCodecInfo(c)}
-                                      </div>`
-                        )
-                        : html`<span
-                                      class="text-slate-400"
-                                      >N/A</span
-                                  >`}
+                            ${videoCodecList.map(
+                                (c) => html`<div class="truncate">${renderCodecInfo(c)}</div>`
+                            )}
+                            ${muxedCodecList.map(
+                                (c) => html`<div class="truncate text-slate-400">${renderCodecInfo(c)}</div>`
+                            )}
+                            ${videoCodecList.length === 0 && muxedCodecList.length === 0
+                                ? html`<span class="text-slate-600">N/A</span>`
+                                : ''}
                         </div>
                         <!-- Roles -->
                         <div
-                            class="col-span-1 font-mono text-slate-400 flex flex-col gap-1 whitespace-nowrap overflow-hidden"
+                            class="col-span-2 font-mono text-slate-400 min-w-0"
                         >
-                            <div>${roles}</div>
+                            <div class="truncate" title="${typeof roles === 'string' ? roles : ''}">${roles}</div>
                             ${extraProps.length > 0
-                        ? html`<div class="flex flex-wrap gap-1 mt-1">
+                                ? html`<div class="flex flex-wrap gap-1 mt-1">
                                       ${extraProps}
                                   </div>`
-                        : ''}
+                                : ''}
                         </div>
                     </div>
                 `;
@@ -268,17 +271,16 @@ class SummaryTracksPanel extends HTMLElement {
             // Audio Cols: Label (4), Lang (2), Format (1), Ch/Hz (2), Bitrate (1), Codecs (2) ... wait need to adjust for 12 cols
             // Let's use: Label(3), Lang(1), Format(1), Ch/Hz(2), Bitrate(2), Codecs(2), Roles(1) = 12
             header = html`
-                <div class="col-span-3 pl-2">Rendition ID</div>
-                <div class="col-span-1">Language</div>
-                <div class="col-span-1">Format</div>
-                <div class="col-span-2">Ch / Hz</div>
-                <div class="col-span-2">Bitrate</div>
-                <div class="col-span-2">Codecs</div>
-                <div class="col-span-1">Roles</div>
+                <div class="col-span-3">id</div>
+                <div class="col-span-1">lang</div>
+                <div class="col-span-1">format</div>
+                <div class="col-span-2">ch / hz</div>
+                <div class="col-span-2">bitrate</div>
+                <div class="col-span-2">codecs</div>
+                <div class="col-span-1">roles</div>
             `;
 
             content = (vm.audioTracks || []).map((track, index) => {
-                const isEven = index % 2 === 0;
                 const roleValues = (track.roles || [])
                     .map((r) => r.value)
                     .filter(Boolean);
@@ -287,21 +289,19 @@ class SummaryTracksPanel extends HTMLElement {
 
                 return html`
                     <div
-                        class="grid grid-cols-12 gap-4 px-6 py-4 border-b border-slate-800/50 hover:bg-slate-900/30 transition-colors text-sm items-center group ${isEven
-                        ? 'bg-slate-900/5'
-                        : ''}"
+                        class="grid grid-cols-12 gap-3 px-4 py-2.5 border-b border-white/5 hover:bg-white/[0.02] transition-colors text-[13px] items-center"
                     >
                         <!-- Label -->
                         <div class="col-span-3 flex items-center gap-3 pl-2">
                             <div
-                                class="p-1.5 rounded bg-slate-900/50 text-slate-400 border border-slate-800/50 group-hover:border-blue-500/30 transition-colors"
+                                class="text-slate-600"
                             >
                                 ${icons.audioLines}
                             </div>
                             <span
-                                class="font-mono font-bold text-slate-100 truncate"
-                                title="${track.label || track.id}"
-                                >${track.label || track.id}</span
+                                class="font-mono text-[13px] text-slate-100 truncate"
+                                title="${trackTitle(track)}"
+                                >${trackTitle(track)}</span
                             >
                         </div>
                         <!-- Lang -->
@@ -358,14 +358,13 @@ class SummaryTracksPanel extends HTMLElement {
             gridCols = 'grid-cols-12';
             // Label(4), Lang(2), Format(2), Codecs(3), Roles(1)
             header = html`
-                <div class="col-span-4 pl-2">Rendition ID</div>
-                <div class="col-span-2">Language</div>
-                <div class="col-span-2">Format</div>
-                <div class="col-span-3">Codecs</div>
-                <div class="col-span-1">Roles</div>
+                <div class="col-span-4">id</div>
+                <div class="col-span-2">lang</div>
+                <div class="col-span-2">format</div>
+                <div class="col-span-3">codecs</div>
+                <div class="col-span-1">roles</div>
             `;
             content = (vm.textTracks || []).map((track, index) => {
-                const isEven = index % 2 === 0;
                 const roleValues = (track.roles || [])
                     .map((r) => r.value)
                     .filter(Boolean);
@@ -374,21 +373,19 @@ class SummaryTracksPanel extends HTMLElement {
 
                 return html`
                     <div
-                        class="grid grid-cols-12 gap-4 px-6 py-4 border-b border-slate-800/50 hover:bg-slate-900/30 transition-colors text-sm items-center group ${isEven
-                        ? 'bg-slate-900/5'
-                        : ''}"
+                        class="grid grid-cols-12 gap-3 px-4 py-2.5 border-b border-white/5 hover:bg-white/[0.02] transition-colors text-[13px] items-center"
                     >
                         <!-- Label -->
                         <div class="col-span-4 flex items-center gap-3 pl-2">
                             <div
-                                class="p-1.5 rounded bg-slate-900/50 text-slate-400 border border-slate-800/50 group-hover:border-blue-500/30 transition-colors"
+                                class="text-slate-600"
                             >
                                 ${icons.fileText}
                             </div>
                             <span
-                                class="font-mono font-bold text-slate-100 truncate"
-                                title="${track.label || track.id}"
-                                >${track.label || track.id}</span
+                                class="font-mono text-[13px] text-slate-100 truncate"
+                                title="${trackTitle(track)}"
+                                >${trackTitle(track)}</span
                             >
                         </div>
                         <!-- Lang -->
@@ -425,63 +422,37 @@ class SummaryTracksPanel extends HTMLElement {
 
         if (!content || content.length === 0) {
             content = html`
-                <div
-                    class="p-8 text-center text-slate-400 italic"
+                <p
+                    class="mono p-8 text-center text-[11px] text-slate-600"
                 >
-                    No ${activeTab} tracks found.
-                </div>
+                    No ${activeTab} tracks in this manifest.
+                </p>
             `;
         }
 
         const template = html`
             <div class="flex flex-col h-full w-full">
-                <!-- Header with Tabs -->
                 <div
-                    class="flex items-center justify-between px-6 py-3 border-b border-slate-800 bg-slate-800/10 shrink-0"
+                    class="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-white/5 shrink-0"
                 >
-                    <div class="flex items-center gap-4">
-                        <h3
-                            class="text-lg font-bold text-slate-100 flex items-center gap-2"
-                        >
-                            <div
-                                class="p-1.5 rounded-lg bg-blue-500/10 text-blue-400"
-                            >
-                                ${icons.film}
-                            </div>
-                            Track Details
-                        </h3>
-                        <div class="h-6 w-px bg-slate-800"></div>
-                        <div class="flex items-center gap-2">
-                            ${renderTabButton('video', 'Video', icons.film)}
-                            ${renderTabButton(
-            'audio',
-            'Audio',
-            icons.audioLines
-        )}
-                            ${renderTabButton(
-            'text',
-            'Text',
-            icons.fileText
-        )}
-                        </div>
+                    <h3 class="mono text-xs font-medium text-slate-300">
+                        tracks
+                    </h3>
+                    <div class="flex items-center gap-1.5">
+                        ${renderTabButton('video', 'Video', icons.film)}
+                        ${renderTabButton('audio', 'Audio', icons.audioLines)}
+                        ${renderTabButton('text', 'Text', icons.fileText)}
                     </div>
                 </div>
 
-                <!-- Scrollable Content Area -->
-                <div class="grow overflow-hidden relative flex flex-col">
-                    <div class="absolute inset-0 overflow-auto custom-scrollbar">
-                        <!-- Sticky Table Header -->
-                        <div
-                            class="sticky top-0 z-10 grid ${gridCols} gap-4 px-6 py-3 bg-slate-800/90 backdrop-blur-md border-b border-slate-800 text-xs font-bold text-slate-400 uppercase tracking-wider"
-                        >
-                            ${header}
-                        </div>
-
-                        <!-- Table Body -->
-                        <div class="flex flex-col pb-4 h-full">
-                            ${content}
-                        </div>
+                <div class="grow overflow-y-auto custom-scrollbar min-h-0">
+                    <div
+                        class="sticky top-0 z-10 grid ${gridCols} gap-4 px-4 py-2.5 bg-[#0b111c] border-b border-white/5 mono text-[10px] font-medium text-slate-500"
+                    >
+                        ${header}
                     </div>
+
+                    <div class="flex flex-col pb-4">${content}</div>
                 </div>
             </div>
         `;

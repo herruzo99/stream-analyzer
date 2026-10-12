@@ -39,12 +39,12 @@ function normalizeManifest(content, protocol) {
  */
 function getManifestText(stream, variantId) {
     if (stream.protocol === 'hls' && variantId && variantId !== 'master') {
-        const playlistData = stream.mediaPlaylists.get(variantId);
-        if (playlistData) {
+        const playlistData = stream.mediaPlaylists?.get(variantId);
+        if (playlistData?.rawManifest) {
             return playlistData.rawManifest;
         }
     }
-    return stream.rawManifest;
+    return stream.rawManifest || '';
 }
 
 /**
@@ -60,12 +60,46 @@ export const manifestDiffTemplate = (
     variantIdA = null,
     variantIdB = null
 ) => {
-    if (!streamA || !streamB) return html``;
+    if (!streamA || !streamB) {
+        return html`<p
+            class="mono text-[11px] text-slate-600 p-8 text-center"
+        >
+            Select two streams to diff their manifests.
+        </p>`;
+    }
+
+    if (streamA.protocol !== streamB.protocol) {
+        return html`<div
+            class="rounded-md border border-amber-400/25 bg-amber-500/5 p-4 m-4 max-w-xl"
+        >
+            <p class="text-[13px] font-medium text-amber-200 mb-1">
+                Cross-protocol diff (${streamA.protocol} vs
+                ${streamB.protocol})
+            </p>
+            <p class="text-xs text-slate-400 leading-relaxed">
+                These manifests have different structures, so most lines
+                will show as changed. Compare like with like for a useful
+                diff.
+            </p>
+        </div>`;
+    }
 
     const protocol = streamA.protocol === 'hls' ? 'hls' : 'dash';
 
     const rawA = getManifestText(streamA, variantIdA);
     const rawB = getManifestText(streamB, variantIdB);
+
+    if (!rawA || !rawB) {
+        const missing = !rawA ? streamA.name : streamB.name;
+        return html`<div class="p-8 text-center">
+            <p class="text-[13px] text-slate-300 mb-1">
+                Manifest text unavailable for “${missing}”.
+            </p>
+            <p class="mono text-[11px] text-slate-600">
+                The stream analyzed without retrievable manifest text.
+            </p>
+        </div>`;
+    }
 
     // Normalize both inputs
     const normA = normalizeManifest(rawA, protocol);
@@ -89,14 +123,15 @@ export const manifestDiffTemplate = (
     };
 
     return html`
-        <div class="h-full w-full flex flex-col">
-            <div
-                class="layout-card grow min-h-0 relative bg-slate-800 overflow-hidden"
-            >
+        <div class="h-full w-full flex flex-col min-h-0">
+            <p class="mono text-[10px] text-slate-600 px-4 py-2 border-b border-white/5 shrink-0">
+                ${changes} change${changes === 1 ? '' : 's'} · ${streamA.name} → ${streamB.name}
+            </p>
+            <div class="grow min-h-0">
                 ${diffViewerTemplate(syntheticUpdate, protocol, {
-        showControls: true,
-        showHideDeletedControl: false,
-    })}
+                    showControls: true,
+                    showHideDeletedControl: false,
+                })}
             </div>
         </div>
     `;

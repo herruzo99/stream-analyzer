@@ -7,6 +7,7 @@ import {
     performUnifiedAnalysis,
 } from '@/features/signalQuality/domain/pixel-analyzers.js';
 import { appLog } from '../../../shared/utils/debug.js';
+import { randomId } from '@/shared/utils/random.js';
 
 // Context storage for parallel stream processing
 const streamContexts = new Map();
@@ -454,7 +455,7 @@ function _processFrameIssuesStateful(frameIssues, time, stepSize, state) {
             }
         } else {
             const newAnomaly = {
-                id: crypto.randomUUID(),
+                id: randomId(),
                 type: issue.type,
                 startTime: time,
                 duration: stepSize,

@@ -68,7 +68,7 @@ class GridViewComponent extends HTMLElement {
         const template = html`
             <div
                 id="player-grid-container"
-                class=${classMap(gridClasses)}
+class=${classMap(gridClasses)}
                 style=${gridStyle}
             >
                 ${playerIds.map(

@@ -57,7 +57,7 @@ function renderParserCoverage() {
     }
 
     const mainTemplate = html`
-        <div class="flex flex-col h-full bg-slate-900 p-6">
+        <div class="flex flex-col h-full bg-white/5 p-6">
             <header
                 class="shrink-0 mb-4 flex justify-between items-center gap-4"
             >
@@ -74,7 +74,7 @@ function renderParserCoverage() {
                 </div>
                 <button
                     @click=${handleDebugCopy}
-                    class="bg-blue-500 hover:bg-[#60a5fa] text-white font-bold py-2 px-3 rounded-md transition-colors shrink-0 shadow-[#3b82f6]"
+                    class="bg-emerald-500/10 hover:bg-[#60a5fa] text-white font-bold py-2 px-3 rounded-md transition-colors shrink-0"
                 >
                     Copy Debug Report
                 </button>
@@ -87,7 +87,7 @@ function renderParserCoverage() {
             )}
             ${report.length === 0
                 ? html`<div
-                      class="mt-8 p-8 bg-slate-800 backdrop-blur-3xl rounded-lg text-center text-emerald-400 border border-emerald-500/50"
+                      class="mt-8 p-8 bg-white/5 rounded-md text-center text-emerald-400 border border-emerald-500/50"
                   >
                       <p class="font-bold text-lg">🎉 Full Parser Coverage!</p>
                       <p>No unparsed elements or parser drift were detected.</p>
@@ -137,7 +137,7 @@ function renderParserCoverage() {
                               Manifest Source
                           </h4>
                           <div
-                              class="bg-slate-800 backdrop-blur-3xl rounded-lg p-2 font-mono text-sm leading-relaxed overflow-auto grow border border-slate-800"
+                              class="bg-white/5 rounded-md p-2 font-mono text-sm leading-relaxed overflow-auto grow border border-white/10"
                           >
                               ${manifestViewTemplate(stream, report)}
                           </div>

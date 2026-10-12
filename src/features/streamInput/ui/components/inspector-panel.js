@@ -6,56 +6,50 @@ import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 
 const configSection = (title, icon, content) => html`
-    <section class="mb-8 animate-fadeIn">
+    <section class="mb-6">
         <h3
-            class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2 pb-2"
+            class="mono text-xs font-medium text-slate-400 mb-3 flex items-center gap-2"
         >
-            <span class="text-blue-400">${icon}</span> ${title}
+            <span class="text-slate-500">${icon}</span> ${title}
         </h3>
         ${content}
     </section>
 `;
 
 const drmToggle = (systemName, detected, isConfigured, onClick) => html`
-    <div
+    <button
         @click=${onClick}
-        class="flex items-center justify-between p-4 rounded-t-xl transition-all cursor-pointer select-none ${isConfigured
-        ? 'bg-slate-700 shadow-md'
-        : 'bg-slate-800 hover:bg-slate-800'} ${!isConfigured
-            ? 'rounded-b-xl'
-            : ''}"
+        aria-pressed=${isConfigured}
+        class="w-full flex items-center justify-between px-3 py-2.5 rounded-md border transition-colors cursor-pointer select-none text-left ${isConfigured
+            ? 'bg-emerald-500/5 border-emerald-500/30'
+            : 'bg-transparent border-white/5 hover:border-white/15'}"
     >
-        <div class="flex items-center gap-3">
-            <div
-                class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-lg font-bold text-slate-400 shadow-inner"
+        <span class="flex items-center gap-2.5 min-w-0">
+            <span
+                class="mono text-[11px] font-bold text-slate-300 shrink-0"
             >
-                ${systemName[0]}
-            </div>
-            <div>
-                <div class="font-bold text-slate-100 text-sm">
-                    ${systemName}
-                </div>
-                <div
-                    class="text-[10px] ${detected
-        ? 'text-emerald-400'
-        : 'text-slate-400'}"
-                >
-                    ${detected ? 'Signal Detected' : 'Not Detected'}
-                </div>
-            </div>
-        </div>
-        <div
-            class="relative w-10 h-5 bg-slate-800 rounded-full transition-colors ${isConfigured
-        ? 'bg-[#60a5fa]'
-        : ''}"
+                ${systemName}
+            </span>
+            <span
+                class="mono text-[10px] ${detected
+                    ? 'text-emerald-300'
+                    : 'text-slate-600'}"
+            >
+                ${detected ? 'signal detected' : 'not detected'}
+            </span>
+        </span>
+        <span
+            class="relative w-9 h-5 rounded-full transition-colors shrink-0 ${isConfigured
+                ? 'bg-emerald-400'
+                : 'bg-white/10'}"
         >
-            <div
-                class="absolute top-0.5 left-0.5 w-4 h-4 bg-slate-200 rounded-full shadow-sm transition-transform ${isConfigured
-        ? 'translate-x-5'
-        : 'translate-x-0'}"
-            ></div>
-        </div>
-    </div>
+            <span
+                class="absolute top-0.5 left-0.5 w-4 h-4 bg-slate-950 rounded-full transition-transform ${isConfigured
+                    ? 'translate-x-4'
+                    : 'translate-x-0'}"
+            ></span>
+        </span>
+    </button>
 `;
 
 const headerInputRow = (header, index, inputId, isDrm) => {
@@ -67,11 +61,12 @@ const headerInputRow = (header, index, inputId, isDrm) => {
         : analysisActions.removeAuthParam;
 
     return html`
-        <div class="flex flex-col md:flex-row gap-2 mb-2 group animate-scaleIn">
+        <div class="flex flex-col md:flex-row gap-2 mb-2 group">
             <input
                 type="text"
-                placeholder="Header-Name"
-                class="bg-slate-800 text-slate-100 text-xs rounded px-3 py-2 font-mono w-full md:w-1/3 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
+                placeholder="header-name"
+                aria-label="Header name"
+                class="bg-[#06090f] border border-white/10 text-slate-100 text-xs rounded-md px-3 py-2 font-mono w-full md:w-1/3 focus:border-emerald-400/60 outline-none transition-colors"
                 .value=${header.key}
                 @input=${(e) =>
             update(
@@ -85,8 +80,9 @@ const headerInputRow = (header, index, inputId, isDrm) => {
             <div class="flex gap-2 flex-1">
                 <input
                     type="text"
-                    placeholder="Value"
-                    class="bg-slate-800 text-emerald-400 text-xs rounded px-3 py-2 font-mono flex-1 focus:ring-1 focus:ring-emerald-500 outline-none transition-colors"
+                    placeholder="value"
+                    aria-label="Header value"
+                    class="bg-[#06090f] border border-white/10 text-slate-200 text-xs rounded-md px-3 py-2 font-mono flex-1 focus:border-emerald-400/60 outline-none transition-colors"
                     .value=${header.value}
                     @input=${(e) =>
             update(
@@ -99,9 +95,11 @@ const headerInputRow = (header, index, inputId, isDrm) => {
                 />
                 <button
                     @click=${() => remove(inputId, 'headers', header.id)}
-                    class="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded transition-colors opacity-100 md:opacity-50 md:group-hover:opacity-100"
+                    class="p-2 text-slate-600 hover:text-red-300 rounded transition-colors"
+                    title="Remove header"
+                    aria-label="Remove header"
                 >
-                    ${icons.xCircle}
+                    ${icons.x}
                 </button>
             </div>
         </div>
@@ -115,16 +113,21 @@ export const inspectorPanelTemplate = () => {
 
     if (!activeInput) return html``;
 
-    const detectedDrm = activeInput.detectedDrm || [];
-    const isKnownPreset = presets.some((p) => p.url === activeInput.url);
+    const detectedDrm = activeInput?.detectedDrm || [];
+    const isKnownPreset = presets.some((p) => p.url === activeInput?.url);
 
-    // Port: no themes in 1.2.0; solid styling throughout.
-    const isSolid = true;
+
+    const inputHostname = (() => {
+        try {
+            return new URL(activeInput.url).hostname || 'Local source';
+        } catch {
+            return 'Local source';
+        }
+    })();
 
     // --- Header Actions Logic ---
     const handleSavePreset = () => {
-        const nameToSave =
-            activeInput.name || new URL(activeInput.url).hostname;
+        const nameToSave = activeInput.name || inputHostname;
         eventBus.dispatch(EVENTS.UI.SAVE_PRESET_REQUESTED, {
             name: nameToSave,
             url: activeInput.url,
@@ -132,37 +135,32 @@ export const inspectorPanelTemplate = () => {
         });
     };
 
-    let saveBtnText = isKnownPreset ? 'Update Preset' : 'Save as Preset';
+    let saveBtnText = isKnownPreset ? 'Update preset' : 'Save as preset';
     let saveBtnIcon = icons.save;
-    let saveBtnClass =
-        'bg-slate-800 hover:bg-slate-800 text-slate-400';
+    let saveBtnClass = 'text-slate-400 hover:text-slate-100';
 
     if (presetSaveStatus === 'saving') {
         saveBtnText = 'Saving...';
         saveBtnIcon = icons.spinner;
     } else if (presetSaveStatus === 'saved') {
-        saveBtnText = 'Saved!';
+        saveBtnText = 'Saved';
         saveBtnIcon = icons.checkCircle;
-        saveBtnClass =
-            'bg-slate-800 text-emerald-400';
+        saveBtnClass = 'text-emerald-300';
     } else if (presetSaveStatus === 'error') {
-        saveBtnText = 'Error';
+        saveBtnText = 'Error saving';
         saveBtnIcon = icons.alertTriangle;
-        saveBtnClass =
-            'bg-slate-800 text-red-400';
+        saveBtnClass = 'text-red-300';
     }
 
     const headerActions = html`
-        <div class="flex justify-between items-center mb-8">
-            <h2
-                class="text-2xl font-bold text-slate-100 flex items-center gap-3 tracking-tight"
-            >
-                ${icons.settings} Configuration
+        <div class="flex justify-between items-center gap-3 mb-6">
+            <h2 class="mono text-sm font-medium text-slate-200">
+                Configure
             </h2>
             <button
                 @click=${handleSavePreset}
                 ?disabled=${presetSaveStatus === 'saving'}
-                class="flex items-center gap-2 px-4 py-2 ${isSolid ? 'rounded-md border border-slate-800' : 'rounded-xl shadow-lg'} text-xs font-bold transition-all ${saveBtnClass}"
+                class="flex items-center gap-2 px-3 py-2 rounded-md border border-white/10 text-xs font-medium transition-colors ${saveBtnClass} hover:border-white/25 disabled:opacity-50"
             >
                 ${saveBtnIcon} ${saveBtnText}
             </button>
@@ -171,15 +169,15 @@ export const inspectorPanelTemplate = () => {
 
     // Identity Section
     const identityContent = html`
-        <div class="grid grid-cols-1 gap-6">
+        <div class="grid grid-cols-1 gap-4">
             <div class="relative group">
                 <label
-                    class="text-[10px] font-bold text-slate-400 uppercase mb-2 block tracking-wider"
-                    >Friendly Name</label
+                    class="mono text-[11px] font-medium text-slate-500 mb-1.5 block"
+                    >Friendly name</label
                 >
                 <input
                     type="text"
-                    class="w-full bg-slate-800 text-slate-100 text-sm ${isSolid ? 'rounded-none border-b border-slate-800 focus:border-blue-500' : 'rounded-xl shadow-inner backdrop-blur-sm focus:ring-1 focus:ring-blue-500'} px-4 py-3 outline-none transition-all"
+                    class="w-full bg-[#06090f] border border-white/10 rounded-md text-slate-100 text-sm focus:border-emerald-400/60 px-3 py-2.5 outline-none transition-colors"
                     .value=${activeInput.name || ''}
                     @input=${(e) =>
             analysisActions.updateStreamInput(
@@ -192,19 +190,20 @@ export const inspectorPanelTemplate = () => {
             </div>
             <div class="relative group">
                 <label
-                    class="text-[10px] font-bold text-slate-400 uppercase mb-2 block flex justify-between tracking-wider"
+                    class="mono text-[11px] font-medium text-slate-500 mb-1.5 flex justify-between"
                 >
                     Source URL
                     ${activeInput.isTier0AnalysisLoading
             ? html`<span
-                              class="text-blue-400 animate-pulse flex items-center gap-1"
-                              >${icons.spinner} Analyzing...</span
+                              class="mono text-[10px] text-slate-500 flex items-center gap-1"
+                              >${icons.spinner} probing...</span
                           >`
             : ''}
                 </label>
                 <input
-                    type="text"
-                    class="w-full bg-slate-800 text-amber-400 text-xs font-mono ${isSolid ? 'rounded-none border-b border-slate-800 focus:border-amber-500' : 'rounded-xl shadow-inner backdrop-blur-sm focus:ring-1 focus:ring-amber-500'} px-4 py-3 transition-all"
+                    type="url"
+                    inputmode="url"
+                    class="w-full bg-[#06090f] border border-white/10 rounded-md text-slate-200 text-[13px] font-mono focus:border-emerald-400/60 px-3 py-2.5 transition-colors"
                     .value=${activeInput.url}
                     @input=${(e) =>
             analysisActions.updateStreamInput(
@@ -219,20 +218,17 @@ export const inspectorPanelTemplate = () => {
 
     // Network Section
     const networkContent = html`
-        <div
-            class="${isSolid ? 'bg-slate-800 border border-slate-800 p-6' : 'bg-slate-800 rounded-[2rem] p-6 backdrop-blur-xl shadow-xl'}"
-        >
-            <div class="flex justify-between items-center mb-6">
-                <span
-                    class="text-sm font-bold text-slate-400"
-                    >Custom Headers</span
+        <div class="bg-[#0b111c] border border-white/5 rounded-lg p-4">
+            <div class="flex justify-between items-center mb-3">
+                <span class="mono text-xs font-medium text-slate-300"
+                    >Custom headers</span
                 >
                 <button
                     @click=${() =>
             analysisActions.addAuthParam(activeInput.id, 'headers')}
-                    class="text-[10px] font-bold text-blue-400 hover:text-[#60a5fa] uppercase tracking-wider flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-slate-700 transition-colors"
+                    class="mono text-[11px] font-medium text-slate-400 hover:text-emerald-300 flex items-center gap-1 px-2 py-1 rounded transition-colors"
                 >
-                    ${icons.plusCircle} Add
+                    ${icons.plusCircle} Add header
                 </button>
             </div>
             <div class="space-y-2">
@@ -241,7 +237,7 @@ export const inspectorPanelTemplate = () => {
                 headerInputRow(h, i, activeInput.id, false)
             )
             : html`<div
-                          class="text-center py-6 text-slate-400 text-xs italic ${isSolid ? 'border border-dashed border-slate-800' : 'rounded-xl bg-slate-800'}"
+                          class="mono text-center py-4 text-slate-600 text-[11px] border border-dashed border-white/10 rounded-md"
                       >
                           No headers configured
                       </div>`}
@@ -341,9 +337,9 @@ export const inspectorPanelTemplate = () => {
 
         return html`
                     <div
-                        class="transition-all duration-500 overflow-hidden ${currentUrl
-                ? (isSolid ? 'bg-slate-800 border border-blue-500' : 'bg-slate-800 backdrop-blur-xl ring-1 ring-[#3b82f6] shadow-[0_0_30px_#3b82f6] rounded-[2rem]')
-                : (isSolid ? 'bg-slate-800 border border-slate-800' : 'bg-slate-800 backdrop-blur-sm hover:bg-slate-800 rounded-[2rem]')}"
+                        class="rounded-md border overflow-hidden transition-colors ${currentUrl
+                            ? 'bg-[#0b111c] border-emerald-500/25'
+                            : 'bg-transparent border-white/5'}"
                     >
                         ${drmToggle(
                     sys,
@@ -354,23 +350,24 @@ export const inspectorPanelTemplate = () => {
                         ${currentUrl
                 ? html`
                                   <div
-                                      class="p-6 bg-slate-800 space-y-6 animate-fadeIn"
+                                      class="p-4 space-y-4 border-t border-white/5"
                                   >
                                       <!-- License URL -->
                                       <div>
                                           <label
-                                              class="text-[10px] font-bold text-slate-400 mb-2 block uppercase tracking-wider"
-                                              >License Server URL</label
+                                              class="mono text-[11px] font-medium text-slate-500 mb-1.5 block"
+                                              >License server URL</label
                                           >
                                           <div class="relative group">
                                               <div
-                                                  class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-400 transition-colors"
+                                                  class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-600 group-focus-within:text-emerald-300 transition-colors"
                                               >
                                                   ${icons.link}
                                               </div>
                                               <input
-                                                  type="text"
-                                                  class="w-full bg-slate-800 text-slate-100 text-xs py-3 pl-9 pr-3 transition-all font-mono ${isSolid ? 'rounded-none border-b border-slate-800 focus:border-blue-500' : 'rounded-xl shadow-inner focus:ring-1 focus:ring-blue-500'}"
+                                                  type="url"
+                                                  inputmode="url"
+                                                  class="w-full bg-[#06090f] border border-white/10 rounded-md text-slate-200 text-xs py-2.5 pl-9 pr-3 transition-colors font-mono focus:border-emerald-400/60 outline-none"
                                                   .value=${currentUrl ===
                         'https://'
                         ? ''
@@ -407,13 +404,13 @@ export const inspectorPanelTemplate = () => {
                                       <!-- Certificate: File or URL -->
                                       <div>
                                           <label
-                                              class="text-[10px] font-bold text-slate-400 mb-2 block uppercase tracking-wider"
+                                              class="mono text-[11px] font-medium text-slate-500 mb-1.5 block"
                                           >
-                                              Server Certificate
+                                              Server certificate
                                               ${sys === 'FairPlay'
                         ? html`<span
-                                                        class="text-red-400 ml-1"
-                                                        >* Required</span
+                                                        class="text-red-300 ml-1"
+                                                        >* required</span
                                                     >`
                         : ''}
                                           </label>
@@ -421,25 +418,26 @@ export const inspectorPanelTemplate = () => {
                                           ${isCertFile
                         ? html`
                                                     <div
-                                                        class="flex items-center justify-between bg-slate-800 rounded-xl p-3 animate-scaleIn"
+                                                        class="flex items-center justify-between bg-emerald-500/5 border border-emerald-500/20 rounded-md px-3 py-2"
                                                     >
                                                         <div
-                                                            class="flex items-center gap-3 text-emerald-400"
+                                                            class="flex items-center gap-2.5 text-emerald-300"
                                                         >
                                                             ${icons.checkCircle}
                                                             <span
                                                                 class="text-xs font-mono truncate max-w-[150px]"
                                                             >
                                                                 ${currentCert.name ||
-                            'Certificate Loaded'}
+                            'Certificate loaded'}
                                                             </span>
                                                         </div>
                                                         <button
                                                             @click=${removeCert}
-                                                            class="text-slate-400 hover:text-red-400 p-1.5 rounded-lg hover:bg-slate-800 transition-colors"
-                                                            title="Remove Certificate"
+                                                            class="text-slate-500 hover:text-red-300 p-1.5 rounded transition-colors"
+                                                            title="Remove certificate"
+                                                            aria-label="Remove certificate"
                                                         >
-                                                            ${icons.xCircle}
+                                                            ${icons.x}
                                                         </button>
                                                     </div>
                                                 `
@@ -448,13 +446,13 @@ export const inspectorPanelTemplate = () => {
                                                         class="relative flex items-center group"
                                                     >
                                                         <div
-                                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-400 transition-colors"
+                                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-600 group-focus-within:text-emerald-300 transition-colors"
                                                         >
                                                             ${icons.shield}
                                                         </div>
                                                         <input
                                                             type="text"
-                                                            class="w-full bg-slate-800 text-slate-100 text-xs py-3 pl-9 pr-10 transition-all font-mono ${isSolid ? 'rounded-none border-b border-slate-800 focus:border-blue-500' : 'rounded-xl shadow-inner focus:ring-1 focus:ring-blue-500'}"
+                                                            class="w-full bg-[#06090f] border border-white/10 rounded-md text-slate-200 text-xs py-2.5 pl-9 pr-10 transition-colors font-mono focus:border-emerald-400/60 outline-none"
                                                             .value=${isCertString
                                 ? currentCert
                                 : ''}
@@ -463,17 +461,19 @@ export const inspectorPanelTemplate = () => {
                                                         />
                                                         <label
                                                             class="absolute inset-y-1 right-1 flex items-center cursor-pointer"
-                                                        
-                                                                    type="file"
-                                                                    class="hidden"
-                                                                    @change=${handleCertUpload}
-                                                                />
-                                                                <div
-                                                                    class="p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-blue-400 hover:bg-slate-800 transition-colors"
-                                                                    title="Upload Certificate File"
-                                                                >
+                                                            title="Upload certificate file"
+                                                        >
+                                                            <input
+                                                                type="file"
+                                                                accept=".cer,.crt,.der,.pem"
+                                                                class="hidden"
+                                                                @change=${handleCertUpload}
+                                                            />
+                                                            <span
+                                                                class="p-2 rounded text-slate-500 hover:text-emerald-300 transition-colors"
+                                                            >
                                                                 ${icons.upload}
-                                                            </div>
+                                                            </span>
                                                         </label>
                                                     </div>
                                                 `}
@@ -487,28 +487,21 @@ export const inspectorPanelTemplate = () => {
         </div>
 
         <!-- Additional Global Headers -->
-        <div class="mt-8 pt-8">
-            <div
-                class="${isSolid ? 'bg-slate-800 border border-slate-800 p-6' : 'bg-slate-800 rounded-[2rem] p-6 backdrop-blur-xl shadow-xl'}"
-            >
-                <div class="flex justify-between items-center mb-6">
-                    <div
-                        class="flex items-center gap-2 text-slate-400"
+        <div class="mt-6">
+            <div class="bg-[#0b111c] border border-white/5 rounded-lg p-4">
+                <div class="flex justify-between items-center mb-3">
+                    <span class="mono text-xs font-medium text-slate-300"
+                        >Global license headers</span
                     >
-                        ${icons.settings}
-                        <span class="text-xs font-bold uppercase tracking-wider"
-                            >Global License Headers</span
-                        >
-                    </div>
                     <button
                         @click=${() =>
             analysisActions.addDrmAuthParam(
                 activeInput.id,
                 'headers'
             )}
-                        class="text-[10px] font-bold text-blue-400 hover:text-[#60a5fa] uppercase tracking-wider flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-slate-700 transition-colors"
+                        class="mono text-[11px] font-medium text-slate-400 hover:text-emerald-300 flex items-center gap-1 px-2 py-1 rounded transition-colors"
                     >
-                        ${icons.plusCircle} Add Header
+                        ${icons.plusCircle} Add header
                     </button>
                 </div>
                 <div class="space-y-2">
@@ -517,7 +510,7 @@ export const inspectorPanelTemplate = () => {
                 headerInputRow(h, i, activeInput.id, true)
             )
             : html`<div
-                              class="text-center py-6 text-slate-400 text-xs italic ${isSolid ? 'border border-dashed border-slate-800' : 'rounded-xl bg-slate-800'}"
+                              class="mono text-center py-4 text-slate-600 text-[11px] border border-dashed border-white/10 rounded-md"
                           >
                               No global license headers.
                           </div>`}
@@ -527,17 +520,17 @@ export const inspectorPanelTemplate = () => {
     `;
 
     return html`
-        <div class="h-full overflow-y-auto custom-scrollbar p-4 md:p-8">
-            <div class="max-w-5xl mx-auto pb-20">
+        <div class="h-full overflow-y-auto custom-scrollbar p-4 md:p-6">
+            <div class="max-w-3xl mx-auto pb-8">
                 ${headerActions}
-                ${configSection('Stream Identity', icons.tag, identityContent)}
+                ${configSection('Stream identity', icons.tag, identityContent)}
                 ${configSection(
-        'Network Request',
+        'Network request',
         icons.network,
         networkContent
     )}
                 ${configSection(
-        'Content Protection',
+        'Content protection',
         icons.lockClosed,
         drmContent
     )}

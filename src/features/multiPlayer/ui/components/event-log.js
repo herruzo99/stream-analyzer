@@ -59,10 +59,7 @@ class EventLogComponent extends HTMLElement {
         const filterButton = (label, type) => html`
             <button
                 @click=${() => this.setFilter(type)}
-                class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded transition-colors border ${this
-                .filter === type
-                ? 'bg-blue-500 text-white border-blue-500'
-                : 'bg-slate-800 border-slate-800 text-slate-400 hover:text-slate-100 hover:border-slate-100'}"
+                class="px-2 py-1 text-[10px] font-bold r rounded transition-colors border ${this .filter === type ? 'bg-emerald-500/10 text-white border-emerald-400/25' : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-100 hover:border-slate-100'}"
             >
                 ${label}
             </button>
@@ -82,9 +79,9 @@ class EventLogComponent extends HTMLElement {
                 icon: icons.info,
             },
             info: {
-                bg: 'bg-slate-800',
+                bg: 'bg-white/5',
                 text: 'text-slate-400',
-                border: 'border-slate-800',
+                border: 'border-white/10',
                 icon: icons.activity,
             },
         };
@@ -92,11 +89,11 @@ class EventLogComponent extends HTMLElement {
         // Removed fixed max-h calculation. Uses h-full to fill parent.
         const template = html`
             <div
-                class="flex flex-col h-full w-full bg-slate-800 backdrop-blur-xl"
+                class="flex flex-col h-full w-full bg-white/5"
             >
                 <!-- Filter Toolbar -->
                 <div
-                    class="p-3 flex flex-wrap items-center gap-2 border-b border-slate-800 bg-slate-800 backdrop-blur z-10 shrink-0"
+                    class="p-3 flex flex-wrap items-center gap-2 border-b border-white/10 bg-white/5 z-10 shrink-0"
                 >
                     ${filterButton('All', 'all')}
                     ${filterButton('Critical', 'critical')}
@@ -109,7 +106,7 @@ class EventLogComponent extends HTMLElement {
                             @change=${(e) =>
                 this.setStreamFilter(e.target.value)}
                             .value=${this.streamIdFilter}
-                            class="bg-slate-800 text-slate-100 rounded border border-slate-800 py-1 pl-2 pr-6 text-xs font-medium appearance-none cursor-pointer hover:bg-slate-800 hover:border-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            class="bg-white/5 text-slate-100 rounded border border-white/10 py-1 pl-2 pr-6 text-xs font-medium appearance-none cursor-pointer hover:bg-white/10 hover:border-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-400/25"
                         >
                             <option value="all">All Streams</option>
                             ${Array.from(players.values()).map(
@@ -136,14 +133,14 @@ class EventLogComponent extends HTMLElement {
                               >
                                   <div class="scale-150">${icons.inbox}</div>
                                   <p
-                                      class="text-xs font-bold uppercase tracking-wider"
+                                      class="text-xs font-bold r"
                                   >
                                       No events found
                                   </p>
                               </div>
                           `
                 : html`
-                              <div class="divide-y divide-slate-800">
+                              <div class="divide-y divide-white/10">
                                   ${filteredLog.map((event) => {
                     const style =
                         severityConfig[event.severity] ||
@@ -151,7 +148,7 @@ class EventLogComponent extends HTMLElement {
 
                     return html`
                                           <div
-                                              class="p-3 hover:bg-slate-800 transition-colors group"
+                                              class="p-3 hover:bg-white/10 transition-colors group"
                                           >
                                               <div
                                                   class="flex justify-between items-start mb-1.5"
@@ -166,7 +163,7 @@ class EventLogComponent extends HTMLElement {
                                                           ${event.streamName}
                                                       </span>
                                                       <span
-                                                          class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border ${style.bg} ${style.text} ${style.border}"
+                                                          class="px-1.5 py-0.5 rounded text-[9px] font-bold border ${style.bg} ${style.text} ${style.border}"
                                                       >
                                                           ${event.type}
                                                       </span>

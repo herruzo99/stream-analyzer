@@ -305,7 +305,7 @@ class SegmentAnalysisComponent extends HTMLElement {
 
         const renderOverview = () => html`
             <div
-                class="absolute inset-0 overflow-y-auto p-4 custom-scrollbar animate-fadeIn"
+                class="absolute inset-0 overflow-y-auto p-4 custom-scrollbar"
             >
                 <segment-general-summary .vm=${vm}></segment-general-summary>
                 ${vm.format === 'scte35'
@@ -325,7 +325,7 @@ class SegmentAnalysisComponent extends HTMLElement {
                     : ''}
                 ${this._isAnalyzing
                     ? html`<div
-                          class="p-4 text-center text-blue-400 font-bold text-sm animate-pulse"
+                          class="p-4 text-center text-emerald-200 font-bold text-sm animate-pulse"
                       >
                           Running Deep Bitstream Analysis...
                       </div>`
@@ -335,7 +335,7 @@ class SegmentAnalysisComponent extends HTMLElement {
 
         const renderDeepAnalysis = () => html`
             <div
-                class="absolute inset-0 overflow-y-auto p-4 custom-scrollbar animate-fadeIn bg-slate-950"
+                class="absolute inset-0 overflow-y-auto p-4 custom-scrollbar bg-slate-950"
             >
                 <div class="h-full min-h-[400px]">
                     ${advancedBitstreamAnalysisTemplate(vm.bitstream)}
@@ -345,7 +345,7 @@ class SegmentAnalysisComponent extends HTMLElement {
 
         const renderStructure = () => html`
             <div
-                class="absolute inset-0 flex flex-col animate-fadeIn h-full w-full bg-slate-950"
+                class="absolute inset-0 flex flex-col h-full w-full bg-slate-950"
             >
                 ${vm.format === 'isobmff'
                     ? html`<div
@@ -356,7 +356,7 @@ class SegmentAnalysisComponent extends HTMLElement {
                           )}
                       </div>`
                     : html`<div
-                          class="h-full w-full border border-slate-800 overflow-hidden"
+                          class="h-full w-full border border-white/10 overflow-hidden"
                       >
                           ${structureContentTemplate({ data: parsedData.data })}
                       </div>`}
@@ -376,16 +376,16 @@ class SegmentAnalysisComponent extends HTMLElement {
             }
 
             return html`
-                <div class="absolute inset-0 flex flex-col bg-slate-900">
+                <div class="absolute inset-0 flex flex-col bg-white/5">
                     ${hexViewTemplate(buffer, maps)}
                 </div>
             `;
         };
 
         const content = html`
-            <div class="flex flex-col h-full bg-slate-900 text-slate-200">
+            <div class="flex flex-col h-full bg-white/5 text-slate-200">
                 <div
-                    class="shrink-0 px-4 pt-4 pb-0 border-b border-slate-800 bg-slate-900 sticky top-0 z-20"
+                    class="shrink-0 px-4 pt-4 pb-0 border-b border-white/10 bg-white/5 sticky top-0 z-20"
                 >
                     <div class="w-full max-w-xl">
                         ${connectedTabBar(tabs, this._activeTab, (tab) =>
@@ -393,7 +393,7 @@ class SegmentAnalysisComponent extends HTMLElement {
                         )}
                     </div>
                 </div>
-                <div class="grow relative w-full min-h-0 bg-slate-900">
+                <div class="grow relative w-full min-h-0 bg-white/5">
                     ${this._activeTab === 'overview' ? renderOverview() : ''}
                     ${this._activeTab === 'deep-analysis' && vm.bitstream
                         ? renderDeepAnalysis()

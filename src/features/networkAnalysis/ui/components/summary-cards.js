@@ -27,7 +27,7 @@ export const summaryCardsTemplate = (summary) => {
                 iconBgClass:
                     summary.failedRequests > 0
                         ? 'bg-red-500/30 text-red-400'
-                        : 'bg-slate-800 text-slate-400',
+                        : 'bg-white/5 text-slate-400',
                 tooltip:
                     'The number of requests that resulted in an HTTP 4xx or 5xx status code.',
             })}

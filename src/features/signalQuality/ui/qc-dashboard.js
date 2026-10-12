@@ -181,11 +181,11 @@ class QcDashboard extends HTMLElement {
             >
                 <div class="flex justify-between items-center mb-6 shrink-0">
                     <h2
-                        class="text-2xl font-black text-white flex items-center gap-3"
+                        class="text-2xl font-bold text-white flex items-center gap-3"
                     >
                         ${icons.activity} Signal Monitor
                         <span
-                            class="text-sm font-normal text-slate-500 bg-slate-900 px-2 py-1 rounded border border-slate-800"
+                            class="text-sm font-normal text-slate-500 bg-white/5 px-2 py-1 rounded border border-white/10"
                             >${activeJobCount} Active</span
                         >
                     </h2>
@@ -195,23 +195,23 @@ class QcDashboard extends HTMLElement {
                                 this._isConfiguring = true;
                                 this.render();
                             }}
-                            class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg transition-colors shadow-lg flex items-center gap-2"
+                            class="px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/10 text-white text-xs font-bold rounded-md transition-colors flex items-center gap-2"
                         >
                             ${icons.plusCircle} Add Analysis
                         </button>
-                        <div class="w-px h-8 bg-slate-800 mx-1"></div>
+                        <div class="w-px h-8 bg-white/5 mx-1"></div>
                         <button
                             @click=${() => {
                                 headlessAnalysisService.stopAll();
                                 qualityActions.resetAll();
                             }}
-                            class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-lg transition-colors border border-slate-700"
+                            class="px-4 py-2 bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-bold rounded-md transition-colors border border-white/10"
                         >
                             Reset All
                         </button>
                         <button
                             @click=${() => headlessAnalysisService.stopAll()}
-                            class="px-4 py-2 bg-red-900/20 hover:bg-red-900/40 text-red-400 text-xs font-bold rounded-lg transition-colors border border-red-900/30"
+                            class="px-4 py-2 bg-red-900/20 hover:bg-red-900/40 text-red-400 text-xs font-bold rounded-md transition-colors border border-red-900/30"
                         >
                             Stop All
                         </button>

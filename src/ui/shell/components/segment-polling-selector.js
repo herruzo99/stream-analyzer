@@ -12,37 +12,37 @@ const representationToggle = (stream, rep, subtext) => {
         analysisActions.toggleSegmentPollingForRep(stream.id, rep.id);
 
     return html`
-        <div
+        <button
             @click=${toggle}
-            class="flex items-center justify-between p-2 rounded hover:bg-slate-800/50 cursor-pointer group transition-colors border border-transparent hover:border-slate-800"
+            role="checkbox"
+            aria-checked=${isChecked}
+            aria-label="Poll ${rep.id}"
+            class="w-full flex items-center justify-between gap-3 p-2 rounded-md hover:bg-white/5 cursor-pointer transition-colors border border-transparent text-left"
         >
-            <div class="flex items-center gap-3 min-w-0">
-                <div
-                    class="w-4 h-4 rounded border flex items-center justify-center transition-colors ${isChecked
-            ? 'bg-blue-500 border-blue-500'
-            : 'border-slate-400 group-hover:border-slate-100'}"
+            <span class="flex items-center gap-3 min-w-0">
+                <span
+                    class="w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0 ${isChecked
+                        ? 'bg-emerald-400 border-emerald-400'
+                        : 'border-slate-600'}"
                 >
                     ${isChecked
-            ? html`<span
-                              class="text-slate-100 scale-75"
-                              >${icons.checkCircle}</span
+                        ? html`<span class="text-slate-950"
+                              >${icons.check}</span
                           >`
-            : ''}
-                </div>
-                <div class="min-w-0">
-                    <div
-                        class="text-xs font-bold text-slate-100 group-hover:text-slate-100 truncate"
+                        : ''}
+                </span>
+                <span class="min-w-0">
+                    <span
+                        class="block text-[13px] font-medium text-slate-100 truncate"
                     >
                         ${rep.id}
-                    </div>
-                    <div
-                        class="text-[10px] text-slate-400 font-mono"
-                    >
+                    </span>
+                    <span class="mono block text-[10px] text-slate-500">
                         ${subtext}
-                    </div>
-                </div>
-            </div>
-        </div>
+                    </span>
+                </span>
+            </span>
+        </button>
     `;
 };
 
@@ -83,45 +83,43 @@ const streamSection = (stream) => {
 
     return html`
         <div
-            class="bg-slate-800 rounded-xl border border-slate-800 overflow-hidden transition-all"
+            class="bg-white/[0.02] rounded-md border border-white/5 overflow-hidden"
         >
             <button
                 @click=${toggleExpand}
-                class="w-full flex items-center justify-between p-3 bg-slate-800/50 hover:bg-slate-800 transition-colors"
+                aria-expanded=${isExpanded}
+                class="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors text-left"
             >
-                <div class="flex items-center gap-2 min-w-0">
-                    <span
-                        class="font-bold text-sm text-slate-100 truncate"
+                <span class="flex items-center gap-2 min-w-0">
+                    <span class="font-medium text-sm text-slate-100 truncate"
                         >${stream.name}</span
                     >
                     ${activeCount > 0
-            ? html`<span
-                              class="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[10px] font-bold"
-                              >${activeCount} Active</span
+                        ? html`<span
+                              class="mono px-1.5 py-px rounded bg-emerald-500/10 text-emerald-200 border border-emerald-400/25 text-[10px]"
+                              >${activeCount} on</span
                           >`
-            : ''}
-                </div>
+                        : ''}
+                </span>
                 <span
-                    class="text-slate-400 transition-transform duration-200 ${isExpanded
-            ? 'rotate-180'
-            : ''}"
+                    class="text-slate-500 transition-transform ${isExpanded
+                        ? 'rotate-180'
+                        : ''}"
                 >
                     ${icons.chevronDown}
                 </span>
             </button>
 
             ${isExpanded
-            ? html`
-                      <div
-                          class="p-2 border-t border-slate-800 space-y-4 bg-slate-800/30"
-                      >
+                ? html`
+                      <div class="p-2 border-t border-white/5 space-y-3">
                           ${videoReps.length > 0
-                    ? html`
+                        ? html`
                                     <div>
                                         <h5
-                                            class="px-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1"
+                                            class="mono px-2 text-[10px] font-medium text-slate-600 mb-1"
                                         >
-                                            Video
+                                            video
                                         </h5>
                                         <div class="grid grid-cols-2 gap-1">
                                             ${videoReps.map((r) => {
@@ -141,12 +139,12 @@ const streamSection = (stream) => {
                                 `
                     : ''}
                           ${audioReps.length > 0
-                    ? html`
+                        ? html`
                                     <div>
                                         <h5
-                                            class="px-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1"
+                                            class="mono px-2 text-[10px] font-medium text-slate-600 mb-1"
                                         >
-                                            Audio
+                                            audio
                                         </h5>
                                         <div class="grid grid-cols-2 gap-1">
                                             ${audioReps.map((r) =>
@@ -174,30 +172,27 @@ export const segmentPollingSelectorTemplate = () => {
     const liveStreams = streams.filter((s) => s.manifest?.type === 'dynamic');
 
     return html`
-        <base-dropdown class="w-[32rem] max-h-[70vh]">
-            <div
-                slot="header"
-                class="p-4 border-b border-slate-800/5 bg-slate-100/[0.02]"
-            >
+        <base-dropdown class="w-80 sm:w-96 max-h-[70vh]">
+            <div slot="header" class="px-4 py-3 border-b border-white/5">
                 <h3
-                    class="font-bold text-slate-100 flex items-center gap-2"
+                    class="font-medium text-slate-100 flex items-center gap-2 text-sm"
                 >
-                    ${icons.download} Segment Polling
+                    ${icons.download} Segment polling
                 </h3>
-                <p class="text-xs text-slate-400 mt-1">
-                    Select tracks to actively download segments for. Essential
-                    for detecting in-band events like SCTE-35.
+                <p class="text-[11px] text-slate-500 mt-1">
+                    Pick tracks to keep downloading. Needed to catch
+                    in-band events like SCTE-35.
                 </p>
             </div>
 
-            <div class="p-3 space-y-3">
+            <div class="p-2">
                 ${liveStreams.length > 0
-            ? liveStreams.map(streamSection)
-            : html`<div
-                          class="p-8 text-center text-slate-400 italic text-sm"
+                    ? liveStreams.map(streamSection)
+                    : html`<p
+                          class="mono p-6 text-center text-[11px] text-slate-600"
                       >
                           No live streams available.
-                      </div>`}
+                      </p>`}
             </div>
         </base-dropdown>
     `;

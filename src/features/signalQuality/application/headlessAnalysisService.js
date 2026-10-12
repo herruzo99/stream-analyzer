@@ -128,6 +128,7 @@ class SimpleProfiler {
 }
 
 import { WebCodecsAudioProvider } from './webCodecsAudioProvider';
+import { randomId } from '@/shared/utils/random.js';
 
 // ... (imports)
 
@@ -1111,7 +1112,7 @@ class HeadlessJob {
                     `[Stateful] New ${issue.type} started at ${time.toFixed(3)}`
                 );
                 const newAnomaly = {
-                    id: crypto.randomUUID(),
+                    id: randomId(),
                     type: issue.type,
                     startTime: time,
                     duration: stepSize,

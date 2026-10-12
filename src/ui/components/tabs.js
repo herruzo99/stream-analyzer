@@ -5,9 +5,7 @@ export const tabButton = (label, key, activeKey, clickHandler) => {
     return html`
         <button
             @click=${() => clickHandler(key)}
-            class="px-3 py-1.5 text-sm font-semibold rounded-md transition-colors ${isActive
-            ? 'bg-[#60a5fa] text-slate-100'
-            : 'bg-slate-800 text-slate-400 hover:bg-slate-800'}"
+            class="px-3 py-1.5 text-sm font-semibold rounded-md transition-colors ${isActive ? 'bg-[#60a5fa] text-slate-100' : 'bg-white/5 text-slate-400 hover:bg-white/5'}"
         >
             ${label}
         </button>
@@ -20,9 +18,7 @@ const connectedTabButton = (tab, activeKey, clickHandler) => {
     return html`
         <button
             @click=${() => clickHandler(key)}
-            class="py-2 px-3 text-sm font-semibold rounded-t-md transition-colors border-t border-l border-r flex items-center gap-2 shrink-0 ${isActive
-            ? 'bg-slate-800 border-slate-800 text-slate-100 -mb-px border-b-slate-800 backdrop-blur-md'
-            : 'bg-transparent border-transparent text-slate-400 hover:bg-slate-800 hover:border-slate-800/50'}"
+            class="py-2 px-3 text-sm font-semibold rounded-t-md transition-colors border-t border-l border-r flex items-center gap-2 shrink-0 ${isActive ? 'bg-white/5 border-white/10 text-slate-100 -mb-px border-b-slate-800 ' : 'bg-transparent border-transparent text-slate-400 hover:bg-white/5 hover:border-white/10'}"
         >
             <span>${label}</span>
             ${indicator || ''}
@@ -50,7 +46,7 @@ export const connectedTabBar = (tabs, activeKey, clickHandler) => {
     return html`
         <div class="overflow-x-auto scrollbar-hide">
             <nav
-                class="flex space-x-2 border-b border-slate-800 flex-nowrap"
+                class="flex space-x-2 border-b border-white/10 flex-nowrap"
             >
                 ${tabs.map((tab) =>
         connectedTabButton(tab, activeKey, clickHandler)

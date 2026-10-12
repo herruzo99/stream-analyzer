@@ -10,10 +10,10 @@ import { getBoxColorIndex } from '@/shared/constants/isobmff-colors.js';
 // Categorical text colors by chart index. Full literals (never
 // interpolated) so Tailwind generates the CSS.
 const CHART_TEXT = {
-    1: 'text-blue-300',
+    1: 'text-emerald-200',
     2: 'text-emerald-300',
     3: 'text-amber-300',
-    4: 'text-purple-300',
+    4: 'text-slate-300',
     5: 'text-slate-300',
     6: 'text-rose-300',
     7: 'text-cyan-300',
@@ -235,20 +235,20 @@ class StructureTree extends HTMLElement {
         if (isSelected) {
             // Neon Selection
             containerClass +=
-                'bg-gradient-to-r from-[#3b82f6]/20 to-transparent text-white border-[#3b82f6] z-10 relative rounded-r shadow-[0_0_15px_#3b82f6]';
+                ' from-[#3b82f6]/20 to-transparent text-white border-[#3b82f6] z-10 relative rounded-r ';
         } else if (isHovered) {
             // Glass Hover
             containerClass +=
-                'bg-slate-800/60 text-slate-100 border-slate-800 relative z-10 backdrop-blur-sm';
+                'bg-white/5 text-slate-100 border-white/10 relative z-10 ';
         } else {
             containerClass +=
-                'text-slate-400 border-transparent hover:bg-slate-800/40 hover:text-slate-100';
+                'text-slate-400 border-transparent hover:bg-white/10 hover:text-slate-100';
         }
 
         // --- Chunk Badge Logic ---
         const chunkBadge = item.chunkInfo
             ? html`<span
-                  class="ml-2 px-1.5 py-0.5 rounded bg-[#3b82f6]/10 text-blue-300 border border-[#3b82f6]/20 text-[9px] font-bold uppercase tracking-wider"
+                  class="ml-2 px-1.5 py-0.5 rounded bg-[#3b82f6]/10 text-emerald-200 border border-[#3b82f6]/20 text-[9px] font-bold r"
                   >Chunk #${item.chunkInfo.index}</span
               >`
             : '';
@@ -263,31 +263,24 @@ class StructureTree extends HTMLElement {
                 data-box-offset="${item.offset}"
             >
                 <div
-                    class="w-4 h-4 flex items-center justify-center shrink-0 hover:text-white transition-colors rounded hover:bg-white/10 mr-1 ${item.hasChildren
-                        ? ''
-                        : 'invisible'}"
+                    class="w-4 h-4 flex items-center justify-center shrink-0 hover:text-white transition-colors rounded hover:bg-white/10 mr-1 ${item.hasChildren ? '' : 'invisible'}"
                     @click=${(e) => this._toggleExpand(e, item)}
                 >
                     <span
-                        class="transition-transform duration-200 ${item.isExpanded
-                            ? 'rotate-90'
-                            : ''}"
+                        class="transition-transform duration-200 ${item.isExpanded ? 'rotate-90' : ''}"
                     >
                         ${icons.chevronRight}
                     </span>
                 </div>
 
                 <span
-                    class="${iconColorClass} opacity-90 scale-90 transition-colors drop-shadow-[0_0_2px_rgba(0,0,0,0.5)]"
+                    class="${iconColorClass} opacity-90 scale-90 transition-colors drop-"
                 >
                     ${getIconForNode(item)}
                 </span>
 
                 <span
-                    class="font-bold truncate ${iconColorClass} ${item.type ===
-                    'mdat'
-                        ? 'opacity-50'
-                        : ''}"
+                    class="font-bold truncate ${iconColorClass} ${item.type === 'mdat' ? 'opacity-50' : ''}"
                 >
                     ${item.type}
                 </span>
@@ -295,7 +288,7 @@ class StructureTree extends HTMLElement {
                 ${chunkBadge}
 
                 <span
-                    class="ml-auto text-[10px] opacity-50 font-sans tracking-wide bg-black/20 px-1.5 rounded"
+                    class="ml-auto text-[10px] opacity-50 font-sans bg-black/20 px-1.5 rounded"
                 >
                     ${sizeText}
                 </span>
@@ -306,13 +299,13 @@ class StructureTree extends HTMLElement {
     render() {
         const template = html`
             <div
-                class="flex flex-col h-full overflow-hidden bg-slate-800/40 backdrop-blur-xl border-r border-slate-800 relative"
+                class="flex flex-col h-full overflow-hidden bg-white/5 border-r border-white/10 relative"
             >
                 <div
-                    class="shrink-0 h-10 bg-slate-800/80 backdrop-blur-md border-b border-slate-800 flex items-center justify-between px-4 shadow-sm z-10"
+                    class="shrink-0 h-10 bg-white/5 border-b border-white/10 flex items-center justify-between px-4 z-10"
                 >
                     <span
-                        class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2"
+                        class="text-xs font-bold text-slate-400 r flex items-center gap-2"
                     >
                         ${icons.folderTree} Structure
                     </span>

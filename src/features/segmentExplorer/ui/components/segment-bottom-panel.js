@@ -7,18 +7,18 @@ import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 
 const propertyRow = (label, value, isCode = false) => html`
-    <div class="flex items-start justify-between gap-4">
-        <span class="text-xs text-slate-400 shrink-0"
-            >${label}</span
-        >
+    <div class="flex items-start justify-between gap-3">
+        <span class="mono text-[11px] text-slate-500 shrink-0">${label}</span>
         <span
-            class="text-xs text-slate-200 text-right break-all ${isCode
-        ? 'font-mono bg-slate-800 px-1 rounded'
-        : 'font-medium'}"
+            class="mono text-[11px] text-slate-200 text-right break-all ${isCode ? 'bg-white/[0.03] px-1.5 py-0.5 rounded border border-white/5' : ''}"
         >
             ${value}
         </span>
     </div>
+`;
+
+const sectionTitle = (label) => html`
+    <p class="mono text-[10px] text-slate-500 mb-2">${label}</p>
 `;
 
 export const segmentBottomPanelTemplate = (stream) => {
@@ -78,7 +78,7 @@ export const segmentBottomPanelTemplate = (stream) => {
 
     const fileName = segment.resolvedUrl
         ? segment.resolvedUrl.split('/').pop().split('?')[0]
-        : 'Unknown';
+        : 'unknown';
     const durationSec = segment.timescale
         ? segment.duration / segment.timescale
         : 0;
@@ -89,58 +89,28 @@ export const segmentBottomPanelTemplate = (stream) => {
     let rightPaneContent;
     if (isLoading) {
         rightPaneContent = html`
-            <div
-                class="flex flex-col items-center justify-center h-full text-blue-400 gap-3"
-            >
-                <div
-                    class="scale-150 animate-spin drop-shadow-[0_0_10px_#3b82f6]"
-                >
-                    ${icons.spinner}
-                </div>
-                <p class="text-sm font-medium animate-pulse">
-                    Downloading & Parsing Segment...
+            <div class="flex flex-col items-center justify-center h-full p-8 text-center">
+                <p class="mono text-[11px] text-slate-500">
+                    downloading segment…
                 </p>
             </div>
         `;
     } else if (!isLoaded) {
         rightPaneContent = html`
-            <div
-                class="flex flex-col items-center justify-center h-full text-slate-400 gap-6 relative overflow-hidden"
-            >
-                <!-- Ambient Background -->
-                <div
-                    class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-blue-500/10 rounded-full blur-[80px] pointer-events-none animate-pulse-slow"
-                ></div>
-
-                <div
-                    class="p-6 bg-slate-800 rounded-full border border-slate-800 shadow-[0_0_30px_rgba(0,0,0,0.2)] backdrop-blur-md relative z-10 group"
+            <div class="flex flex-col items-center justify-center h-full p-8 text-center">
+                <p class="text-[15px] font-medium text-slate-200 mb-1">
+                    Segment not loaded.
+                </p>
+                <p class="mono text-[11px] text-slate-600 mb-4 max-w-xs leading-relaxed">
+                    Load it to inspect structure, compliance, and bitstream
+                    details.
+                </p>
+                <button
+                    @click=${handleLoad}
+                    class="px-4 py-2 rounded-md bg-emerald-400 hover:bg-emerald-300 text-slate-950 text-[13px] font-medium transition-colors flex items-center gap-2"
                 >
-                    <div
-                        class="text-blue-400 group-hover:text-[#60a5fa] transition-colors duration-300 scale-125"
-                    >
-                        ${icons.binary}
-                    </div>
-                </div>
-                <div class="text-center relative z-10 max-w-md px-6">
-                    <p
-                        class="text-lg font-bold text-slate-200 mb-2"
-                    >
-                        Segment Analysis Available
-                    </p>
-                    <p
-                        class="text-sm text-slate-400 mb-6 leading-relaxed"
-                    >
-                        Load this segment to inspect its internal structure,
-                        verify compliance, and analyze bitstream details in
-                        depth.
-                    </p>
-                    <button
-                        @click=${handleLoad}
-                        class="bg-gradient-to-r from-[#60a5fa] to-blue-500 hover:from-blue-500 hover:to-[#60a5fa] text-white px-8 py-3 rounded-2xl font-bold text-sm transition-all shadow-[0_0_30px_color-mix(in_srgb,#3b82f6,transparent_60%)] hover:shadow-[0_0_40px_color-mix(in_srgb,#3b82f6,transparent_50%)] flex items-center gap-3 mx-auto hover:scale-105 active:scale-95 border border-white/10"
-                    >
-                        ${icons.download} Load & Analyze
-                    </button>
-                </div>
+                    ${icons.download} Load segment
+                </button>
             </div>
         `;
     } else if (cacheEntry?.parsedData) {
@@ -148,248 +118,170 @@ export const segmentBottomPanelTemplate = (stream) => {
             <div class="h-full overflow-hidden flex flex-col">
                 <div class="grow min-h-0 overflow-y-auto pr-2 custom-scrollbar">
                     ${getSegmentAnalysisTemplate(
-            cacheEntry.parsedData,
-            null,
-            false,
-            segment.uniqueId
-        )}
+                        cacheEntry.parsedData,
+                        null,
+                        false,
+                        segment.uniqueId
+                    )}
                 </div>
             </div>
         `;
     } else {
         rightPaneContent = html`
-            <div
-                class="flex items-center justify-center h-full text-red-400"
-            >
-                <p>Error: Data loaded but parsing failed.</p>
+            <div class="flex items-center justify-center h-full p-8 text-center">
+                <p class="mono text-[11px] text-slate-600">
+                    data loaded but parsing failed.
+                </p>
             </div>
         `;
     }
 
     return html`
-        <div
-            class="h-full shrink-0 border-t border-slate-800 bg-slate-800 backdrop-blur-3xl flex flex-col shadow-[0_-20px_60px_rgba(0,0,0,0.6)] z-30 transition-all duration-300 ease-in-out w-full relative"
-        >
-            <!-- Header -->
+        <div class="h-full flex flex-col min-h-0">
             <div
-                class="flex items-center justify-between px-6 py-3 border-b border-slate-800 bg-slate-800 shrink-0"
+                class="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-white/5 shrink-0"
             >
-                <div class="flex items-center gap-4">
-                    <div
-                        class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center text-blue-400 shadow-inner border border-blue-500/10"
+                <div class="min-w-0">
+                    <p class="text-[13px] font-medium text-slate-100 truncate">
+                        ${isCompareMode
+                            ? 'Segment comparison'
+                            : segment.type === 'Init'
+                              ? 'Init segment'
+                              : `Segment #${segment.number}`}
+                    </p>
+                    <p
+                        class="mono text-[10px] text-slate-600 truncate"
+                        title="${fileName}"
                     >
-                        ${icons.layers}
-                    </div>
-                    <div>
-                        <h3
-                            class="font-bold text-sm text-slate-200"
-                        >
-                            ${isCompareMode
-            ? 'Segment Comparison'
-            : 'Segment Details'}
-                        </h3>
-                        <p class="text-xs text-slate-400">
-                            ${isCompareMode
-            ? 'Comparing selected segments'
-            : `Inspecting segment #${segment.number}`}
-                        </p>
-                    </div>
+                        ${fileName}
+                    </p>
                 </div>
-                <div class="flex items-center gap-2">
-                    ${!isCompareMode
-            ? html`
-                              <button
-                                  class="p-2 rounded-lg hover:bg-slate-900/50 text-slate-400 hover:text-slate-200 transition-colors"
-                                  title="Download Segment"
-                              >
-                                  ${icons.download}
-                              </button>
-                          `
-            : ''}
+                <div class="flex items-center gap-1 shrink-0">
                     <button
                         @click=${close}
-                        class="p-2 rounded-lg hover:bg-red-500/10 text-slate-400 hover:text-red-400 transition-colors ml-2"
+                        aria-label="Close segment details"
+                        class="p-1.5 rounded-md text-slate-500 hover:text-slate-100 hover:bg-white/10 transition-colors"
                     >
                         ${icons.x}
                     </button>
                 </div>
             </div>
 
-            <!-- Content -->
-            <div
-                class="grow overflow-hidden relative bg-slate-900/20"
-            >
+            <div class="grow min-h-0 overflow-hidden">
                 ${isCompareMode
-            ? getSegmentAnalysisTemplate(null, null, true) // Assuming this handles comparison mode
-            : html`
-                          <div class="h-full flex">
-                              <!-- Left Pane: Details (Fixed Width) -->
+                    ? getSegmentAnalysisTemplate(null, null, true)
+                    : html`
+                          <div class="h-full flex min-h-0">
                               <div
-                                  class="w-80 shrink-0 border-r border-slate-800 flex flex-col bg-slate-800 backdrop-blur-sm"
+                                  class="w-72 shrink-0 border-r border-white/5 flex flex-col min-h-0"
                               >
                                   <div
-                                      class="p-5 border-b border-slate-800/50"
-                                  >
-                                      <div class="flex items-center gap-2 mb-1">
-                                          <span
-                                              class="text-blue-400 drop-shadow-[0_0_5px_#3b82f6]"
-                                              >${segment.type === 'Init'
-                    ? icons.integrators
-                    : icons.film}</span
-                                          >
-                                          <h3
-                                              class="font-bold text-slate-200 text-base truncate"
-                                          >
-                                              ${segment.type === 'Init'
-                    ? 'Init Segment'
-                    : `Segment #${segment.number}`}
-                                          </h3>
-                                      </div>
-                                      <p
-                                          class="text-[10px] font-mono text-slate-400 truncate opacity-70"
-                                          title="${fileName}"
-                                      >
-                                          ${fileName}
-                                      </p>
-                                  </div>
-
-                                  <div
-                                      class="p-5 overflow-y-auto space-y-6 custom-scrollbar"
+                                      class="p-4 overflow-y-auto space-y-5 custom-scrollbar grow min-h-0"
                                   >
                                       ${isLoaded
-                    ? html`
+                                          ? html`
                                                 <button
                                                     @click=${handleDeepInspect}
-                                                    class="w-full py-3 bg-gradient-to-r from-slate-800 to-slate-800 hover:from-blue-500/10 hover:to-blue-500/5 text-blue-400 hover:text-[#60a5fa] text-xs font-bold rounded-xl border border-blue-500/20 hover:border-blue-500/50 transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-[0_0_20px_#3b82f6/20] group"
+                                                    class="w-full px-3 py-2 rounded-md border border-white/10 text-[12px] font-medium text-slate-400 hover:text-slate-100 hover:border-white/25 transition-colors flex items-center justify-center gap-1.5"
                                                 >
-                                                    <span
-                                                        class="group-hover:scale-110 transition-transform duration-300"
-                                                        >${icons.binary}</span
-                                                    >
-                                                    Open Hex Inspector
+                                                    ${icons.binary} Hex
+                                                    inspector
                                                 </button>
                                             `
-                    : ''}
+                                          : ''}
                                       <div>
-                                          <h4
-                                              class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2"
-                                          >
-                                              ${icons.timer} Timing
-                                          </h4>
+                                          ${sectionTitle('timing')}
                                           <div
-                                              class="bg-gradient-to-br from-slate-800/80 to-slate-900/60 rounded-2xl p-4 border border-blue-500/10 shadow-lg backdrop-blur-md space-y-3 relative overflow-hidden group"
+                                              class="rounded-md border border-white/5 bg-[#06090f] p-3 space-y-2"
                                           >
-                                              <div
-                                                  class="absolute top-0 right-0 w-20 h-20 bg-blue-500/5 rounded-full blur-xl group-hover:bg-blue-500/10 transition-colors duration-500"
-                                              ></div>
                                               ${propertyRow(
-                        'Duration',
-                        `${durationSec.toFixed(3)}s`
-                    )}
+                                                  'duration',
+                                                  `${durationSec.toFixed(3)}s`
+                                              )}
                                               ${propertyRow(
-                        'PTS Start',
-                        startSec.toFixed(3)
-                    )}
+                                                  'pts start',
+                                                  startSec.toFixed(3)
+                                              )}
                                               ${propertyRow(
-                        'Timescale',
-                        segment.timescale
-                    )}
+                                                  'timescale',
+                                                  segment.timescale
+                                              )}
                                               ${segment.startTimeUTC
-                    ? propertyRow(
-                        'UTC',
-                        new Date(
-                            segment.startTimeUTC
-                        ).toLocaleTimeString()
-                    )
-                    : ''}
+                                                  ? propertyRow(
+                                                        'utc',
+                                                        new Date(
+                                                            segment.startTimeUTC
+                                                        ).toLocaleTimeString()
+                                                    )
+                                                  : ''}
                                           </div>
                                       </div>
 
                                       <div>
-                                          <h4
-                                              class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2"
-                                          >
-                                              ${icons.server} Metadata
-                                          </h4>
+                                          ${sectionTitle('metadata')}
                                           <div
-                                              class="bg-gradient-to-br from-slate-800/80 to-slate-900/60 rounded-2xl p-4 border border-purple-500/10 shadow-lg backdrop-blur-md space-y-3 relative overflow-hidden group"
+                                              class="rounded-md border border-white/5 bg-[#06090f] p-3 space-y-2"
                                           >
-                                              <div
-                                                  class="absolute top-0 right-0 w-20 h-20 bg-purple-500/5 rounded-full blur-xl group-hover:bg-purple-500/10 transition-colors duration-500"
-                                              ></div>
                                               ${propertyRow(
-                        'Rep ID',
-                        segment.repId,
-                        true
-                    )}
+                                                  'rep id',
+                                                  segment.repId,
+                                                  true
+                                              )}
                                               ${propertyRow(
-                        'Encrypted',
-                        segment.encryptionInfo
-                            ? 'Yes'
-                            : 'No'
-                    )}
+                                                  'encrypted',
+                                                  segment.encryptionInfo
+                                                      ? 'yes'
+                                                      : 'no'
+                                              )}
                                               ${propertyRow(
-                        'Gap',
-                        segment.gap ? 'Yes' : 'No'
-                    )}
+                                                  'gap',
+                                                  segment.gap ? 'yes' : 'no'
+                                              )}
                                           </div>
                                       </div>
 
                                       ${segment.sidx
-                    ? html`
+                                          ? html`
                                                 <div>
+                                                    ${sectionTitle('sidx index')}
                                                     <div
-                                                        class="flex items-center justify-between mb-3"
+                                                        class="rounded-md border border-white/5 bg-[#06090f] p-3 space-y-2"
                                                     >
-                                                        <h4
-                                                            class="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2"
-                                                        >
-                                                            ${icons.list} SIDX
-                                                            Index
-                                                        </h4>
-                                                    </div>
-                                                    <div
-                                                        class="bg-gradient-to-br from-slate-800/80 to-slate-900/60 rounded-2xl p-4 border border-teal-500/10 shadow-lg backdrop-blur-md space-y-3 relative overflow-hidden group"
-                                                    >
-                                                        <div
-                                                            class="absolute top-0 right-0 w-20 h-20 bg-teal-500/5 rounded-full blur-xl group-hover:bg-teal-500/10 transition-colors duration-500"
-                                                        ></div>
                                                         ${propertyRow(
-                        'Referenced Size',
-                        `${segment.sidx.referencedSize} bytes`
-                    )}
+                                                            'referenced size',
+                                                            `${segment.sidx.referencedSize} bytes`
+                                                        )}
                                                         ${propertyRow(
-                        'Subsegment Dur',
-                        segment.sidx
-                            .subsegmentDuration
-                    )}
+                                                            'subsegment dur',
+                                                            segment.sidx
+                                                                .subsegmentDuration
+                                                        )}
                                                         ${propertyRow(
-                        'Starts w/ SAP',
-                        segment.sidx
-                            .startsWithSap
-                            ? 'Yes'
-                            : 'No'
-                    )}
+                                                            'starts w/ sap',
+                                                            segment.sidx
+                                                                .startsWithSap
+                                                                ? 'yes'
+                                                                : 'no'
+                                                        )}
                                                         ${propertyRow(
-                        'SAP Type',
-                        segment.sidx
-                            .sapType ||
-                        'N/A'
-                    )}
+                                                            'sap type',
+                                                            segment.sidx
+                                                                .sapType ||
+                                                                'n/a'
+                                                        )}
                                                         ${propertyRow(
-                        'Type',
-                        segment.sidx
-                            .referenceType
-                    )}
+                                                            'type',
+                                                            segment.sidx
+                                                                .referenceType
+                                                        )}
                                                     </div>
                                                 </div>
                                             `
-                    : ''}
+                                          : ''}
                                   </div>
                               </div>
 
-                              <!-- Right Pane: Analysis / Actions (Flexible) -->
-                              <div class="grow min-w-0 bg-transparent relative">
+                              <div class="grow min-w-0">
                                   ${rightPaneContent}
                               </div>
                           </div>

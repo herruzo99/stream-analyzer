@@ -18,7 +18,7 @@ export const virtualTrackDropdownTemplate = () => {
     if (!players || players.size === 0) {
         return html`
             <div
-                class="dropdown-panel bg-slate-800 border border-slate-800 rounded-xl p-4 text-center text-sm text-slate-400 shadow-xl w-64"
+                class="dropdown-panel bg-white/5 border border-white/10 rounded-md p-4 text-center text-sm text-slate-400 w-64"
             >
                 <div class="mb-2 text-slate-400">
                     ${icons.alertTriangle}
@@ -60,10 +60,10 @@ export const virtualTrackDropdownTemplate = () => {
 
     return html`
         <div
-            class="dropdown-panel bg-slate-800 backdrop-blur-xl border border-slate-800 rounded-xl shadow-2xl w-72 p-2 ring-1 ring-black/50"
+            class="dropdown-panel bg-white/5 border border-white/10 rounded-md w-72 p-2 ring-1"
         >
             <div
-                class="px-3 py-2 mb-1 border-b border-slate-800 text-[10px] font-bold uppercase tracking-widest text-slate-400 flex justify-between"
+                class="px-3 py-2 mb-1 border-b border-white/10 text-[10px] font-bold text-slate-400 flex justify-between"
             >
                 <span>Global Quality Target</span>
             </div>
@@ -86,11 +86,11 @@ export const virtualTrackDropdownTemplate = () => {
                           return html`
                               <button
                                   @click=${() => handleSelect(track.height)}
-                                  class="w-full text-left p-2.5 rounded-lg hover:bg-slate-800 transition-colors group flex items-center justify-between border border-transparent hover:border-slate-800"
+                                  class="w-full text-left p-2.5 rounded-md hover:bg-white/10 transition-colors group flex items-center justify-between border border-transparent hover:border-white/10"
                               >
                                   <div class="flex items-center gap-3">
                                       <div
-                                          class="p-1.5 rounded bg-slate-800 text-slate-400 group-hover:text-slate-100 group-hover:bg-slate-800 transition-colors"
+                                          class="p-1.5 rounded bg-white/5 text-slate-400 group-hover:text-slate-100 group-hover:bg-white/10 transition-colors"
                                       >
                                           ${icons.layers}
                                       </div>
@@ -108,7 +108,7 @@ export const virtualTrackDropdownTemplate = () => {
                                       </div>
                                   </div>
                                   <span
-                                      class="text-slate-400 group-hover:text-blue-400 transition-colors transform group-hover:translate-x-1"
+                                      class="text-slate-400 group-hover:text-emerald-200 transition-colors transform group-hover:translate-x-1"
                                   >
                                       ${icons.arrowRight}
                                   </span>

@@ -28,20 +28,17 @@ export const timeFilterTemplate = () => {
     };
 
     const inputClasses =
-        'w-24 bg-slate-800 text-slate-200 text-xs px-2 py-1 rounded border border-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all';
+        'w-24 bg-[#06090f] text-slate-200 mono text-[12px] px-2.5 py-1.5 rounded-md border border-white/10 focus:outline-none focus:border-emerald-400/60 transition-colors placeholder:text-slate-600';
 
     return html`
         <form @submit=${handleSubmit} class="p-4 w-64">
             <div class="flex items-center justify-between mb-4">
-                <h3
-                    class="text-xs font-bold text-slate-400 uppercase tracking-wider"
-                >
-                    Time Filter
-                </h3>
+                <p class="mono text-[10px] text-slate-500">time filter</p>
                 <button
                     type="button"
                     @click=${() => closeDropdown()}
-                    class="text-slate-400 hover:text-slate-200"
+                    aria-label="Close time filter"
+                    class="p-1 rounded text-slate-500 hover:text-slate-100 hover:bg-white/10 transition-colors"
                 >
                     ${icons.x}
                 </button>
@@ -49,8 +46,8 @@ export const timeFilterTemplate = () => {
 
             <div class="space-y-3">
                 <div class="flex flex-col gap-1">
-                    <label class="text-[10px] text-slate-400"
-                        >Start Time (s)</label
+                    <label class="mono text-[10px] text-slate-600"
+                        >start (s)</label
                     >
                     <input
                         type="number"
@@ -62,22 +59,22 @@ export const timeFilterTemplate = () => {
                     />
                 </div>
                 <div class="flex flex-col gap-1">
-                    <label class="text-[10px] text-slate-400"
-                        >End Time (s)</label
+                    <label class="mono text-[10px] text-slate-600"
+                        >end (s)</label
                     >
                     <input
                         type="number"
                         name="end"
                         .value=${end || ''}
                         class="${inputClasses}"
-                        placeholder="Duration"
+                        placeholder="duration"
                         step="0.01"
                     />
                 </div>
             </div>
 
             <div
-                class="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-slate-800"
+                class="flex items-center justify-end gap-1.5 mt-4 pt-3 border-t border-white/5"
             >
                 <button
                     type="button"
@@ -88,15 +85,15 @@ export const timeFilterTemplate = () => {
                         });
                         closeDropdown();
                     }}
-                    class="px-3 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-900/50 transition-colors"
+                    class="px-3 py-1.5 rounded-md text-[12px] font-medium text-slate-400 hover:text-slate-100 hover:bg-white/10 transition-colors"
                 >
                     Reset
                 </button>
                 <button
                     type="submit"
-                    class="px-3 py-2 rounded-lg bg-blue-500 hover:bg-[#60a5fa] text-white text-xs font-bold shadow-[0_0_15px_#3b82f6] transition-all hover:scale-[1.02]"
+                    class="px-3 py-1.5 rounded-md bg-emerald-400 hover:bg-emerald-300 text-slate-950 text-[12px] font-medium transition-colors"
                 >
-                    Apply Filter
+                    Apply
                 </button>
             </div>
         </form>

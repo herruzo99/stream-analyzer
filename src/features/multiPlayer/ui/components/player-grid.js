@@ -33,10 +33,10 @@ class PlayerGridComponent extends HTMLElement {
             render(
                 html`
                     <div
-                        class="flex flex-col items-center justify-center h-full text-slate-400 gap-4 animate-fadeIn"
+                        class="flex flex-col items-center justify-center h-full text-slate-400 gap-4"
                     >
                         <div
-                            class="p-6 bg-slate-800 backdrop-blur-md rounded-full border border-slate-800 shadow-2xl"
+                            class="p-6 bg-white/5 rounded-full border border-white/10"
                         >
                             ${icons.grid}
                         </div>
@@ -103,12 +103,12 @@ class PlayerGridComponent extends HTMLElement {
 
             const template = html`
                 <div
-                    class="h-full w-full bg-slate-900 flex overflow-hidden animate-fadeIn"
+                    class="h-full w-full bg-white/5 flex overflow-hidden"
                 >
                     <!-- Main Stage -->
                     <div class="grow relative flex flex-col min-w-0" style="padding: 0.75rem">
                         <div
-                            class="relative w-full h-full rounded-xl overflow-hidden shadow-[0 8px 30px rgb(0 0 0 / 0.35)] border  bg-slate-800"
+                            class="relative w-full h-full rounded-md overflow-hidden border bg-white/5"
                         >
                             <!-- Force height 100% and reset aspect ratio for the focused player -->
                             <player-card-component
@@ -123,10 +123,10 @@ class PlayerGridComponent extends HTMLElement {
                     ${otherPlayerIds.length > 0
                     ? html`
                               <div
-                                  class="w-80 shrink-0 border-l border-slate-700 bg-slate-800 flex flex-col"
+                                  class="w-80 shrink-0 border-l border-white/10 bg-white/5 flex flex-col"
                               >
                                   <div
-                                      class="p-3 border-b border-slate-800 text-xs font-bold text-slate-400 uppercase tracking-wider flex justify-between"
+                                      class="p-3 border-b border-white/10 text-xs font-bold text-slate-400 r flex justify-between"
                                   >
                                       <span
                                           >Queue
@@ -160,7 +160,7 @@ class PlayerGridComponent extends HTMLElement {
         // Grid Mode Template
         const template = html`
             <div
-                class="h-full w-full bg-slate-900 animate-fadeIn"
+                class="h-full w-full bg-white/5"
             >
                 <div style="${containerStyle}" class="custom-scrollbar">
                     ${repeat(

@@ -15,7 +15,7 @@ const createInitialUiState = () => ({
     _viewMap: null,
     viewState: 'input',
     activeTab: 'summary',
-    activeSidebar: 'contextual',
+    activeSidebar: null,
     multiPlayerActiveTab: 'event-log',
     multiPlayerViewMode: 'grid',
     activeSegmentUrl: null,
@@ -32,6 +32,7 @@ const createInitialUiState = () => ({
     isCmafSummaryExpanded: false,
     interactiveManifestCurrentPage: 1,
     interactiveManifestShowSubstituted: true,
+    interactiveManifestSmartTagsEnabled: true,
     interactiveManifestHoveredItem: null,
     interactiveManifestSelectedItem: null,
     // --- Manifest Search State ---
@@ -48,6 +49,7 @@ const createInitialUiState = () => ({
     isByteMapLoading: false,
     complianceActiveFilter: 'all',
     complianceStandardVersion: 13,
+    integratorReportActiveTab: 'shaka',
     comparisonReferenceStreamId: null,
     comparisonReferenceVariantId: null,
     comparisonCandidateStreamId: null,
@@ -68,7 +70,9 @@ const createInitialUiState = () => ({
     highlightedIssueId: null, // Specific issue UUID for precise QC highlighting
     comparisonHideSameRows: false,
     comparisonHideUnusedFeatures: true,
-    comparisonSelectorsExpanded: true,
+    featuresHideUnused: false,
+    featuresSelectedId: null,
+    comparisonSelectorsExpanded: false,
     fabMenu: { isOpen: false, activeSubMenu: null },
     fabSideMenuOpen: false,
     isGlobalNavCompact: false,
@@ -330,6 +334,11 @@ export const useUiStore = createStore((set, get) => ({
             interactiveManifestShowSubstituted:
                 !state.interactiveManifestShowSubstituted,
         })),
+    toggleInteractiveManifestSmartTags: () =>
+        set((state) => ({
+            interactiveManifestSmartTagsEnabled:
+                !state.interactiveManifestSmartTagsEnabled,
+        })),
     setInteractiveManifestHoveredItem: (item) =>
         set({ interactiveManifestHoveredItem: item }),
     setInteractiveManifestSelectedItem: (item) =>
@@ -379,6 +388,8 @@ export const useUiStore = createStore((set, get) => ({
     setSegmentExplorerSelectedSegment: (segment) =>
         set({ segmentExplorerSelectedSegment: segment }),
     setComplianceFilter: (filter) => set({ complianceActiveFilter: filter }),
+    setIntegratorReportActiveTab: (tab) =>
+        set({ integratorReportActiveTab: tab }),
     setComplianceStandardVersion: (version) =>
         set({ complianceStandardVersion: version }),
     setFeatureAnalysisStandardVersion: (version) =>
@@ -412,6 +423,11 @@ export const useUiStore = createStore((set, get) => ({
         set((state) => ({
             comparisonHideUnusedFeatures: !state.comparisonHideUnusedFeatures,
         })),
+    toggleFeaturesHideUnused: () =>
+        set((state) => ({
+            featuresHideUnused: !state.featuresHideUnused,
+        })),
+    setFeaturesSelectedId: (id) => set({ featuresSelectedId: id }),
     setSegmentComparisonActiveTab: (tab) =>
         set({ segmentComparisonActiveTab: tab }),
     setSegmentComparisonSelection: (selection) =>
@@ -603,7 +619,14 @@ export const useUiStore = createStore((set, get) => ({
         set({ pendingPlayerRequest: null });
     },
 
-    reset: () => set(createInitialUiState()),
+    // Preserve the injected view map across resets: it is wired once at
+    // boot (initializeRenderer) and must survive analysis resets, or
+    // setActiveTab can no longer resolve views (sidebar stays shut).
+    reset: () =>
+        set((state) => ({
+            ...createInitialUiState(),
+            _viewMap: state._viewMap,
+        })),
 }));
 
 export const uiActions = useUiStore.getState();

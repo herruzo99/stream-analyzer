@@ -10,7 +10,6 @@ import * as icons from '@/ui/icons';
 import { openModalWithContent } from '@/ui/services/modalService';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
 import { html, render } from 'lit-html';
-import { styleMap } from 'lit-html/directives/style-map.js';
 import xmlFormatter from 'xml-formatter';
 import {
     dashManifestTemplate,
@@ -57,13 +56,6 @@ function calculateMatches(manifestObject, manifestString, protocol, searchTerm) 
     }
     return indices;
 }
-
-const layoutCardStyles = {
-
-    borderRadius: '0.75rem',
-    boxShadow: '0 8px 30px rgb(0 0 0 / 0.35)',
-    backdropFilter: 'blur(12px)',
-};
 
 class InteractiveManifestView {
     // Port note: was `extends BaseView` (never committed). The base only
@@ -260,6 +252,65 @@ class InteractiveManifestView {
             } catch (e) {
                 console.warn('Failed to parse allAttributes', e);
             }
+            // SegmentTimeline tag badge carries its child S runs for
+            // the whole-timeline rollup (sidebar details need them too).
+            let timelineRuns = null;
+            try {
+                if (token.dataset.timelineRuns) {
+                    timelineRuns = JSON.parse(token.dataset.timelineRuns);
+                }
+            } catch (e) {
+                console.warn('Failed to parse timelineRuns', e);
+            }
+            // S tag badge carries its sibling runs + own index so the
+            // re-anchor comparison (explicit t vs previous run end) can
+            // run identically in tree pills and sidebar panels.
+            let sSiblings = null;
+            let sRunIndex = 0;
+            let periodStartSec = null;
+            try {
+                if (token.dataset.sSiblings) {
+                    sSiblings = JSON.parse(token.dataset.sSiblings);
+                }
+                if (token.dataset.sRunIndex !== undefined && token.dataset.sRunIndex !== '') {
+                    sRunIndex = parseInt(token.dataset.sRunIndex, 10) || 0;
+                }
+                if (token.dataset.periodStartSec !== undefined && token.dataset.periodStartSec !== '') {
+                    periodStartSec = parseFloat(token.dataset.periodStartSec);
+                    if (!Number.isFinite(periodStartSec)) periodStartSec = null;
+                }
+            } catch (e) {
+                console.warn('Failed to parse S sibling context', e);
+            }
+            // HLS playlist facts + DASH period rollup + variant ladder
+            // for cross-tag badges (sidebar needs the same summary the
+            // tree pills used). HLS playlist facts are rebuilt on demand
+            // from the rendered manifest text — same single scan as the
+            // tree, so pills and panel can never disagree.
+            let playlist = null;
+            let ladder = null;
+            let periodRollup = null;
+            try {
+                if (token.dataset.playlist) {
+                    playlist = JSON.parse(token.dataset.playlist);
+                }
+            } catch (e) {
+                console.warn('Failed to parse playlist context', e);
+            }
+            try {
+                if (token.dataset.ladder) {
+                    ladder = JSON.parse(token.dataset.ladder);
+                }
+            } catch (e) {
+                console.warn('Failed to parse variant ladder', e);
+            }
+            try {
+                if (token.dataset.periodRollup) {
+                    periodRollup = JSON.parse(token.dataset.periodRollup);
+                }
+            } catch (e) {
+                console.warn('Failed to parse period rollup', e);
+            }
 
             const tooltipData = stream.protocol === 'dash' ? dashTooltipData : hlsTooltipData;
             const info = tooltipData[name] || {
@@ -268,9 +319,24 @@ class InteractiveManifestView {
             };
 
             const parentTag = name.includes('@') ? name.split('@')[0] : null;
+            const { interactiveManifestSmartTagsEnabled } = useUiStore.getState();
             const item = {
                 type, name, key: name, info, path, value, parentTag,
-                context: { timescale, anchorTime, pto, spd, allAttributes },
+                context: {
+                    timescale,
+                    anchorTime,
+                    pto,
+                    spd,
+                    allAttributes,
+                    runs: timelineRuns,
+                    playlist,
+                    ladder,
+                    periodRollup,
+                    sSiblings,
+                    sRunIndex,
+                    periodStartSec,
+                    smartTagsEnabled: interactiveManifestSmartTagsEnabled !== false,
+                },
             };
 
             if (e.type === 'mouseover') {
@@ -295,8 +361,13 @@ class InteractiveManifestView {
         if (!stream || !stream.manifest) {
             render(
                 html`
-                    <div class="flex flex-col items-center justify-center h-full text-slate-400 animate-fadeIn">
-                         <p class="text-lg font-medium text-slate-200">No Manifest loaded.</p>
+                    <div class="flex flex-col items-center justify-center h-full p-8 text-center">
+                        <p class="text-[15px] font-medium text-slate-200 mb-1">
+                            No manifest loaded.
+                        </p>
+                        <p class="mono text-[11px] text-slate-600">
+                            Analyze a manifest to inspect its structure here.
+                        </p>
                     </div>
                 `,
                 this.container
@@ -401,13 +472,17 @@ class InteractiveManifestView {
             document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
         };
 
-        // Topbar
+        // Search field: flat workbench input. Zero matches shows
+        // an explicit count so an empty search is never silent.
+        const hasSearchTerm = (manifestSearch.term || '').length >= 2;
+        const matchCount = manifestSearch.matchIndices.length;
         const searchBar = html`
-            <div class="flex items-center bg-slate-800 rounded-full border border-slate-800 p-0.5 mx-2 min-w-[240px]">
-                <div class="pl-3 text-slate-400">${icons.search}</div>
+            <div class="flex items-center bg-[#06090f] rounded-md border border-white/10 p-0.5 min-w-[220px] focus-within:border-emerald-400/60 transition-colors">
+                <span class="pl-2.5 text-slate-600">${icons.search}</span>
                 <input type="text"
-                    class="bg-transparent border-none text-xs text-slate-100 focus:ring-0 h-8 w-24 sm:w-48 placeholder-slate-400"
-                    placeholder="Find in manifest..."
+                    class="bg-transparent border-none text-[13px] text-slate-100 focus:ring-0 h-8 w-24 sm:w-44 placeholder:text-slate-600 outline-none"
+                    placeholder="find in manifest"
+                    aria-label="Find in manifest"
                     .value=${manifestSearch.term}
                     @input=${(e) => uiActions.setManifestSearchTerm(e.target.value)}
                     @keydown=${(e) => {
@@ -417,84 +492,68 @@ class InteractiveManifestView {
                 }
             }}
                 />
-                ${manifestSearch.matchIndices.length > 0
+                ${matchCount > 0
                 ? html`
-                          <span class="text-[10px] text-slate-400 font-mono whitespace-nowrap px-1">
-                              ${manifestSearch.currentResultIndex + 1}/${manifestSearch.matchIndices.length}
+                          <span class="mono text-[10px] text-slate-500 whitespace-nowrap px-1">
+                              ${manifestSearch.currentResultIndex + 1}/${matchCount}
                           </span>
-                          <div class="flex border-l border-slate-800 ml-1 pl-1">
-                              <button @click=${() => uiActions.prevManifestSearchResult()} class="p-1 hover:text-slate-100 text-slate-400 hover:bg-slate-800 rounded-full">${icons.chevronUp}</button>
-                              <button @click=${() => uiActions.nextManifestSearchResult()} class="p-1 hover:text-slate-100 text-slate-400 hover:bg-slate-800 rounded-full">${icons.chevronDown}</button>
-                          </div>
+                          <span class="flex border-l border-white/10 ml-1 pl-1">
+                              <button @click=${() => uiActions.prevManifestSearchResult()} aria-label="Previous match" class="p-1 text-slate-500 hover:text-slate-100 hover:bg-white/5 rounded">${icons.chevronUp}</button>
+                              <button @click=${() => uiActions.nextManifestSearchResult()} aria-label="Next match" class="p-1 text-slate-500 hover:text-slate-100 hover:bg-white/5 rounded">${icons.chevronDown}</button>
+                          </span>
                       `
-                : ''}
-                ${manifestSearch.term ? html`<button @click=${() => uiActions.setManifestSearchTerm('')} class="p-1 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-full ml-1">${icons.xCircle}</button>` : ''}
+                : hasSearchTerm
+                  ? html`<span class="mono text-[10px] text-slate-600 whitespace-nowrap px-1.5">0 matches</span>`
+                  : ''}
+                ${manifestSearch.term ? html`<button @click=${() => uiActions.setManifestSearchTerm('')} aria-label="Clear search" class="p-1 text-slate-500 hover:text-slate-100 hover:bg-white/5 rounded ml-1">${icons.x}</button>` : ''}
             </div>
         `;
 
         const toolbar = html`
-            <div class="w-full h-full flex items-center justify-between px-4">
-                <div class="flex items-center gap-4">
-                    <div class="flex flex-col">
-                         <span class="font-bold text-slate-200 truncate max-w-[200px]" title="${stream.name}">${stream.name}</span>
-                         <div class="flex items-center gap-2">
-                             <span class="text-[10px] font-mono text-slate-400">${stream.protocol.toUpperCase()}</span>
-                             ${stream?.manifest?.type === 'dynamic'
-                                 ? html`<span
-                                       class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-500/20 text-red-400 border border-red-500/30 uppercase tracking-wider"
-                                       title="Live stream (dynamic manifest): badges show LIVE/age verdicts against the live edge"
-                                       ><span class="relative flex h-1.5 w-1.5"
-                                           ><span
-                                               class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"
-                                           ></span
-                                           ><span
-                                               class="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"
-                                           ></span></span
-                                       >Live</span
-                                   >`
-                                 : ''}
-                             ${stream.protocol === 'dash' && stream.manifest?.serializedManifest?.[':@']?.availabilityStartTime
-                ? html`
-                                      <div class="flex items-center gap-2 pl-2 border-l border-slate-700/30">
-                                          <div class="flex items-center gap-1.5">
-                                              ${stream.manifest?.serializedManifest?.[':@']?.suggestedPresentationDelay
-                        ? html`
-                                                        ${(() => {
-                                const spdStr = stream.manifest.serializedManifest[':@'].suggestedPresentationDelay;
-                                const spd = parseDuration(spdStr);
-                                const spdSecs = spd ? spd.total : 0;
-                                return html`
-                                                                <button @click=${() => { this.useSPD = !this.useSPD; this.render(); this.updateClock(); }}
-                                                                    class="flex items-center gap-1.5 px-2 py-0.5 rounded-full border transition-all duration-200 ${this.useSPD ? 'bg-blue-500 border-blue-500 text-slate-200 shadow-[0_0_15px_#3b82f6/40] ring-1 ring-blue-500/50' : 'bg-slate-800 border-slate-800 text-slate-400 hover:border-blue-500 hover:text-blue-400'}"
-                                                                    title="Toggle Suggested Presentation Delay">
-                                                                    <div class="flex items-center gap-1">
-                                                                        <span class="text-[9px] font-black tracking-wider uppercase ${this.useSPD ? 'opacity-100' : 'opacity-70'}">SPD</span>
-                                                                        <span class="text-[10px] font-mono font-bold ${this.useSPD ? 'bg-white/20' : 'bg-black/10'} px-1 rounded-sm">${spdSecs}s</span>
-                                                                    </div>
-                                                                    <div class="w-1.5 h-1.5 rounded-full ${this.useSPD ? 'bg-white animate-pulse' : 'bg-slate-400/50'}"></div>
-                                                                </button>
-                                                            `;
-                            })()}
-                                                    ` : ''
-                    }
-                                          </div>
-                                          <span id="manifest-live-clock" class="text-[10px] font-mono text-blue-400 font-bold tracking-tight">--:--:--</span>
-                                      </div>
-                                  ` : ''
-            }
-                         </div>
-                    </div>
+            <div class="w-full flex items-center gap-3 flex-wrap">
+                <div class="min-w-0">
+                    <h2 class="text-[15px] font-medium text-slate-100 truncate" title="${stream.name}">${stream.name}</h2>
+                    <p class="mono text-[11px] text-slate-500 mt-0.5">
+                        ${String(stream.protocol || '').toLowerCase()} ·
+                        ${stream?.manifest?.type === 'dynamic' ? 'live' : 'vod'}
+                    </p>
                 </div>
-
-                <div class="flex items-center gap-3">
-                     ${searchBar}
-                     <div class="h-6 w-px bg-slate-800/50 mx-1"></div>
-                     ${stream.protocol === 'dash' ? html`<button @click=${handleTimingCalculator}
-                        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-500 text-slate-100 text-[11px] font-bold uppercase tracking-wider border border-blue-500 shadow-[0_0_15px_#3b82f6_40] hover:brightness-110 transition-all"
-                        title="Open the DASH Timing Calculator">${icons.calculator}<span class="hidden sm:inline">Calculator</span></button>` : ''}
-                    <button @click=${handleDownloadDebug} class="p-2 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-slate-800 transition-colors relative group" title="Download Manifest & Debug Report">${icons.download}</button>
-                    <button @click=${handlePatcher} class="p-2 rounded-lg text-slate-400 hover:text-teal-300 hover:bg-slate-800 transition-colors relative group" title="Manifest Patcher">${icons.code}</button>
-                    <button @click=${() => copyTextToClipboard(stringToRender, 'Copied!')} class="p-2 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-slate-800 transition-colors relative group" title="Copy to Clipboard">${icons.clipboardCopy}</button>
+                <span class="grow"></span>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                    ${(() => {
+                        const spdStr = stream.manifest?.serializedManifest?.[':@']?.suggestedPresentationDelay;
+                        if (stream.protocol !== 'dash' || !spdStr) return '';
+                        const spd = parseDuration(spdStr);
+                        const spdSecs = spd ? spd.total : 0;
+                        return html`
+                            <button @click=${() => { this.useSPD = !this.useSPD; this.render(); this.updateClock(); }}
+                                role="switch"
+                                aria-checked=${this.useSPD}
+                                class="px-2.5 py-1.5 rounded-md border mono text-[11px] transition-colors ${this.useSPD
+                                    ? 'border-emerald-400/25 bg-emerald-500/[0.06] text-emerald-200'
+                                    : 'border-white/10 text-slate-400 hover:text-slate-100 hover:border-white/25'}"
+                                title="Toggle suggested presentation delay (${spdSecs}s)">
+                                spd ${spdSecs}s
+                            </button>
+                            <span id="manifest-live-clock" class="mono text-[11px] text-slate-500">--:--:--</span>
+                        `;
+                    })()}
+                    ${searchBar}
+                    <button @click=${() => uiActions.toggleInteractiveManifestSmartTags()}
+                        role="switch"
+                        aria-checked=${useUiStore.getState().interactiveManifestSmartTagsEnabled !== false}
+                        class="px-2.5 py-1.5 rounded-md border mono text-[11px] transition-colors ${useUiStore.getState().interactiveManifestSmartTagsEnabled !== false
+                            ? 'border-emerald-400/25 bg-emerald-500/[0.06] text-emerald-200'
+                            : 'border-white/10 text-slate-400 hover:text-slate-100 hover:border-white/25'}"
+                        title="Toggle smart badges (durations, run aggregates, live-edge verdicts)">
+                        smart
+                    </button>
+                    ${stream.protocol === 'dash' ? html`<button @click=${handleTimingCalculator}
+                        class="px-2.5 py-1.5 rounded-md border border-white/10 text-[12px] font-medium text-slate-400 hover:text-slate-100 hover:border-white/25 transition-colors flex items-center gap-1.5"
+                        title="Open the DASH timing calculator">${icons.calculator}<span class="hidden sm:inline">timing</span></button>` : ''}
+                    <button @click=${handleDownloadDebug} aria-label="Download manifest and debug report" class="p-1.5 rounded-md text-slate-500 hover:text-slate-100 hover:bg-white/5 transition-colors" title="Download manifest and debug report">${icons.download}</button>
+                    <button @click=${handlePatcher} aria-label="Manifest patcher" class="p-1.5 rounded-md text-slate-500 hover:text-slate-100 hover:bg-white/5 transition-colors" title="Manifest patcher">${icons.code}</button>
+                    <button @click=${() => copyTextToClipboard(stringToRender, 'manifest copied')} aria-label="Copy manifest" class="p-1.5 rounded-md text-slate-500 hover:text-slate-100 hover:bg-white/5 transition-colors" title="Copy manifest">${icons.clipboardCopy}</button>
                 </div>
             </div>
         `;
@@ -521,25 +580,27 @@ class InteractiveManifestView {
             ? manifestSearch.matchIndices[manifestSearch.currentResultIndex] : -1;
         const allMatchIndices = new Set(manifestSearch.matchIndices);
 
+        const smartTagsEnabled =
+            useUiStore.getState().interactiveManifestSmartTagsEnabled !== false;
         let codeView;
         if (stream.protocol === 'hls') {
             codeView = hlsManifestTemplate(
                 stream, stringToRender, interactiveManifestHoveredItem, interactiveManifestSelectedItem,
-                new Set(), diffData, searchMatchLineIndex, allMatchIndices
+                new Set(), diffData, searchMatchLineIndex, allMatchIndices, smartTagsEnabled
             );
         } else {
             codeView = dashManifestTemplate(
                 manifestToRender, interactiveManifestHoveredItem, interactiveManifestSelectedItem,
-                new Set(), diffData, searchMatchLineIndex, allMatchIndices, now, this.useSPD
+                new Set(), diffData, searchMatchLineIndex, allMatchIndices, now, this.useSPD, smartTagsEnabled
             );
         }
 
         render(
             html`
-                <div class="flex flex-col h-full w-full relative overflow-hidden">
-                    <div class="shrink-0 px-2 pt-2">${toolbar}</div>
-                    <div class="grow relative overflow-hidden flex flex-col" style=${styleMap({ ...layoutCardStyles, background: '#1e293b', padding: '0' })}>
-                         <div class="grow relative overflow-hidden bg-transparent custom-scrollbar flex flex-col" id="manifest-code-container">
+                <div class="flex flex-col h-full w-full min-h-0 bg-[#06090f]">
+                    <div class="shrink-0 px-4 pt-3">${toolbar}</div>
+                    <div class="grow min-h-0 overflow-hidden flex flex-col rounded-md border border-white/5 bg-[#0b111c] m-4 mt-3">
+                         <div class="grow min-h-0 overflow-auto custom-scrollbar flex flex-col" id="manifest-code-container">
                              ${codeView}
                         </div>
                     </div>

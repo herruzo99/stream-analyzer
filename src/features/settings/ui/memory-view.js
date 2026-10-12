@@ -94,14 +94,14 @@ class MemoryView extends HTMLElement {
             {
                 label: 'Network Bodies',
                 value: bd.networkBodies,
-                color: 'bg-blue-500',
-                textColor: 'text-blue-400',
+                color: 'bg-emerald-500/10',
+                textColor: 'text-emerald-200',
             },
             {
                 label: 'Parsed Objects',
                 value: bd.parsedStructs,
-                color: 'bg-purple-500',
-                textColor: 'text-purple-300',
+                color: 'bg-white/5',
+                textColor: 'text-slate-300',
             },
             {
                 label: 'Manifest AST',
@@ -127,15 +127,15 @@ class MemoryView extends HTMLElement {
 
         // --- Visual Components ---
         const dashboardCard = (title, value, subtext, icon, colorClass) => html`
-            <div class="bg-slate-800 border border-slate-800 rounded-3xl p-5 flex items-center gap-5 relative overflow-hidden group shadow-sm hover:border-blue-500 transition-all backdrop-blur-3xl">
-                <div class="p-3 rounded-full bg-slate-800 text-[#94a3b8] group-hover:text-[#f1f5f9] transition-colors">
+            <div class="bg-white/5 border border-white/10 rounded-3xl p-5 flex items-center gap-5 relative overflow-hidden group hover:border-emerald-400/50 transition-all">
+                <div class="p-3 rounded-full bg-white/5 text-[#94a3b8] group-hover:text-[#f1f5f9] transition-colors">
                     ${icon}
                 </div>
                 <div>
-                    <div class="text-[10px] font-bold text-[#94a3b8] uppercase tracking-widest mb-1">
+                    <div class="text-[10px] font-bold text-[#94a3b8] mb-1">
                         ${title}
                     </div>
-                    <div class="text-2xl font-mono font-black text-[#f1f5f9] tracking-tight">
+                    <div class="text-2xl font-mono font-bold text-[#f1f5f9]">
                         ${value}
                     </div>
                     <div class="text-xs text-[#94a3b8] mt-1">
@@ -149,15 +149,15 @@ class MemoryView extends HTMLElement {
         const usageBar = (current, max, colorClass) => {
             const pct = Math.min(100, (current / max) * 100);
             return html`
-                <div class="h-1.5 bg-slate-800 rounded-full overflow-hidden mt-3 border border-slate-800">
-                    <div class="h-full ${colorClass} transition-all duration-500 shadow-[0_0_8px_currentColor]" style="width: ${pct}%"></div>
+                <div class="h-1.5 bg-white/5 rounded-full overflow-hidden mt-3 border border-white/10">
+                    <div class="h-full ${colorClass} transition-all duration-500" style="width: ${pct}%"></div>
                 </div>
             `;
         };
 
         const cacheRow = (label, count, bytes, max, color, onDelete) => html`
-            <div class="p-4 flex items-center gap-4 border-b border-slate-800 last:border-0 hover:bg-slate-800 transition-colors group">
-                <div class="p-2 rounded-lg bg-slate-800 border border-slate-800 text-[#94a3b8]">
+            <div class="p-4 flex items-center gap-4 border-b border-white/10 last:border-0 hover:bg-white/5 transition-colors group">
+                <div class="p-2 rounded-md bg-white/5 border border-white/10 text-[#94a3b8]">
                     ${icons.binary}
                 </div>
                 <div class="grow">
@@ -169,7 +169,7 @@ class MemoryView extends HTMLElement {
                 </div>
                 <button
                     @click=${onDelete}
-                    class="p-2 bg-slate-800 hover:bg-red-500/20 text-[#94a3b8] hover:text-red-400 rounded-lg transition-colors border border-transparent hover:border-red-500/30"
+                    class="p-2 bg-white/5 hover:bg-red-500/20 text-[#94a3b8] hover:text-red-400 rounded-md transition-colors border border-transparent hover:border-red-500/30"
                     title="Clear Cache"
                 >
                     ${icons.trash}
@@ -178,13 +178,13 @@ class MemoryView extends HTMLElement {
         `;
 
         const rangeControl = (label, key, value, min, max, step, desc) => html`
-            <div class="flex items-center gap-4 py-4 border-b border-slate-800 last:border-0 group">
+            <div class="flex items-center gap-4 py-4 border-b border-white/10 last:border-0 group">
                 <div class="grow">
                     <div class="flex items-baseline justify-between mb-1">
                         <div class="text-sm font-bold text-[#94a3b8] group-hover:text-[#f1f5f9] transition-colors">
                             ${label}
                         </div>
-                        <div class="font-mono text-xs text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
+                        <div class="font-mono text-xs text-emerald-200 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-400/25">
                             ${value}
                         </div>
                     </div>
@@ -195,7 +195,7 @@ class MemoryView extends HTMLElement {
                         <span class="text-[10px] font-mono text-[#94a3b8]">${min}</span>
                         <input
                             type="range"
-                            class="grow h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:accent-[#60a5fa]"
+                            class="grow h-1.5 bg-white/5 rounded-md appearance-none cursor-pointer accent-emerald-400 hover:accent-[#60a5fa]"
                             .value=${value}
                             min=${min}
                             max=${max}
@@ -211,13 +211,13 @@ class MemoryView extends HTMLElement {
         const renderPresetBtn = (level, label) => {
             const p = MEMORY_PRESETS[level];
             const isMatch = p.networkLogLimit === networkLogLimit && p.segmentCacheLimit === segmentCacheLimit;
-            const activeClass = 'bg-blue-500 text-white border-blue-500 shadow-[0_0_20px_#3b82f6]';
-            const inactiveClass = 'bg-slate-800 text-[#94a3b8] border-slate-800 hover:border-slate-400 hover:text-[#f1f5f9]';
+            const activeClass = 'bg-emerald-500/10 text-white border-emerald-400/25 ';
+            const inactiveClass = 'bg-white/5 text-[#94a3b8] border-white/10 hover:border-slate-400 hover:text-[#f1f5f9]';
 
             return html`
                 <button
                     @click=${() => this.handlePreset(level)}
-                    class="flex-1 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-lg border transition-all ${isMatch ? activeClass : inactiveClass}"
+                    class="flex-1 py-1.5 text-[10px] font-bold rounded-md border transition-all ${isMatch ? activeClass : inactiveClass}"
                 >
                     ${label}
                 </button>
@@ -233,7 +233,7 @@ class MemoryView extends HTMLElement {
                     </h2>
                     <button
                         @click=${() => this.handleClear('all')}
-                        class="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-red-500/20 text-[#94a3b8] hover:text-red-400 border border-slate-800 hover:border-red-500/30 rounded-lg transition-all text-xs font-bold uppercase tracking-wider"
+                        class="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-red-500/20 text-[#94a3b8] hover:text-red-400 border border-white/10 hover:border-red-500/30 rounded-md transition-all text-xs font-bold r"
                     >
                         ${icons.trash} Flush All
                     </button>
@@ -242,10 +242,7 @@ class MemoryView extends HTMLElement {
                 <div class="p-8 space-y-8">
                     <!-- Warnings -->
                     ${systemHealth.status !== 'nominal' ? html`
-                        <div class="p-3 rounded-lg border flex items-center gap-3 animate-fadeIn ${systemHealth.status === 'critical'
-                    ? 'bg-red-500/20 border-red-500/40 text-red-400'
-                    : 'bg-amber-500/20 border-amber-500/40 text-amber-400'
-                }">
+                        <div class="p-3 rounded-md border flex items-center gap-3 ${systemHealth.status === 'critical' ? 'bg-red-500/20 border-red-500/40 text-red-400' : 'bg-amber-500/20 border-amber-500/40 text-amber-400' }">
                             <div class="scale-90">${systemHealth.status === 'critical' ? icons.alertTriangle : icons.info}</div>
                             <div class="text-xs font-bold">${systemHealth.message}</div>
                         </div>
@@ -256,19 +253,19 @@ class MemoryView extends HTMLElement {
                         <div class="flex items-center justify-between mb-4">
                             <div class="flex items-center gap-2 text-[#94a3b8]">
                                 ${icons.activity}
-                                <h4 class="text-xs font-bold uppercase tracking-widest">Live Usage</h4>
+                                <h4 class="text-xs font-bold">Live Usage</h4>
                             </div>
                             ${!browser ? html`<div class="text-[10px] text-[#94a3b8] italic">Detailed Heap API unavailable in ${meta.browserName}</div>` : ''}
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            ${dashboardCard('JS Heap', browser ? formatBytes(browser.usedJSHeapSize) : 'Unavailable', browser ? `Limit: ${formatBytes(browser.jsHeapSizeLimit)}` : 'Browser security restriction', icons.cpu, 'bg-purple-500')}
-                            ${dashboardCard('Managed Data', formatBytes(app.totalBytes || 0), 'Application internal stores', icons.database, 'bg-blue-500')}
+                            ${dashboardCard('JS Heap', browser ? formatBytes(browser.usedJSHeapSize) : 'Unavailable', browser ? `Limit: ${formatBytes(browser.jsHeapSizeLimit)}` : 'Browser security restriction', icons.cpu, 'bg-white/5')}
+                            ${dashboardCard('Managed Data', formatBytes(app.totalBytes || 0), 'Application internal stores', icons.database, 'bg-emerald-500/10')}
                         </div>
 
-                        <div class="bg-slate-800 rounded-xl border border-slate-800 p-4">
-                            <div class="text-[10px] font-bold uppercase tracking-widest text-[#94a3b8] mb-3">Managed Data Breakdown</div>
-                            <div class="flex h-4 w-full rounded-full overflow-hidden bg-slate-800 border border-slate-800">
+                        <div class="bg-white/5 rounded-md border border-white/10 p-4">
+                            <div class="text-[10px] font-bold text-[#94a3b8] mb-3">Managed Data Breakdown</div>
+                            <div class="flex h-4 w-full rounded-full overflow-hidden bg-white/5 border border-white/10">
                                 ${metrics.map(m => {
                     const width = (m.value / app.totalBytes) * 100;
                     return html`<div class="h-full ${m.color} hover:brightness-110 transition-all" style="width: ${width}%" title="${m.label}: ${formatBytes(m.value)}"></div>`;
@@ -278,7 +275,7 @@ class MemoryView extends HTMLElement {
                                 ${metrics.map(m => html`
                                     <div class="flex items-center gap-1.5">
                                         <div class="w-2 h-2 rounded-full ${m.color}"></div>
-                                        <span class="text-[10px] font-bold text-[#94a3b8] uppercase">${m.label}</span>
+                                        <span class="text-[10px] font-bold text-[#94a3b8]">${m.label}</span>
                                         <span class="text-[10px] font-mono ${m.textColor}">${formatBytes(m.value)}</span>
                                     </div>
                                 `)}
@@ -291,19 +288,19 @@ class MemoryView extends HTMLElement {
                         <section>
                             <div class="flex items-center gap-2 mb-4 text-[#94a3b8]">
                                 ${icons.layers}
-                                <h4 class="text-xs font-bold uppercase tracking-widest">Cache Management</h4>
+                                <h4 class="text-xs font-bold">Cache Management</h4>
                             </div>
-                            <div class="bg-slate-800 rounded-xl border border-slate-800 overflow-hidden">
+                            <div class="bg-white/5 rounded-md border border-white/10 overflow-hidden">
                                 ${cacheRow('Media Segments', app.segments.count, app.segments.bytes, segmentCacheLimit, 'bg-emerald-500', () => this.handleClear('segments'))}
-                                ${cacheRow('Network Logs', app.network.count, app.network.bytes, networkLogLimit, 'bg-blue-500', () => this.handleClear('network'))}
-                                <div class="p-4 flex items-center gap-4 hover:bg-slate-800 transition-colors">
-                                    <div class="p-2 rounded-lg bg-slate-800 border border-slate-800 text-[#94a3b8]">${icons.key}</div>
+                                ${cacheRow('Network Logs', app.network.count, app.network.bytes, networkLogLimit, 'bg-emerald-500/10', () => this.handleClear('network'))}
+                                <div class="p-4 flex items-center gap-4 hover:bg-white/5 transition-colors">
+                                    <div class="p-2 rounded-md bg-white/5 border border-white/10 text-[#94a3b8]">${icons.key}</div>
                                     <div class="grow">
                                         <div class="font-bold text-[#f1f5f9] text-sm">Decryption Keys</div>
                                         <div class="text-xs text-[#94a3b8] mt-0.5">Cached EME licenses</div>
                                     </div>
-                                    <div class="text-xs font-mono text-[#94a3b8] bg-slate-800 px-2 py-1 rounded border border-slate-800 mr-2">Sensitive Data</div>
-                                    <button @click=${() => this.handleClear('decryption')} class="p-2 bg-slate-800 hover:bg-red-500/20 text-[#94a3b8] hover:text-red-400 rounded-lg transition-colors border border-transparent hover:border-red-500/30" title="Flush Keys">${icons.trash}</button>
+                                    <div class="text-xs font-mono text-[#94a3b8] bg-white/5 px-2 py-1 rounded border border-white/10 mr-2">Sensitive Data</div>
+                                    <button @click=${() => this.handleClear('decryption')} class="p-2 bg-white/5 hover:bg-red-500/20 text-[#94a3b8] hover:text-red-400 rounded-md transition-colors border border-transparent hover:border-red-500/30" title="Flush Keys">${icons.trash}</button>
                                 </div>
                             </div>
                         </section>
@@ -313,10 +310,10 @@ class MemoryView extends HTMLElement {
                             <div class="flex items-center justify-between mb-4">
                                 <div class="flex items-center gap-2 text-[#94a3b8]">
                                     ${icons.slidersHorizontal}
-                                    <h4 class="text-xs font-bold uppercase tracking-widest">Governor Settings</h4>
+                                    <h4 class="text-xs font-bold">Governor Settings</h4>
                                 </div>
                             </div>
-                            <div class="bg-slate-800 rounded-xl border border-slate-800 px-5 pt-5 pb-2">
+                            <div class="bg-white/5 rounded-md border border-white/10 px-5 pt-5 pb-2">
                                 <div class="flex gap-2 mb-6">
                                     ${renderPresetBtn('low', 'Conservative')}
                                     ${renderPresetBtn('medium', 'Balanced')}

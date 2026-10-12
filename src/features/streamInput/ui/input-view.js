@@ -4,7 +4,7 @@ import { html, render } from 'lit-html';
 import { landingViewTemplate } from './components/landing-view.js';
 import './components/library-modal.js';
 import './components/staging-sidebar.js'; // Ensure registered
-import './components/staging-main.js';    // Ensure registered
+import './components/staging-main.js'; // Ensure registered
 
 // --- Landing View Controller (Non-Shell) ---
 let landingContainer = null;
@@ -14,13 +14,9 @@ let landingUnsubUi = null;
 function renderLanding() {
     if (!landingContainer) return;
 
-    // Only render if we have no inputs? 
-    // Actually mainRenderer controls when this is mounted.
-    // But we might want to be reactive to store changes if needed.
-
     const template = html`
         <div
-            class="h-full w-full text-slate-200 font-sans relative overflow-hidden selection:bg-blue-500/30 pointer-events-auto"
+            class="h-full w-full text-slate-200 font-sans relative overflow-hidden selection:bg-emerald-500/10 pointer-events-auto"
         >
             ${landingViewTemplate()}
             <library-modal-component></library-modal-component>
@@ -33,7 +29,6 @@ function renderLanding() {
 export const landingView = {
     mount(containerElement) {
         landingContainer = containerElement;
-        // Subscriptions might be needed for library modal or other updates
         landingUnsubAnalysis = useAnalysisStore.subscribe(renderLanding);
         landingUnsubUi = useUiStore.subscribe(renderLanding);
         renderLanding();
@@ -48,36 +43,112 @@ export const landingView = {
     },
 };
 
-// --- Staging View Controller (Independent Layout) ---
+// --- Staging View Controller (queue + configure workbench) ---
 let stagingContainer = null;
+let stagingUnsubAnalysis = null;
+let stagingUnsubUi = null;
+
+function renderStaging() {
+    if (!stagingContainer) return;
+
+    render(
+        html`
+            <div
+                class="flex flex-col md:flex-row h-full w-full overflow-hidden bg-[#06090f] text-slate-200"
+                style="gap: 1px; background-color: #1a2636;"
+            >
+                <!-- Queue -->
+                <aside
+                    class="w-full md:w-[320px] xl:w-[360px] shrink-0 flex flex-col min-h-0 bg-[#06090f] pointer-events-auto max-h-[40%] md:max-h-none"
+                >
+                    <staging-sidebar class="h-full w-full"></staging-sidebar>
+                </aside>
+
+                <!-- Configure -->
+                <main
+                    class="grow min-w-0 min-h-0 relative flex flex-col overflow-hidden bg-[#06090f] pointer-events-auto"
+                >
+                    <staging-main class="h-full w-full"></staging-main>
+                </main>
+            </div>
+            <library-modal-component></library-modal-component>
+        `,
+        stagingContainer
+    );
+}
 
 export const stagingView = {
     mount(container) {
         stagingContainer = container;
-        render(html`
-            <div class="flex h-full w-full overflow-hidden" style="gap: 0.75rem; padding: 0.75rem;">
-                <!-- Staging Sidebar -->
-                <aside class="w-[320px] md:w-[380px] xl:w-[420px] shrink-0 flex flex-col relative z-30 transition-all duration-300 pointer-events-auto">
-                    <staging-sidebar class="h-full w-full"></staging-sidebar>
-                </aside>
-                
-                <!-- Main Content -->
-                <main class="grow min-w-0 h-full relative flex flex-col overflow-hidden transition-all duration-300 pointer-events-auto">
-                    <staging-main class="h-full w-full"></staging-main>
-                </main>
-            </div>
-            <!-- Modal placed outside overflow container -->
-            <library-modal-component class="pointer-events-auto"></library-modal-component>
-        `, container);
+        stagingUnsubAnalysis = useAnalysisStore.subscribe(renderStaging);
+        stagingUnsubUi = useUiStore.subscribe(renderStaging);
+        renderStaging();
     },
 
     unmount() {
+        if (stagingUnsubAnalysis) stagingUnsubAnalysis();
+        if (stagingUnsubUi) stagingUnsubUi();
+        stagingUnsubAnalysis = null;
+        stagingUnsubUi = null;
         if (stagingContainer) {
             render(html``, stagingContainer);
             stagingContainer = null;
         }
-    }
+    },
 };
 
-// Backward compatibility (if needed temporarily)
-export const inputView = landingView;
+// --- Input root: landing until something is staged, then the workbench. ---
+let inputContainer = null;
+let inputUnsubAnalysis = null;
+let inputUnsubUi = null;
+let inputMode = null; // 'landing' | 'staging'
+// Manual override so users can return to landing without clearing the queue.
+let landingPinned = false;
+
+function renderInput() {
+    if (!inputContainer) return;
+
+    const { streamInputs } = useAnalysisStore.getState();
+    const next = streamInputs.length > 0 && !landingPinned ? 'staging' : 'landing';
+    if (next !== inputMode) {
+        if (inputMode === 'landing') landingView.unmount();
+        if (inputMode === 'staging') stagingView.unmount();
+        inputMode = next;
+        if (next === 'landing') landingView.mount(inputContainer);
+        else stagingView.mount(inputContainer);
+    }
+}
+
+export const inputView = {
+    mount(containerElement) {
+        // Defensive: mainRenderer guards with currentMountedViewKey, but a
+        // double-mount would leak store subscriptions. Unmount first.
+        this.unmount();
+        inputContainer = containerElement;
+        inputMode = null;
+        inputUnsubAnalysis = useAnalysisStore.subscribe(renderInput);
+        inputUnsubUi = useUiStore.subscribe(renderInput);
+        renderInput();
+    },
+    unmount() {
+        if (inputUnsubAnalysis) inputUnsubAnalysis();
+        if (inputUnsubUi) inputUnsubUi();
+        inputUnsubAnalysis = null;
+        inputUnsubUi = null;
+        if (inputMode === 'landing') landingView.unmount();
+        if (inputMode === 'staging') stagingView.unmount();
+        inputMode = null;
+        if (inputContainer) render(html``, inputContainer);
+        inputContainer = null;
+    },
+    /** Return to the landing without clearing the staged queue. */
+    showLanding() {
+        landingPinned = true;
+        renderInput();
+    },
+    /** Return to the staging workbench. */
+    showStaging() {
+        landingPinned = false;
+        renderInput();
+    },
+};

@@ -199,29 +199,29 @@ class TimeController extends HTMLElement {
                                       ? html`<button
                                             type="button"
                                             @click=${() => this._onPauseLive()}
-                                            class="px-2.5 py-1.5 rounded-lg font-bold text-[11px] bg-slate-800 text-red-400 border border-red-900/30 hover:bg-red-900/10"
+                                            class="px-2.5 py-1.5 rounded-md mono text-[11px] border border-white/10 text-slate-400 hover:text-slate-100 hover:border-white/25 transition-colors"
                                             title="Pause the live edge"
                                         >
-                                            ⏸ Pause
+                                            pause
                                         </button>`
                                       : html`<button
                                             type="button"
                                             @click=${() => this._onGoLive()}
-                                            class="px-2.5 py-1.5 rounded-lg font-bold text-[11px] bg-emerald-600 text-white hover:bg-emerald-500 border border-emerald-500"
+                                            class="px-2.5 py-1.5 rounded-md mono text-[11px] border border-emerald-400/25 bg-emerald-500/[0.06] text-emerald-200 transition-colors"
                                             title="Jump to the live edge"
                                         >
-                                            ● Go Live
+                                            go live
                                         </button>`}
                                   ${!d.isLive
                                       ? html`<button
                                             type="button"
                                             @click=${() => this._onTogglePlay()}
-                                            class="px-2.5 py-1.5 rounded-lg font-bold text-[11px] bg-slate-800 border border-slate-700 text-slate-300 hover:text-white"
+                                            class="px-2.5 py-1.5 rounded-md mono text-[11px] border border-white/10 text-slate-400 hover:text-slate-100 hover:border-white/25 transition-colors"
                                             title=${d.isPlaying
                                                 ? 'Pause simulation'
                                                 : 'Resume simulation'}
                                         >
-                                            ${d.isPlaying ? '⏸' : '▶'}
+                                            ${d.isPlaying ? 'pause' : 'play'}
                                         </button>`
                                       : ''}
                               `
@@ -236,15 +236,15 @@ class TimeController extends HTMLElement {
                             class="grow accent-emerald-500"
                             aria-label="Simulation time scrubber"
                         />
-                        <span class="font-mono text-[11px] text-slate-300 whitespace-nowrap"
+                        <span class="mono text-[11px] text-slate-300 whitespace-nowrap"
                             >${fmt(shown)}</span
                         >
                     </div>
                     ${d.spd
                         ? html`<div
-                              class="text-[10px] text-slate-500 font-mono"
+                              class="mono text-[10px] text-slate-500"
                           >
-                              SPD −${d.spd}s behind live edge
+                              spd ${d.spd}s behind live edge
                           </div>`
                         : ''}
                 </div>

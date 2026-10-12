@@ -24,7 +24,7 @@ export const adSettingsPanelTemplate = (embedded = false) => {
     const rows = METHODS.map(
         ([key, label, desc]) => html`
             <label
-                class="flex items-start gap-3 p-2.5 rounded-xl border border-slate-800 hover:border-slate-700 bg-slate-800/40 cursor-pointer transition-all"
+                class="flex items-start gap-3 p-2.5 rounded-md border border-white/10 hover:border-white/10 bg-white/5 cursor-pointer transition-all"
                 title="${desc}"
             >
                 <input
@@ -32,7 +32,7 @@ export const adSettingsPanelTemplate = (embedded = false) => {
                     ?checked=${!!prefs[key]}
                     @change=${(e) =>
                         setAdDetectionPreference(key, e.target.checked)}
-                    class="mt-0.5 accent-blue-500"
+                    class="mt-0.5 accent-emerald-400"
                 />
                 <span class="min-w-0">
                     <span class="block text-xs font-bold text-slate-200"
@@ -49,9 +49,9 @@ export const adSettingsPanelTemplate = (embedded = false) => {
         return html`<div class="space-y-2">${rows}</div>`;
     }
     return html`
-        <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+        <div class="rounded-md border border-white/10 bg-white/5 p-4">
             <h3
-                class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3"
+                class="text-xs font-bold text-slate-400 mb-3"
             >
                 Ad detection rules
             </h3>

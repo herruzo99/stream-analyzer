@@ -370,7 +370,7 @@ export async function generateHlsSummary(manifestIR, context) {
             streamTypeColor:
                 manifestIR.type === 'dynamic'
                     ? 'text-red-400'
-                    : 'text-blue-500',
+                    : 'text-emerald-200',
             duration: totalDuration,
             segmentFormat: segmentFormat.toLowerCase(),
             title: null,

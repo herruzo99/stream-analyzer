@@ -183,7 +183,7 @@ class TsStructureViewer extends HTMLElement {
             'w-full',
             'overflow-hidden',
             'relative',
-            'bg-slate-900'
+            'bg-white/5'
         );
         this.render();
 
@@ -340,10 +340,10 @@ class TsStructureViewer extends HTMLElement {
             { text: 'text-teal-300', bg: 'bg-teal-500/10', border: 'border-teal-500/30' },
             { text: 'text-cyan-300', bg: 'bg-cyan-500/10', border: 'border-cyan-500/30' },
             { text: 'text-sky-300', bg: 'bg-sky-500/10', border: 'border-sky-500/30' },
-            { text: 'text-blue-300', bg: 'bg-blue-500/10', border: 'border-blue-500/30' },
+            { text: 'text-emerald-200', bg: 'bg-emerald-500/10', border: 'border-emerald-400/25' },
             { text: 'text-indigo-300', bg: 'bg-indigo-500/10', border: 'border-indigo-500/30' },
             { text: 'text-violet-300', bg: 'bg-violet-500/10', border: 'border-violet-500/30' },
-            { text: 'text-purple-300', bg: 'bg-purple-500/10', border: 'border-purple-500/30' },
+            { text: 'text-slate-300', bg: 'bg-white/5', border: 'border-white/10' },
             { text: 'text-fuchsia-300', bg: 'bg-fuchsia-500/10', border: 'border-fuchsia-500/30' },
             { text: 'text-pink-300', bg: 'bg-pink-500/10', border: 'border-pink-500/30' },
             { text: 'text-rose-300', bg: 'bg-rose-500/10', border: 'border-rose-500/30' },
@@ -355,7 +355,7 @@ class TsStructureViewer extends HTMLElement {
 
         const bgClass = isSelected
             ? 'bg-[#3b82f6]/20 border-[#3b82f6]'
-            : 'hover:bg-slate-800 border-transparent';
+            : 'hover:bg-white/10 border-transparent';
         const isStart = p.header.payload_unit_start_indicator.value === 1;
         const hasPcr = !!p.adaptationField?.pcr;
         const cc = p.header.continuity_counter.value;
@@ -453,7 +453,7 @@ class TsStructureViewer extends HTMLElement {
         const { totalPackets = 0, pcrList } = summary;
         const displayedCount = this.filteredPackets.length;
         const headerClass =
-            'grid grid-cols-[60px_50px_140px_40px_1fr] gap-2 px-3 py-2 bg-slate-800/90 border-b border-slate-800 text-[10px] font-bold text-slate-400 uppercase tracking-wider select-none z-10 backdrop-blur-md';
+            'grid grid-cols-[60px_50px_140px_40px_1fr] gap-2 px-3 py-2 bg-white/5 border-b border-white/10 text-[10px] font-bold text-slate-400  r select-none z-10 ';
 
         const pcrStats = pcrList || {
             interval: { min: 'N/A', max: 'N/A', avg: 'N/A' },
@@ -463,7 +463,7 @@ class TsStructureViewer extends HTMLElement {
             ? html`
                   <button
                       @click=${() => this._simulateDescriptors()}
-                      class="px-2 py-1 bg-fuchsia-900/30 text-fuchsia-400 border border-fuchsia-500/30 rounded text-[10px] font-bold uppercase hover:bg-fuchsia-900/50 transition-colors ml-auto"
+                      class="px-2 py-1 bg-fuchsia-900/30 text-fuchsia-400 border border-fuchsia-500/30 rounded text-[10px] font-bold hover:bg-fuchsia-900/50 transition-colors ml-auto"
                       title="Simulate PSI Packet"
                   >
                       ${icons.debug} Sim Tags
@@ -473,21 +473,21 @@ class TsStructureViewer extends HTMLElement {
 
         const template = html`
             <div
-                class="flex flex-col h-full w-full overflow-hidden bg-slate-900 border-r border-slate-700"
+                class="flex flex-col h-full w-full overflow-hidden bg-white/5 border-r border-white/10"
             >
                 <!-- Dashboard Header -->
                 <div
-                    class="shrink-0 p-4 bg-slate-800/80 backdrop-blur-md border-b border-slate-800 space-y-3 shadow-sm z-20"
+                    class="shrink-0 p-4 bg-white/5 border-b border-white/10 space-y-3 z-20"
                 >
                     <div class="flex justify-between items-start">
                         <div>
                             <h3
-                                class="text-xs font-bold text-slate-100 flex items-center gap-2 uppercase tracking-wider mb-1"
+                                class="text-xs font-bold text-slate-100 flex items-center gap-2 r mb-1"
                             >
                                 ${icons.layout} Stream Composition
                             </h3>
                             <span
-                                class="text-[10px] text-slate-400 font-mono bg-slate-800 px-2 py-0.5 rounded border border-slate-800"
+                                class="text-[10px] text-slate-400 font-mono bg-white/5 px-2 py-0.5 rounded border border-white/10"
                             >
                                 ${displayedCount.toLocaleString()} /
                                 ${totalPackets.toLocaleString()} Packets
@@ -496,23 +496,23 @@ class TsStructureViewer extends HTMLElement {
                         <div class="flex gap-2">
                             ${debugButton}
                             <div
-                                class="flex gap-4 text-[10px] text-slate-400 bg-slate-800 px-3 py-1 rounded border border-slate-800"
+                                class="flex gap-4 text-[10px] text-slate-400 bg-white/5 px-3 py-1 rounded border border-white/10"
                             >
                                 <div>
                                     <span
-                                        class="font-bold text-slate-400 uppercase block mb-0.5"
+                                        class="font-bold text-slate-400 block mb-0.5"
                                         >PCR Avg</span
                                     >
                                     <span
-                                        class="font-mono text-blue-400"
+                                        class="font-mono text-emerald-200"
                                         >${pcrStats.interval.avg}</span
                                     >
                                 </div>
                                 <div
-                                    class="border-l border-slate-800 pl-4"
+                                    class="border-l border-white/10 pl-4"
                                 >
                                     <span
-                                        class="font-bold text-slate-400 uppercase block mb-0.5"
+                                        class="font-bold text-slate-400 block mb-0.5"
                                         >PCR Range</span
                                     >
                                     <span
@@ -538,10 +538,10 @@ class TsStructureViewer extends HTMLElement {
                     ).toFixed(1)
                     : '0.0';
             let colorClass =
-                'border-slate-800 text-slate-400 bg-slate-800';
+                'border-white/10 text-slate-400 bg-white/5';
             if (isActive)
                 colorClass +=
-                    ' ring-1 ring-[#3b82f6] bg-slate-800 border-[#3b82f6]/50 shadow-[0_0_10px_rgba(0,0,0,0.1)]';
+                    ' ring-1 ring-[#3b82f6] bg-white/5 border-[#3b82f6]/50 ';
 
             return html`
                                 <button
@@ -553,7 +553,7 @@ class TsStructureViewer extends HTMLElement {
                                         class="flex justify-between w-full mb-1"
                                     >
                                         <span
-                                            class="text-[10px] font-bold uppercase opacity-70 truncate max-w-[80px]"
+                                            class="text-[10px] font-bold opacity-70 truncate max-w-[80px]"
                                             >${stat.type}</span
                                         >
                                         <span
@@ -589,13 +589,13 @@ class TsStructureViewer extends HTMLElement {
                 <!-- Buffer Chart Container -->
                 <div
                     id="buffer-chart-container"
-                    class="shrink-0 h-32 w-full bg-slate-800/50 border-b border-slate-800"
+                    class="shrink-0 h-32 w-full bg-white/5 border-b border-white/10"
                     style="display:none;"
                 ></div>
 
                 <!-- Virtual List -->
                 <div
-                    class="flex flex-col grow min-h-0 bg-slate-900 relative"
+                    class="flex flex-col grow min-h-0 bg-white/5 relative"
                 >
                     <div class="${headerClass}">
                         <span>Offset</span><span>PID</span><span>Type</span

@@ -22,7 +22,7 @@ export const playerActiveWarningTemplate = (contextName) => {
 
     return html`
         <div
-            class="bg-slate-800 backdrop-blur-md border-b border-amber-500/20 px-3 py-1.5 flex items-center justify-between animate-fadeIn shrink-0 z-20"
+            class="bg-white/5 border-b border-amber-500/20 px-3 py-1.5 flex items-center justify-between shrink-0 z-20"
         >
             <div class="flex items-center gap-2">
                 <span class="text-amber-400 scale-75"
@@ -30,7 +30,7 @@ export const playerActiveWarningTemplate = (contextName) => {
                 >
                 <div>
                     <span
-                        class="text-[10px] font-bold text-amber-400 uppercase tracking-wider"
+                        class="text-[10px] font-bold text-amber-400 r"
                         >Playback Idle</span
                     >
                     <span

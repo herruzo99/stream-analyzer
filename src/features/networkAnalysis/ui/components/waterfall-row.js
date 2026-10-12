@@ -61,8 +61,8 @@ export const waterfallRowTemplate = (event, isSelected) => {
     const colorVar = getResourceColor(event.resourceType);
 
     const rowClasses = isSelected
-        ? 'bg-[#3b82f6] border-l-2 border-blue-500'
-        : 'hover:bg-slate-800 border-l-2 border-transparent';
+        ? 'bg-[#3b82f6] border-l-2 border-emerald-400/25'
+        : 'hover:bg-white/10 border-l-2 border-transparent';
 
     const fileName = new URL(event.url).pathname.split('/').pop() || event.url;
     const timeLabel = `${event.timing.duration.toFixed(0)}ms`;
@@ -81,12 +81,12 @@ export const waterfallRowTemplate = (event, isSelected) => {
 
     return html`
         <div
-            class="group flex items-center text-xs border-b border-slate-800 h-8 cursor-pointer transition-colors ${rowClasses}"
+            class="group flex items-center text-xs border-b border-white/10 h-8 cursor-pointer transition-colors ${rowClasses}"
             @click=${() => networkActions.setSelectedEventId(event.id)}
         >
             <!-- Name Column -->
             <div
-                class="w-[250px] px-3 flex items-center gap-2 shrink-0 border-r border-slate-800 overflow-hidden"
+                class="w-[250px] px-3 flex items-center gap-2 shrink-0 border-r border-white/10 overflow-hidden"
             >
                 <span class="shrink-0 scale-75" style="color: ${colorVar}"
                     >${icons.fileText}</span
@@ -100,14 +100,14 @@ export const waterfallRowTemplate = (event, isSelected) => {
 
             <!-- Status Column -->
             <div
-                class="w-[60px] px-2 shrink-0 border-r border-slate-800 flex items-center justify-center"
+                class="w-[60px] px-2 shrink-0 border-r border-white/10 flex items-center justify-center"
             >
                 ${getStatusIcon(event.response.status, event.auditStatus)}
             </div>
 
             <!-- Type Column -->
             <div
-                class="w-[80px] px-2 shrink-0 border-r border-slate-800 flex items-center justify-center"
+                class="w-[80px] px-2 shrink-0 border-r border-white/10 flex items-center justify-center"
             >
                 <span
                     class="px-1.5 py-0.5 rounded text-[10px] border"
@@ -123,7 +123,7 @@ export const waterfallRowTemplate = (event, isSelected) => {
 
             <!-- Size Column -->
             <div
-                class="w-[80px] px-2 shrink-0 border-r border-slate-800 text-right text-slate-400 font-mono"
+                class="w-[80px] px-2 shrink-0 border-r border-white/10 text-right text-slate-400 font-mono"
             >
                 ${formatSize(event.size)}
             </div>
@@ -159,14 +159,14 @@ export const waterfallRowTemplate = (event, isSelected) => {
 
                     <!-- TLS (Pink -> Secondary Accent) -->
                     <div
-                        class="h-full bg-purple-500"
+                        class="h-full bg-white/5"
                         style="width: ${tlsWidth}"
                         title="TLS Handshake"
                     ></div>
 
                     <!-- TTFB (Purple -> Primary Accent) -->
                     <div
-                        class="h-full bg-blue-500 opacity-80"
+                        class="h-full bg-emerald-500/10 opacity-80"
                         style="width: ${ttfbWidth}"
                         title="Waiting (TTFB)"
                     ></div>

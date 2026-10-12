@@ -12,10 +12,10 @@ export const adTimelineTemplate = (
     if (!duration) {
         return html`
             <div
-                class="w-full bg-slate-900 rounded-lg p-4 text-center border border-slate-700 border-dashed"
+                class="w-full bg-white/5 rounded-md p-4 text-center border border-white/10 border-dashed"
             >
                 <p
-                    class="text-xs text-slate-400 uppercase tracking-wider"
+                    class="text-xs text-slate-400 r"
                 >
                     Timeline Unavailable
                 </p>
@@ -26,11 +26,11 @@ export const adTimelineTemplate = (
     return html`
         <div class="mb-6 select-none">
             <div
-                class="relative w-full h-12 bg-slate-900 rounded-lg border border-slate-700 mb-1 overflow-hidden"
+                class="relative w-full h-12 bg-white/5 rounded-md border border-white/10 mb-1 overflow-hidden"
             >
                 <!-- Base Track -->
                 <div
-                    class="absolute top-1/2 left-0 right-0 h-1 bg-slate-700 -translate-y-1/2 rounded-full mx-2"
+                    class="absolute top-1/2 left-0 right-0 h-1 bg-white/5 -translate-y-1/2 rounded-full mx-2"
                 ></div>
 
                 <!-- Markers -->
@@ -41,7 +41,7 @@ export const adTimelineTemplate = (
                     const bgClass = `bg-[var(--color-${color})]`;
 
                     const shadowClass = isSelected
-                        ? `shadow-[0_0_10px_var(--color-${color})] ring-2 ring-slate-200`
+                        ? ` ring-2 ring-slate-200`
                         : 'hover:scale-110';
 
                     return html`
@@ -64,7 +64,7 @@ export const adTimelineTemplate = (
 
             <!-- Axis Labels -->
             <div
-                class="flex justify-between px-1 text-[10px] font-mono text-slate-400 uppercase tracking-wider"
+                class="flex justify-between px-1 text-[10px] font-mono text-slate-400 r"
             >
                 <span>${labels.start}</span>
                 <span>${labels.end}</span>

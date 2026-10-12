@@ -5,17 +5,17 @@ export const breakCardTemplate = (avail, isSelected, onClick) => {
     // --- Special Case for Placeholder ---
     if (avail.id === 'unconfirmed-inband-scte35') {
         const isActive = isSelected
-            ? 'ring-2 ring-blue-500 bg-slate-800'
-            : 'bg-slate-800 border-blue-500';
+            ? 'ring-2 ring-emerald-400/25 bg-white/5'
+            : 'bg-white/5 border-emerald-400/25';
 
         return html`
             <div
                 @click=${() => onClick(avail)}
-                class="group relative p-4 rounded-xl border border-dashed cursor-pointer transition-all duration-200 ${isActive}"
+                class="group relative p-4 rounded-md border border-dashed cursor-pointer transition-all duration-200 ${isActive}"
             >
                 <div class="flex items-center gap-3">
                     <div
-                        class="p-2 rounded-full text-blue-400 animate-pulse"
+                        class="p-2 rounded-full text-emerald-200 animate-pulse"
                     >
                         ${icons.activity}
                     </div>
@@ -56,28 +56,28 @@ export const breakCardTemplate = (avail, isSelected, onClick) => {
     const colorMap = {
         success: 'border-emerald-500 text-emerald-400',
         warning: 'border-amber-500 text-amber-400',
-        info: 'border-blue-500 text-blue-400',
+        info: 'border-emerald-400/25 text-emerald-200',
     };
 
     const statusColor = colorMap[avail.statusColor];
     const isActive = isSelected
-        ? 'ring-2 ring-blue-500 bg-slate-800'
-        : 'hover:bg-slate-800 bg-slate-800';
+        ? 'ring-2 ring-emerald-400/25 bg-white/5'
+        : 'hover:bg-white/10 bg-white/5';
 
     return html`
         <div
             @click=${() => onClick(avail)}
-            class="group relative p-4 rounded-xl border border-slate-800 cursor-pointer transition-all duration-200 ${isActive}"
+            class="group relative p-4 rounded-md border border-white/10 cursor-pointer transition-all duration-200 ${isActive}"
         >
             <div class="flex justify-between items-start mb-2">
                 <div class="flex items-center gap-2">
                     <span
-                        class="text-xs font-bold font-mono bg-slate-800 px-2 py-1 rounded border border-slate-800 text-slate-400"
+                        class="text-xs font-bold font-mono bg-white/5 px-2 py-1 rounded border border-white/10 text-slate-400"
                     >
                         ${(avail.startTime || 0).toFixed(2)}s
                     </span>
                     <span
-                        class="text-xs font-bold text-slate-400 uppercase tracking-wider"
+                        class="text-xs font-bold text-slate-400 r"
                     >
                         +${(avail.duration || 0).toFixed(1)}s
                     </span>
@@ -85,7 +85,7 @@ export const breakCardTemplate = (avail, isSelected, onClick) => {
 
                 <!-- Status Badge -->
                 <div
-                    class="flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wide ${statusColor}"
+                    class="flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-bold ${statusColor}"
                 >
                     ${methodIcons[avail.detectionMethod] || icons.activity}
                     ${methodLabels[avail.detectionMethod] || 'Unknown'}
@@ -117,14 +117,14 @@ export const breakCardTemplate = (avail, isSelected, onClick) => {
                     ${avail.adManifestUrl
                         ? html`<span
                               title="VAST Resolved"
-                              class="text-blue-400"
+                              class="text-emerald-200"
                               >${icons.link}</span
                           >`
                         : ''}
                     ${avail.creatives?.length > 0
                         ? html`<span
                               title="Creatives Found"
-                              class="text-purple-300"
+                              class="text-slate-300"
                               >${icons.play}</span
                           >`
                         : ''}

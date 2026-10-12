@@ -1,59 +1,60 @@
 import { analysisActions } from '@/state/analysisStore';
+import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 
 export const navigationTemplate = (stream) => {
-    if (stream.manifest.type !== 'dynamic') return html``;
+    if (!stream || stream.manifest?.type !== 'dynamic') return html``;
 
-    const { manifestUpdates, activeManifestUpdateId } = stream;
-    const activeManifestUpdateIndex = manifestUpdates.findIndex(
+    const manifestUpdates = Array.isArray(stream.manifestUpdates)
+        ? stream.manifestUpdates
+        : [];
+    if (manifestUpdates.length === 0) return html``;
+
+    const { activeManifestUpdateId } = stream;
+    let activeManifestUpdateIndex = manifestUpdates.findIndex(
         (u) => u.id === activeManifestUpdateId
     );
-
-    // If for some reason the ID isn't found, render nothing to prevent errors.
-    if (activeManifestUpdateIndex === -1) return html``;
+    if (activeManifestUpdateIndex === -1) activeManifestUpdateIndex = 0;
 
     const updateCount = manifestUpdates.length;
-    const hasNewIssues =
-        manifestUpdates[0]?.hasNewIssues && activeManifestUpdateIndex > 0;
+    const showing = updateCount - activeManifestUpdateIndex;
+    const hasNewIssues = manifestUpdates.some((u) => u?.hasNewIssues);
+    const go = (dir) => analysisActions.navigateManifestUpdate(stream.id, dir);
+
+    const stepBtn =
+        'px-2.5 py-1.5 rounded-md text-slate-400 hover:text-slate-100 hover:bg-white/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed';
 
     return html`
         <div
-            class="flex items-center space-x-3 bg-slate-800 backdrop-blur-md p-1.5 rounded-xl border border-slate-800"
+            class="flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.02] px-1.5 py-1"
+            role="group"
+            aria-label="Manifest updates (${showing} of ${updateCount} shown)"
         >
             <button
-                @click=${() =>
-                    analysisActions.navigateManifestUpdate(stream.id, 1)}
+                @click=${() => go(1)}
                 ?disabled=${activeManifestUpdateIndex >= updateCount - 1}
-                class="px-4 py-2 rounded-lg font-bold transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-800 hover:shadow-[0_0_10px_#3b82f6] active:scale-95 text-slate-200"
-                title="Previous Update (Right Arrow)"
+                class="${stepBtn}"
+                title="Older update"
+                aria-label="Older update"
             >
-                &lt;
+                ${icons.arrowLeft}
             </button>
-            <span
-                class="font-bold w-28 text-center text-xs uppercase tracking-wider opacity-70"
-                style="color: #94a3b8"
-                >Update
-                ${updateCount - activeManifestUpdateIndex}/${updateCount}</span
-            >
+            <span class="mono text-[10px] text-slate-500 whitespace-nowrap">
+                update ${showing}/${updateCount}
+            </span>
             <button
-                @click=${() =>
-                    analysisActions.navigateManifestUpdate(stream.id, -1)}
+                @click=${() => go(-1)}
                 ?disabled=${activeManifestUpdateIndex <= 0}
-                class="relative px-4 py-2 rounded-lg font-bold transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-800 hover:shadow-[0_0_10px_#3b82f6] active:scale-95 text-slate-200"
-                title="Next Update (Left Arrow)"
+                class="${stepBtn} relative"
+                title="Newer update"
+                aria-label="Newer update"
             >
-                &gt;
-                ${hasNewIssues
-                    ? html`<span class="absolute -top-1 -right-1 flex h-3 w-3">
-                          <span
-                              class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
-                              style="background-color: #ef4444"
-                          ></span>
-                          <span
-                              class="relative inline-flex rounded-full h-3 w-3 shadow-[0_0_10px_#ef4444]"
-                              style="background-color: #ef4444"
-                          ></span>
-                      </span>`
+                ${icons.arrowRight}
+                ${hasNewIssues && activeManifestUpdateIndex > 0
+                    ? html`<span
+                          class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-red-500"
+                          title="Newer updates contain new issues"
+                      ></span>`
                     : ''}
             </button>
         </div>

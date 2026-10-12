@@ -67,6 +67,12 @@ export function extractTimingConfig(rep, as, period, baseUrl) {
         duration: duration,
         startNumber: parseInt(getAttr(template, 'startNumber') || '1'),
         pto: parseFloat(getAttr(template, 'presentationTimeOffset') || '0'),
+        // SegmentTemplate@availabilityTimeOffset (seconds): how early a
+        // segment becomes fetchable before its full duration elapses
+        // (LL-DASH chunked delivery). Contributes to the live playhead's
+        // latency budget alongside SPD — without it the playhead sits at
+        // wall-now and the newest segment flickers WAIT.
+        availabilityTimeOffset: parseFloat(getAttr(template, 'availabilityTimeOffset') || '0'),
         mediaTemplate: mediaTemplate,
         timeline: timeline,
         baseUrl: baseUrl, // Return baseUrl for SegmentBase/List fallback
@@ -258,15 +264,34 @@ export function calculateDashSegment(
 
             // If we passed the end of the timeline (future), we do NOT project.
             if (!found) {
-                // For visualization purposes, we might want to know which S element "would" cover this time if it continued?
-                // Or just say it's outside.
-                // If we are strictly following the timeline, we can't project beyond the last S element unless r < 0.
-                // But if the user wants to see "future" segments based on the last S element's duration, we could allow it?
-                // The current implementation returns an error, which is correct for strict DASH.
-                // However, for the "S Grouping" feature, we need to know the S index if we *were* to project.
-                // But since we return an error, the UI won't render it anyway.
-                // So the current logic is fine: if it's not in the timeline, it's not in an S-element.
-                return { error: 'Time outside available segments (after end)' };
+                // Live edge guard: the manifest's SegmentTimeline lags the
+                // live edge by design (it lists fully-available segments;
+                // the newest entry may end seconds before the playhead).
+                // If the target is at/past the timeline end, extend the
+                // LAST S-entry's rhythm forward (same d, continuing
+                // numbering) so the whiteboard can still show *where* the
+                // playhead is instead of stalling with 'after end' until
+                // the next manifest refresh adds the entry. This only
+                // fills the unpublished head — never before the start.
+                const lastEntry = timeline[timeline.length - 1];
+                const lastD = lastEntry?.d;
+                if (lastD && lastD > 0 && targetTimeTicks >= currentTicks) {
+                    const offsetPastEnd = targetTimeTicks - currentTicks;
+                    const indexPastEnd = Math.floor(offsetPastEnd / lastD);
+                    segmentIndex = currentIdx + indexPastEnd;
+                    segmentStartTicks = currentTicks + indexPastEnd * lastD;
+                    segmentDurationTicks = lastD;
+                    found = true;
+                    sElementIndex = timeline.length - 1;
+                    matchedSElement = {
+                        t: currentTicks,
+                        d: lastD,
+                        r: lastEntry.r || 0,
+                    };
+                }
+                if (!found) {
+                    return { error: 'Time outside available segments (after end)' };
+                }
             }
         }
     }
@@ -302,7 +327,16 @@ export function calculateDashSegment(
     // Availability Check
     // Segment is available if WallClockTime >= SegmentEnd
     // AND if it hasn't fallen out of the TimeShiftBufferDepth (DVR window)
-    const isAvailableStart = wallClockTime >= segmentEndWallMs;
+    // Boundary tolerance: a segment whose end is within one tick of the
+    // wall clock is already on the wire (encoder/packager latency means
+    // "now" lags reality by more than the rounding error). Without this,
+    // the playhead segment on low-latency/sim manifests (2s cadence,
+    // no SPD) flickers WAIT even though it is the live-edge segment.
+    const publishEpsilonMs = timescale
+        ? Math.max(1, (1000 / timescale) * 1.5)
+        : 1;
+    const isAvailableStart =
+        wallClockTime + publishEpsilonMs >= segmentEndWallMs;
     let isWithinWindow = true;
     if (timeShiftBufferDepth && timeShiftBufferDepth > 0) {
         // The segment start must be after (WallClock - BufferDepth)
@@ -416,6 +450,11 @@ export function calculateDashSegment(
     });
 
     // Step 7: Availability Check
+    // NOTE: the head-extension above may mark a not-yet-published
+    // segment (its end is seconds in the future). That is intentional:
+    // the whiteboard shows the playhead position with IsAvailable=FALSE
+    // ('Wait Xms') instead of stalling — same contract as any future
+    // segment, but with steps instead of the empty spinner.
     calculationSteps.push({
         label: 'Availability Check',
         type: 'check',

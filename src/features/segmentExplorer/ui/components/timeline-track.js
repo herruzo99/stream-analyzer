@@ -268,12 +268,12 @@ export class TimelineTrack extends HTMLElement {
             detailsHtml = html`
                 ${resolution
                     ? html`<span
-                          class="text-slate-400 bg-slate-900 px-1 rounded font-mono"
+                          class="text-slate-400 bg-white/5 px-1 rounded font-mono"
                           >${resolution}</span
                       >`
                     : ''}
                 <span
-                    class="uppercase font-semibold tracking-wider text-slate-400"
+                    class="font-semibold r text-slate-400"
                     >${primaryCodec
                     ? primaryCodec.split('.')[0]
                     : 'Video'}</span
@@ -281,7 +281,7 @@ export class TimelineTrack extends HTMLElement {
                 ${secondaryCodec
                     ? html`
                           <span
-                              class="uppercase font-semibold tracking-wider text-purple-300 border border-purple-500/30 px-1 rounded bg-slate-700"
+                              class="font-semibold r text-slate-300 border border-white/10 px-1 rounded bg-white/5"
                           >
                               + ${secondaryCodec.split('.')[0]}
                           </span>
@@ -292,12 +292,12 @@ export class TimelineTrack extends HTMLElement {
             detailsHtml = html`
                 ${lang
                     ? html`<span
-                          class="text-slate-400 bg-slate-900 px-1 rounded font-mono"
+                          class="text-slate-400 bg-white/5 px-1 rounded font-mono"
                           >${lang.toUpperCase()}</span
                       >`
                     : ''}
                 <span
-                    class="uppercase font-semibold tracking-wider text-slate-400"
+                    class="font-semibold r text-slate-400"
                     >${primaryCodec || 'Text'}</span
                 >
             `;
@@ -309,18 +309,18 @@ export class TimelineTrack extends HTMLElement {
             detailsHtml = html`
                 ${lang
                     ? html`<span
-                          class="text-slate-400 bg-slate-900 px-1 rounded font-mono"
+                          class="text-slate-400 bg-white/5 px-1 rounded font-mono"
                           >${lang.toUpperCase()}</span
                       >`
                     : ''}
                 <span
-                    class="uppercase font-semibold tracking-wider text-slate-400"
+                    class="font-semibold r text-slate-400"
                     >${primaryCodec || 'Text'}</span
                 >
             `;
         } else {
             detailsHtml = html`<span
-                class="uppercase font-semibold tracking-wider text-slate-400"
+                class="font-semibold r text-slate-400"
                 >Unknown Track Type</span
             >`;
         }
@@ -415,7 +415,7 @@ export class TimelineTrack extends HTMLElement {
 
         const rightColumn = html`
             <div
-                class="shrink-0 h-full flex flex-col items-center justify-center px-1 border-l border-slate-800 bg-slate-800 w-[60px] gap-1 py-1"
+                class="shrink-0 h-full flex flex-col items-center justify-center px-1 border-l border-white/10 bg-white/5 w-[60px] gap-1 py-1"
             >
                 ${sidxInfo && initSegment
                 ? html`
@@ -435,7 +435,7 @@ export class TimelineTrack extends HTMLElement {
 
         const headerTemplate = html`
             <div
-                class="sticky left-0 z-30 flex bg-slate-800 backdrop-blur-md border-r border-slate-800 shadow-xl group select-none h-14 shrink-0"
+                class="sticky left-0 z-30 flex bg-white/5 border-r border-white/10 group select-none h-14 shrink-0"
                 style="width: ${headerWidth}px;"
             >
                 <div
@@ -449,7 +449,7 @@ export class TimelineTrack extends HTMLElement {
                         >
                         ${!isMobile
                 ? html`<span
-                                  class="text-[10px] font-mono text-blue-400 bg-slate-700 px-1.5 rounded border border-blue-500/30"
+                                  class="text-[10px] font-mono text-emerald-200 bg-white/5 px-1.5 rounded border border-emerald-400/25"
                                   title="${isEstimatedBitrate
                         ? 'Estimated from segments'
                         : 'From manifest'}"
@@ -550,7 +550,7 @@ export class TimelineTrack extends HTMLElement {
                 })}
                         ${hasSidx
                         ? html`<div
-                                  class="absolute bottom-1 left-1/2 -translate-x-1/2 w-3 h-0.5 bg-purple-500 rounded-full pointer-events-none opacity-50"
+                                  class="absolute bottom-1 left-1/2 -translate-x-1/2 w-3 h-0.5 bg-white/5 rounded-full pointer-events-none opacity-50"
                               ></div>`
                         : ''}
                     </div>
@@ -562,7 +562,7 @@ export class TimelineTrack extends HTMLElement {
 
         const template = html`
             <div
-                class="flex border-b border-slate-800 hover:bg-slate-800 transition-colors shrink-0"
+                class="flex border-b border-white/10 hover:bg-white/10 transition-colors shrink-0"
                 style="${rowStyle} box-sizing: border-box;"
             >
                 ${headerTemplate}

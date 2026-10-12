@@ -42,29 +42,29 @@ function getVisualStyle(state, activeThemeId = 'glass') {
     } = state;
 
     let style = {
-        bg: 'bg-slate-900',
-        border: 'border-slate-700',
+        bg: 'bg-white/5',
+        border: 'border-white/10',
         text: 'text-slate-400',
         opacity: 'opacity-100',
         indicator: null,
         labelColor: 'text-slate-400',
         statusBarColor: null, // New field for the top bar
-        hover: 'hover:border-slate-800',
+        hover: 'hover:border-white/10',
     };
 
     const isSolid = activeThemeId === 'pro-compact';
 
     if (isGap) {
-        style.bg = isSolid ? 'bg-slate-800' : 'bg-slate-800';
-        style.border = 'border-slate-700 border-dashed';
+        style.bg = isSolid ? 'bg-white/5' : 'bg-white/5';
+        style.border = 'border-white/10 border-dashed';
         style.text = 'text-slate-400';
         style.indicator = GAP_ICON;
         return style;
     }
 
     if (isGone) {
-        style.bg = isSolid ? 'bg-slate-800' : 'bg-slate-800';
-        style.border = 'border-slate-700 border-dotted';
+        style.bg = isSolid ? 'bg-white/5' : 'bg-white/5';
+        style.border = 'border-white/10 border-dotted';
         style.text = 'text-slate-400';
         style.opacity = 'opacity-50';
         style.indicator = GONE_ICON;
@@ -73,7 +73,7 @@ function getVisualStyle(state, activeThemeId = 'glass') {
     }
 
     if (isError) {
-        style.bg = isSolid ? 'bg-slate-800' : 'bg-slate-800';
+        style.bg = isSolid ? 'bg-white/5' : 'bg-white/5';
         style.border = 'border-red-500';
         style.text = 'text-red-400';
         style.indicator = ERROR_ICON;
@@ -82,15 +82,15 @@ function getVisualStyle(state, activeThemeId = 'glass') {
     }
 
     if (isLoading) {
-        style.bg = 'bg-slate-700';
-        style.border = 'border-blue-500 border-opacity-30';
-        style.text = 'text-blue-400';
-        style.statusBarColor = 'bg-blue-500 animate-pulse';
+        style.bg = 'bg-white/5';
+        style.border = 'border-emerald-400/25 border-opacity-30';
+        style.text = 'text-emerald-200';
+        style.statusBarColor = 'bg-emerald-500/10 animate-pulse';
         return style;
     }
 
     if (isLoaded) {
-        style.bg = isSolid ? 'bg-slate-800' : 'bg-slate-800 shadow-sm backdrop-blur-sm';
+        style.bg = isSolid ? 'bg-white/5' : 'bg-white/5  ';
         style.text = 'text-slate-100';
         style.hover = 'hover:border-slate-400';
 
@@ -99,7 +99,7 @@ function getVisualStyle(state, activeThemeId = 'glass') {
             style.statusBarColor = 'bg-amber-500';
             style.labelColor = 'text-slate-400';
         } else {
-            style.border = isSolid ? 'border-slate-800' : 'border-black/5'; // Minimal border for glass
+            style.border = isSolid ? 'border-white/10' : 'border-black/5'; // Minimal border for glass
             style.statusBarColor = 'bg-emerald-500';
             style.labelColor = 'text-slate-100 font-bold';
         }
@@ -109,25 +109,25 @@ function getVisualStyle(state, activeThemeId = 'glass') {
         }
     } else {
         // Unloaded
-        style.bg = isSolid ? 'bg-slate-800' : 'bg-slate-800';
+        style.bg = isSolid ? 'bg-white/5' : 'bg-white/5';
         style.text = 'text-slate-400';
 
         if (isStale) {
             style.opacity = 'opacity-80';
             style.indicator = STALE_ICON;
-            style.border = 'border-slate-700';
+            style.border = 'border-white/10';
         } else {
             // "Empty / Waiting" state
             // Solid: Use Panel color to make it look like an empty slot/card
             // Glass: Use dark transparent black + blur for "frosted" look
-            style.bg = isSolid ? 'bg-slate-800' : 'bg-black/20 backdrop-blur-[2px]';
+            style.bg = isSolid ? 'bg-white/5' : 'bg-black/20 ';
 
             // Border: Use clearer border color
             style.border = isSolid
-                ? 'border-slate-800 border-dashed'
+                ? 'border-white/10 border-dashed'
                 : 'border-slate-300 border-dashed border-opacity-30';
 
-            style.hover = 'hover:border-blue-500 hover:bg-slate-700 transition-colors duration-200';
+            style.hover = 'hover:border-emerald-400/50 hover:bg-white/10 transition-colors duration-200';
             style.opacity = isSolid ? 'opacity-100' : 'opacity-100'; // Full opacity for visibility
 
             style.indicator = DOWNLOAD_ICON;
@@ -136,16 +136,16 @@ function getVisualStyle(state, activeThemeId = 'glass') {
     }
 
     if (isInspected) {
-        style.bg = isSolid ? 'bg-slate-800' : 'bg-slate-800';
+        style.bg = isSolid ? 'bg-white/5' : 'bg-white/5';
         style.border = 'border-slate-200';
         style.text = 'text-slate-200';
         style.opacity = 'opacity-100';
     } else if (isSelected) {
-        style.bg = 'bg-slate-700';
-        style.border = 'border-purple-500';
-        style.text = 'text-purple-300';
+        style.bg = 'bg-white/5';
+        style.border = 'border-white/10';
+        style.text = 'text-slate-300';
         style.opacity = 'opacity-100';
-        style.statusBarColor = 'bg-purple-500'; // Purple comparison line
+        style.statusBarColor = 'bg-white/5'; // Purple comparison line
     }
 
     if (hasDrift && isLoaded && !isError && !isGone) {
@@ -187,7 +187,7 @@ export const renderSegmentNode = ({
     if (!segment) {
         return html`
             <div
-                class="w-full h-full rounded bg-transparent border border-slate-700 border-dotted flex items-center justify-center opacity-20 select-none shrink-0"
+                class="w-full h-full rounded bg-transparent border border-white/10 border-dotted flex items-center justify-center opacity-20 select-none shrink-0"
                 title="Missing"
             >
             </div>
@@ -227,8 +227,8 @@ export const renderSegmentNode = ({
     // Special Init/Sidx Overrides
     if (customLabel === 'INIT') {
         if (state.isLoaded) {
-            style.statusBarColor = 'bg-purple-500';
-            style.labelColor = 'text-purple-300 font-bold';
+            style.statusBarColor = 'bg-white/5';
+            style.labelColor = 'text-slate-300 font-bold';
         }
     } else if (customLabel === 'IDX') {
         if (state.isLoaded) {
@@ -252,7 +252,7 @@ export const renderSegmentNode = ({
 
     if (state.isLoading) {
         statusLabel = 'Loading...';
-        statusColor = 'text-blue-400';
+        statusColor = 'text-emerald-200';
     } else if (state.isGone) {
         statusLabel =
             cacheStatus === 0 ? 'Gone (CORS/Net)' : `Gone (${cacheStatus})`;
@@ -273,12 +273,12 @@ export const renderSegmentNode = ({
 
     const tooltipData = `
         <div class="text-xs font-mono min-w-[180px]">
-            <div class="flex justify-between items-center border-b border-slate-800 pb-1 mb-2">
+            <div class="flex justify-between items-center border-b border-white/10 pb-1 mb-2">
                 <span class="font-bold text-slate-200">${customLabel || `Segment #${segment.number}`
         }</span>
                  <div class="flex gap-2">
                      ${hasParsedData ? '<span class="text-[9px] bg-emerald-500 bg-opacity-10 text-emerald-400 px-1 rounded border border-emerald-500 border-opacity-30">PARSED</span>' : ''}
-                     <span class="text-[10px] uppercase font-bold tracking-wider ${statusColor}">${statusLabel}</span>
+                     <span class="text-[10px] font-bold r ${statusColor}">${statusLabel}</span>
                 </div>
             </div>
             <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-slate-200">

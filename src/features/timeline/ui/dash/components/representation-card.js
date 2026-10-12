@@ -20,10 +20,10 @@ const getSegmentStrategy = (rep, as, period) => {
         return {
             label: 'Template',
             icon: icons.template,
-            color: 'text-purple-400',
+            color: 'text-slate-300',
         };
     if (getInheritedElement('SegmentList', hierarchy))
-        return { label: 'List', icon: icons.list, color: 'text-blue-400' };
+        return { label: 'List', icon: icons.list, color: 'text-emerald-200' };
     if (getInheritedElement('SegmentBase', hierarchy))
         return { label: 'Base', icon: icons.database, color: 'text-amber-400' };
     return { label: 'BaseURL', icon: icons.link, color: 'text-slate-400' };
@@ -81,7 +81,7 @@ export const representationCardTemplate = (rep, as, stream, period) => {
 
     return html`
         <details
-            class="group bg-slate-900 border border-slate-700/50 rounded hover:border-blue-500/30 transition-colors"
+            class="group bg-white/5 border border-white/10 rounded hover:border-emerald-400/50 transition-colors"
         >
             <summary
                 class="flex items-center justify-between p-2 cursor-pointer select-none"
@@ -126,7 +126,7 @@ export const representationCardTemplate = (rep, as, stream, period) => {
                         ? html`
                               <button
                                   @click=${handleLaunchCalculator}
-                                  class="p-1 hover:bg-blue-500/20 text-slate-500 hover:text-blue-300 rounded transition-colors mr-1"
+                                  class="p-1 hover:bg-emerald-500/10 text-slate-500 hover:text-emerald-200 rounded transition-colors mr-1"
                                   title="Open Timing Calculator"
                               >
                                   ${icons.calculator}
@@ -142,14 +142,14 @@ export const representationCardTemplate = (rep, as, stream, period) => {
                             : ''}
                         ${codingDependency
                             ? html`<span
-                                  class="text-[9px] bg-purple-900/30 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30"
+                                  class="text-[9px] bg-white/5 text-slate-300 px-1.5 py-0.5 rounded border border-white/10"
                                   >DEPENDENT</span
                               >`
                             : ''}
                         ${rep.codecs.map(
                             (c) => html`
                                 <span
-                                    class="text-[9px] font-mono bg-slate-800 border border-slate-700 text-slate-400 px-1.5 py-0.5 rounded"
+                                    class="text-[9px] font-mono bg-white/5 border border-white/10 text-slate-400 px-1.5 py-0.5 rounded"
                                     title="${c.value}"
                                     >${c.value.split('.')[0]}</span
                                 >
@@ -159,12 +159,12 @@ export const representationCardTemplate = (rep, as, stream, period) => {
                 </div>
             </summary>
 
-            <div class="border-t border-slate-700/50 p-2 bg-slate-950/30">
+            <div class="border-t border-white/10 p-2 bg-slate-950/30">
                 ${timingInfoTemplate(segmentData, stream)}
                 ${maxPlayoutRate || codingDependency !== null
                     ? html`
                           <div
-                              class="mt-3 pt-2 border-t border-slate-800 flex gap-4"
+                              class="mt-3 pt-2 border-t border-white/10 flex gap-4"
                           >
                               ${maxPlayoutRate
                                   ? html`
@@ -201,9 +201,9 @@ export const representationCardTemplate = (rep, as, stream, period) => {
                     : ''}
                 ${prtInfo
                     ? html`
-                          <div class="mt-3 pt-2 border-t border-slate-800">
+                          <div class="mt-3 pt-2 border-t border-white/10">
                               <h5
-                                  class="text-[9px] font-bold text-slate-500 uppercase mb-1"
+                                  class="text-[9px] font-bold text-slate-500 mb-1"
                               >
                                   Producer Ref Time (ID: ${prtInfo.id})
                               </h5>

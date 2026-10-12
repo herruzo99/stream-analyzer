@@ -30,7 +30,7 @@ const diffValue = (valA, valB, formatter = (v) => v) => {
                 >${icons.arrowRight}</span
             >
             <span
-                class="text-blue-400 font-black bg-blue-500/10 px-2 py-1 rounded-md border border-blue-500/20 shadow-[0_0_15px_#3b82f6]/20"
+                class="text-emerald-200 font-bold bg-emerald-500/10 px-2 py-1 rounded-md border border-emerald-400/25 /20"
             >
                 ${formattedB}
             </span>
@@ -40,12 +40,12 @@ const diffValue = (valA, valB, formatter = (v) => v) => {
 
 const statRow = (label, valA, valB, icon, formatter, isSolid) => html`
     <div
-        class="flex flex-col justify-between p-4 ${isSolid ? 'bg-slate-800 border border-slate-700' : 'bg-slate-800 backdrop-blur-xl border border-slate-700/10 hover:border-blue-500/20'} rounded-xl transition-all duration-300 group h-full shadow-[0_8px_30px_rgb(0_0_0_/_0.35)] relative overflow-hidden"
+        class="flex flex-col justify-between p-4 ${isSolid ? 'bg-white/5 border border-white/10' : 'bg-white/5 border border-white/10 hover:border-emerald-400/50'} rounded-md transition-all duration-300 group h-full relative overflow-hidden"
     >
-        <div class="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"></div>
         
         <div
-            class="flex items-center gap-2 text-slate-400 text-[10px] font-black uppercase tracking-[0.15em] mb-3 opacity-60 group-hover:opacity-100 group-hover:text-blue-400 transition-all relative z-10"
+            class="flex items-center gap-2 text-slate-400 text-[10px] font-bold mb-3 opacity-60 group-hover:opacity-100 group-hover:text-emerald-200 transition-all relative z-10"
         >
             <span class="scale-90">${icon}</span> ${label}
         </div>
@@ -100,7 +100,7 @@ export const diffOverviewTemplate = (segA, segB) => {
 
     return html`
         <div
-            class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 animate-fadeIn"
+            class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4"
         >
             ${statRow('Duration', durA, durB, icons.clock, timeFmt, isSolid)}
             ${statRow('File Size', sizeA, sizeB, icons.hardDrive, bytesFmt, isSolid)}

@@ -1,5 +1,6 @@
 import { eventBus } from '@/application/event-bus';
 import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
+import { uiActions } from '@/state/uiStore';
 import { EVENTS } from '@/types/events';
 import { showToast } from '@/ui/components/toast';
 import * as icons from '@/ui/icons';
@@ -53,14 +54,12 @@ export class SmartInputComponent extends HTMLElement {
         this.handleDragLeave = this.handleDragLeave.bind(this);
         this.handleDragOver = this.handleDragOver.bind(this);
         this.handleDrop = this.handleDrop.bind(this);
-        this.handleDrop = this.handleDrop.bind(this);
         this.openFileDialog = this.openFileDialog.bind(this);
-        this.focus = this.focus.bind(this);
     }
 
-    focus() {
+    focus(options) {
         const input = this.querySelector('input');
-        if (input) input.focus();
+        if (input) input.focus(options);
     }
 
     connectedCallback() {
@@ -195,12 +194,28 @@ export class SmartInputComponent extends HTMLElement {
 
     submit() {
         if (this.state.viewMode === 'batch') {
-            this.state.batchList.forEach((url) =>
+            const valid = this.state.batchList.filter((url) =>
+                InputLogic.isValidUrl(url)
+            );
+            const skipped = this.state.batchList.length - valid.length;
+            if (valid.length === 0) {
+                showToast({
+                    message:
+                        'Nothing valid to import. Fix or remove the flagged rows.',
+                    type: 'fail',
+                });
+                return;
+            }
+            valid.forEach((url) =>
                 analysisActions.addStreamInputFromPreset({ url })
             );
             showToast({
-                message: `Queued ${this.state.batchList.length} streams.`,
-                type: 'pass',
+                message:
+                    `Queued ${valid.length} stream${valid.length === 1 ? '' : 's'}` +
+                    (skipped > 0
+                        ? `, skipped ${skipped} invalid.`
+                        : '.'),
+                type: skipped > 0 ? 'warn' : 'pass',
             });
             this.setState({ viewMode: 'single', batchList: [] });
             return;
@@ -213,38 +228,40 @@ export class SmartInputComponent extends HTMLElement {
             if (this.mode === 'add') {
                 analysisActions.addStreamInputFromPreset({ url });
                 showToast({ message: 'Stream added to queue.', type: 'pass' });
+            } else if (this.variant === 'hero') {
+                analysisActions.setStreamInputs([{ url }]);
+                const freshInputs = useAnalysisStore.getState().streamInputs;
+                eventBus.dispatch(EVENTS.UI.STREAM_ANALYSIS_REQUESTED, {
+                    inputs: freshInputs,
+                });
             } else {
-                analysisActions.addStreamInputFromPreset({ url });
-                if (this.variant === 'hero') {
-                    analysisActions.setStreamInputs([{ url }]);
-                    const freshInputs =
-                        useAnalysisStore.getState().streamInputs;
-                    eventBus.dispatch(EVENTS.UI.STREAM_ANALYSIS_REQUESTED, {
-                        inputs: freshInputs,
-                    });
-                } else {
-                    showToast({ message: 'Stream added.', type: 'pass' });
-                }
+                showToast({ message: 'Stream added.', type: 'pass' });
             }
             this.setState({ value: '', protocol: null });
         } else {
-            showToast({ message: 'Invalid URL format.', type: 'fail' });
+            showToast({
+                message:
+                    'That URL did not parse. Paste a full https manifest URL, or try an example below.',
+                type: 'fail',
+            });
         }
     }
 
     renderBatchEditor() {
         return html`
             <div
-                class="w-full bg-slate-800 rounded-xl shadow-2xl overflow-hidden animate-scaleIn"
+                class="w-full rounded-md border border-[#1a2636] bg-[#0b111c] overflow-hidden"
             >
                 <div
-                    class="p-3 flex justify-between items-center bg-slate-800"
+                    class="p-3 flex justify-between items-center border-b border-white/5"
                 >
                     <div
-                        class="flex items-center gap-2 text-blue-400 font-bold text-xs uppercase tracking-wider"
+                        class="flex items-center gap-2 text-slate-200 font-semibold text-[13px]"
                     >
-                        ${icons.layers} Batch Import
-                        (${this.state.batchList.length})
+                        ${icons.layers} Batch import
+                        <span class="mono text-[11px] text-slate-500"
+                            >${this.state.batchList.length} URLs</span
+                        >
                     </div>
                     <button
                         @click=${() =>
@@ -252,78 +269,121 @@ export class SmartInputComponent extends HTMLElement {
                     viewMode: 'single',
                     batchList: [],
                 })}
-                        class="text-slate-400 hover:text-slate-100 transition-colors"
+                        class="text-slate-500 hover:text-slate-100 transition-colors p-1 rounded-md focus-visible:outline-2 focus-visible:outline-emerald-400"
+                        aria-label="Cancel batch import"
                     >
                         ${icons.xCircle}
                     </button>
                 </div>
                 <div
-                    class="max-h-48 overflow-y-auto custom-scrollbar p-2 space-y-1 bg-slate-900"
+                    class="max-h-48 overflow-y-auto custom-scrollbar p-2 space-y-1"
                 >
                     ${this.state.batchList.map(
-                    (url, i) => html`
+                    (url, i) => {
+                        const valid = InputLogic.isValidUrl(url);
+                        return html`
                             <div
-                                class="flex items-center gap-3 px-3 py-2 rounded bg-slate-800 text-xs text-slate-100 font-mono truncate"
+                                class="flex items-center gap-2 px-2 py-1.5 rounded-md ${valid ? '' : 'border border-red-400/30'}"
                             >
                                 <span
-                                    class="text-slate-400 w-4 text-right select-none"
-                                    >${i + 1}.</span
+                                    class="mono text-slate-500 w-5 shrink-0 text-right text-[11px] select-none"
+                                    >${i + 1}</span
                                 >
-                                <span class="truncate">${url}</span>
+                                <span
+                                    class="truncate grow font-mono text-xs ${valid ? 'text-slate-200' : 'text-red-300'}"
+                                    title="${url}"
+                                    >${url}</span
+                                >
+                                ${valid
+                                    ? ''
+                                    : html`<span
+                                          class="shrink-0 text-[10px] font-bold text-red-300"
+                                          >check this one</span
+                                      >`}
+                                <button
+                                    @click=${() => this.removeBatchUrl(i)}
+                                    class="shrink-0 p-1 text-slate-500 hover:text-red-300 rounded transition-colors"
+                                    title="Remove this URL"
+                                    aria-label="Remove URL ${i + 1}"
+                                >
+                                    ${icons.x}
+                                </button>
                             </div>
-                        `
+                        `;
+                    }
                 )}
                 </div>
-                <div
-                    class="p-3 bg-slate-800 flex gap-3"
-                >
+                <div class="p-3 border-t border-white/5 flex gap-2">
                     <button
                         @click=${() =>
                 this.setState({
                     viewMode: 'single',
                     batchList: [],
                 })}
-                        class="flex-1 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors"
+                        class="flex-1 py-2 rounded-md text-[13px] font-semibold text-slate-400 hover:text-slate-100 hover:bg-white/5 transition-colors"
                     >
                         Cancel
                     </button>
-                    <button
-                        @click=${() => this.submit()}
-                        class="flex-[2] py-2 rounded-lg text-xs font-bold bg-[#60a5fa] text-slate-100 hover:bg-blue-500 shadow-lg shadow-blue-500/20 transition-all"
-                    >
-                        Import All
-                    </button>
+                    ${(() => {
+                        const validCount = this.state.batchList.filter(
+                            (url) => InputLogic.isValidUrl(url)
+                        ).length;
+                        const empty = this.state.batchList.length === 0;
+                        return html`
+                            <button
+                                @click=${() => this.submit()}
+                                ?disabled=${validCount === 0}
+                                title=${empty
+                                    ? 'Nothing to import'
+                                    : validCount <
+                                        this.state.batchList.length
+                                      ? 'Imports the valid rows, skips the flagged ones'
+                                      : 'Import every row'}
+                                class="flex-[2] py-2 rounded-md text-[13px] font-bold bg-emerald-400 text-slate-950 hover:bg-emerald-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                                ${empty
+                                    ? 'Nothing to import'
+                                    : validCount <
+                                        this.state.batchList.length
+                                      ? `Import ${validCount} valid`
+                                      : 'Import all'}
+                            </button>
+                        `;
+                    })()}
                 </div>
             </div>
         `;
     }
 
+    removeBatchUrl(index) {
+        this.setState({
+            batchList: this.state.batchList.filter((_, i) => i !== index),
+        });
+    }
+
+    _openExamples() {
+        uiActions.setStreamLibraryTab('examples');
+        uiActions.setLibraryModalOpen(true);
+    }
+
     renderSingleInput() {
         const { value, protocol, isDragActive, isFocused } = this.state;
-        const containerClass = `relative w-full transition-all duration-500 ${isDragActive || isFocused ? 'scale-[1.02]' : ''}`;
-
-        // --- Neo-Glass Pill Styles ---
+        // --- Workbench field: flat, square-ish, honest. ---
         const isHero = this.variant === 'hero';
         const wrapperClass = `
-            flex items-center gap-0 
-            ${isHero ? 'rounded-full h-16' : 'rounded-xl h-12'} 
-            bg-slate-800 backdrop-blur-2xl 
-            transition-all duration-300 overflow-hidden
-            shadow-[0_10px_40px_rgba(0,0,0,0.3)]
-            ${isFocused || isDragActive
-                ? 'shadow-[0_0_30px_#3b82f6] ring-2 ring-[#3b82f6]'
-                : 'hover:ring-1 hover:ring-[#60a5fa]'}
+            flex items-center gap-0
+            ${isHero ? 'rounded-md min-h-[3.5rem]' : 'rounded-md h-12'}
+            bg-[#06090f] border border-[#263449]
+            transition-colors duration-150 overflow-hidden
+            ${isFocused || isDragActive ? 'border-emerald-400/60' : 'hover:border-[#35496a]'}
         `;
-        const badgeColor =
-            protocol === 'HLS'
-                ? 'text-purple-300 bg-slate-700 shadow-[0_0_10px_#a855f7]'
-                : protocol === 'DASH'
-                    ? 'text-blue-400 bg-slate-700 shadow-[0_0_10px_#3b82f6]'
-                    : 'text-slate-400';
+        const badgeColor = protocol
+            ? 'text-emerald-200 bg-emerald-500/10 border border-emerald-400/25'
+            : 'text-slate-400';
 
         return html`
             <div
-                class="${containerClass}"
+                class="relative w-full"
                 @dragenter=${this.handleDragEnter}
                 @dragover=${this.handleDragOver}
                 @dragleave=${this.handleDragLeave}
@@ -331,36 +391,29 @@ export class SmartInputComponent extends HTMLElement {
             >
                 <!-- Drag Overlay -->
                 <div
-                    class="absolute inset-0 z-50 rounded-2xl border-2 border-dashed border-blue-500 bg-slate-800 backdrop-blur-xl flex flex-col items-center justify-center text-blue-400 font-bold transition-all duration-300 ${isDragActive
-                ? 'opacity-100 pointer-events-auto scale-100'
-                : 'opacity-0 pointer-events-none scale-95'}"
+                    class="absolute inset-0 z-50 rounded-md border border-dashed border-emerald-400/60 bg-[#06090f]/95 flex items-center justify-center gap-3 text-emerald-300 font-semibold text-sm ${isDragActive ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}"
                 >
-                    <div
-                        class="scale-150 mb-3 animate-bounce drop-shadow-[0_0_10px_#3b82f6]"
-                    >
-                        ${icons.upload}
-                    </div>
-                    <span class="text-lg">Drop Manifest or Media File</span>
+                    ${icons.upload}
+                    <span>Drop a manifest or media file</span>
                 </div>
 
                 <div class="${wrapperClass}">
                     <div
-                        class="pl-4 pr-3 shrink-0 flex justify-center min-w-[3.5rem]"
+                        class="pl-3 pr-2 shrink-0 flex justify-center min-w-[3rem]"
                     >
                         ${protocol
                 ? html`<span
-                                  class="text-[10px] font-black px-2 py-1 rounded-md uppercase tracking-wider animate-scaleIn ${badgeColor}"
+                                  class="mono text-[10px] font-bold px-2 py-1 rounded ${badgeColor}"
                                   >${protocol}</span
                               >`
-                : html`<span
-                                  class="text-slate-400 transition-colors group-hover:text-slate-400"
-                                  >${icons.link}</span
-                              >`}
+                : html`<span class="text-slate-500">${icons.link}</span>`}
                     </div>
                     <input
-                        type="text"
-                        class="flex-1 bg-transparent border-none text-slate-200 placeholder-slate-300 focus:ring-0 h-full w-full min-w-0 px-0 text-base font-medium font-mono"
-                        placeholder="Paste URL, drop file (.mpd, .m3u8, .mp4), or paste list..."
+                        type="url"
+                        inputmode="url"
+                        aria-label="Manifest URL"
+                        class="flex-1 bg-transparent border-none text-slate-100 placeholder-slate-500 focus:ring-0 h-full w-full min-w-0 px-1 py-3 text-[15px] font-mono"
+                        placeholder="https://cdn.example.com/stream/manifest.mpd"
                         .value=${value}
                         @input=${this.handleInput}
                         @focus=${() => this.setState({ isFocused: true })}
@@ -371,25 +424,24 @@ export class SmartInputComponent extends HTMLElement {
                         spellcheck="false"
                     />
 
-                    <div
-                        class="flex items-center h-full bg-slate-200/5 pl-2"
-                    >
+                    <div class="flex items-center gap-1 pr-1.5 pl-1 shrink-0">
                         <button
                             @click=${this.openFileDialog}
-                            class="p-2.5 text-slate-400 hover:text-slate-100 hover:bg-slate-100/10 rounded-xl transition-colors"
-                            title="Upload Local File"
+                            class="p-2.5 text-slate-400 hover:text-slate-100 hover:bg-white/5 rounded-md transition-colors"
+                            title="Open a local file (.mpd, .m3u8, .mp4)"
+                            aria-label="Open a local file"
                         >
                             ${icons.folder}
                         </button>
                         <button
                             @click=${() => this.submit()}
-                            class="${isHero ? 'rounded-full px-8 mr-1.5' : 'rounded-lg px-6 mr-1'} h-[85%] bg-gradient-to-r from-blue-500 to-[#60a5fa] hover:to-purple-500 text-slate-100 text-xs font-bold uppercase tracking-wider shadow-[0_0_20px_#3b82f6] hover:shadow-[0_0_30px_#3b82f6] transition-all flex items-center gap-2 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 disabled:shadow-none disabled:grayscale"
+                            class="rounded-md px-5 py-2.5 bg-emerald-400 text-slate-950 text-sm font-bold hover:bg-emerald-300 active:scale-[0.99] transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                             ?disabled=${!value.trim()}
                         >
                             ${this.mode === 'add'
                 ? icons.plusCircle
                 : icons.searchCode}
-                            <span class="hidden sm:inline"
+                            <span
                                 >${this.mode === 'add'
                 ? 'Add'
                 : 'Analyze'}</span
@@ -401,24 +453,35 @@ export class SmartInputComponent extends HTMLElement {
                     type="file"
                     id="hidden-file"
                     class="hidden"
-                    @change=${(e) => this.processFile(e.target.files[0])}
+                    accept=".mpd,.m3u8,.mp4,.webm,.mkv,.mov"
+                    @change=${(e) => {
+                        if (e.target.files?.[0])
+                            this.processFile(e.target.files[0]);
+                        e.target.value = '';
+                    }}
                 />
             </div>
             ${this.variant === 'hero'
                 ? html`
                       <div
-                          class="mt-4 pb-2 flex justify-center gap-8 text-[10px] font-bold uppercase tracking-widest text-slate-400 select-none animate-fadeIn delay-100"
+                          class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-slate-500 select-none"
                       >
                           <span
-                              class="flex items-center gap-2 cursor-help hover:text-blue-400 transition-colors"
-                              title="Paste multiple URLs separated by newlines"
-                              >${icons.layers} Batch Paste</span
+                              class="flex items-center gap-1.5"
+                              title="Paste several URLs at once, separated by newlines"
+                              >${icons.layers} Batch paste</span
                           >
                           <span
-                              class="flex items-center gap-2 cursor-help hover:text-blue-400 transition-colors"
-                              title="Drop .mpd, .m3u8, .mp4 files"
-                              >${icons.fileScan} Drag & Drop</span
+                              class="flex items-center gap-1.5"
+                              title="Drop .mpd, .m3u8 or .mp4 files anywhere on this field"
+                              >${icons.fileScan} Drag &amp; drop</span
                           >
+                          <button
+                              @click=${() => this._openExamples()}
+                              class="flex items-center gap-1.5 text-emerald-300/90 hover:text-emerald-200 transition-colors font-medium"
+                          >
+                              ${icons.library} No URL? Open examples
+                          </button>
                       </div>
                   `
                 : ''}

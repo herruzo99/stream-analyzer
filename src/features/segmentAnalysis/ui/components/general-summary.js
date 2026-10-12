@@ -43,7 +43,7 @@ class SegmentGeneralSummary extends HTMLElement {
 
         return html`
             <div
-                class="col-span-1 lg:col-span-2 xl:col-span-4 bg-slate-800 rounded-xl p-5 border border-slate-700 relative overflow-hidden group hover:border-slate-600 transition-colors"
+                class="col-span-1 lg:col-span-2 xl:col-span-4 bg-white/5 rounded-md p-5 border border-white/10 relative overflow-hidden group hover:border-slate-600 transition-colors"
             >
                 <div
                     class="absolute -right-6 -top-6 text-slate-800/50 group-hover:text-slate-800 transition-colors pointer-events-none select-none"
@@ -54,7 +54,7 @@ class SegmentGeneralSummary extends HTMLElement {
                 </div>
                 <div class="relative z-10">
                     <h3
-                        class="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2"
+                        class="text-[10px] font-bold text-slate-500 mb-2"
                     >
                         Transport Stream Descriptors
                     </h3>
@@ -64,7 +64,7 @@ class SegmentGeneralSummary extends HTMLElement {
                         ${descriptors.map(
                             (d) => html`
                                 <div
-                                    class="bg-slate-900/50 rounded p-2 border border-slate-700/50"
+                                    class="bg-white/5 rounded p-2 border border-white/10"
                                 >
                                     <div
                                         class="flex justify-between items-start mb-1"
@@ -87,7 +87,7 @@ class SegmentGeneralSummary extends HTMLElement {
                                                     return ''; // Skip complex nested
                                                 return html`
                                                     <div
-                                                        class="flex justify-between text-[10px] border-b border-slate-800/50 last:border-0 pb-0.5"
+                                                        class="flex justify-between text-[10px] border-b border-white/10 last:border-0 pb-0.5"
                                                     >
                                                         <span
                                                             class="text-slate-500"
@@ -144,18 +144,18 @@ class SegmentGeneralSummary extends HTMLElement {
 
         const template = html`
             <div
-                class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4 mb-8 animate-fadeIn"
+                class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4 mb-8"
             >
                 <!-- Card 1: File Identity -->
                 <div
-                    class="bg-slate-800 rounded-xl p-5 border border-slate-700 relative overflow-hidden group hover:border-slate-600 transition-colors"
+                    class="bg-white/5 rounded-md p-5 border border-white/10 relative overflow-hidden group hover:border-slate-600 transition-colors"
                 >
                     <div class="${watermarkStyle}">
                         <div class="${watermarkInner}">${icons.fileText}</div>
                     </div>
                     <div class="relative z-10">
                         <h3
-                            class="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2"
+                            class="text-[10px] font-bold text-slate-500 mb-2"
                         >
                             Container
                         </h3>
@@ -168,10 +168,10 @@ class SegmentGeneralSummary extends HTMLElement {
                             >
                         </div>
                         <p class="text-xs text-slate-400 mb-4">${stats.type}</p>
-                        <div class="h-px bg-slate-700/50 mb-3"></div>
+                        <div class="h-px bg-white/5 mb-3"></div>
                         <div class="flex justify-between items-center">
                             <div>
-                                <p class="text-[10px] text-slate-500 uppercase">
+                                <p class="text-[10px] text-slate-500">
                                     Duration
                                 </p>
                                 <p class="text-sm font-mono text-slate-200">
@@ -179,7 +179,7 @@ class SegmentGeneralSummary extends HTMLElement {
                                 </p>
                             </div>
                             <div class="text-right">
-                                <p class="text-[10px] text-slate-500 uppercase">
+                                <p class="text-[10px] text-slate-500">
                                     Avg Bitrate
                                 </p>
                                 <p class="text-sm font-mono text-slate-200">
@@ -192,14 +192,14 @@ class SegmentGeneralSummary extends HTMLElement {
 
                 <!-- Card 2: Stream Details -->
                 <div
-                    class="bg-slate-800 rounded-xl p-5 border border-slate-700 relative overflow-hidden group hover:border-slate-600 transition-colors"
+                    class="bg-white/5 rounded-md p-5 border border-white/10 relative overflow-hidden group hover:border-slate-600 transition-colors"
                 >
                     <div class="${watermarkStyle}">
                         <div class="${watermarkInner}">${icons.film}</div>
                     </div>
                     <div class="relative z-10">
                         <h3
-                            class="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2"
+                            class="text-[10px] font-bold text-slate-500 mb-2"
                         >
                             Stream
                         </h3>
@@ -209,7 +209,7 @@ class SegmentGeneralSummary extends HTMLElement {
                             >
                             ${codecInfo.resolution !== '-'
                                 ? html`<span
-                                      class="px-2 py-0.5 rounded bg-slate-900 border border-slate-600 text-xs font-mono text-slate-300"
+                                      class="px-2 py-0.5 rounded bg-white/5 border border-slate-600 text-xs font-mono text-slate-300"
                                       >${codecInfo.resolution}</span
                                   >`
                                 : ''}
@@ -218,13 +218,13 @@ class SegmentGeneralSummary extends HTMLElement {
                             ${codecInfo.details.map(
                                 (d) =>
                                     html`<span
-                                        class="px-2 py-1 rounded bg-slate-700/50 text-[10px] font-bold text-slate-300 border border-slate-600/50"
+                                        class="px-2 py-1 rounded bg-white/5 text-[10px] font-bold text-slate-300 border border-slate-600/50"
                                         >${d}</span
                                     >`
                             )}
                             ${gopInfo
                                 ? html`<span
-                                      class="px-2 py-1 rounded bg-blue-900/30 text-[10px] font-bold text-blue-300 border border-blue-700/30"
+                                      class="px-2 py-1 rounded bg-emerald-500/10 text-[10px] font-bold text-emerald-200 border border-emerald-400/25"
                                       >${gopInfo}</span
                                   >`
                                 : ''}
@@ -246,7 +246,7 @@ class SegmentGeneralSummary extends HTMLElement {
                 ${origin
                     ? html`
                           <div
-                              class="bg-slate-800 rounded-xl p-5 border border-slate-700 relative overflow-hidden group hover:border-slate-600 transition-colors"
+                              class="bg-white/5 rounded-md p-5 border border-white/10 relative overflow-hidden group hover:border-slate-600 transition-colors"
                           >
                               <div class="${watermarkStyle}">
                                   <div class="${watermarkInner}">
@@ -255,7 +255,7 @@ class SegmentGeneralSummary extends HTMLElement {
                               </div>
                               <div class="relative z-10">
                                   <h3
-                                      class="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2"
+                                      class="text-[10px] font-bold text-slate-500 mb-2"
                                   >
                                       Manifest Addressing
                                   </h3>
@@ -263,7 +263,7 @@ class SegmentGeneralSummary extends HTMLElement {
                                   <div class="grid grid-cols-2 gap-4 mb-3">
                                       <div>
                                           <span
-                                              class="text-[9px] text-slate-500 uppercase block mb-0.5"
+                                              class="text-[9px] text-slate-500 block mb-0.5"
                                               >$Number$</span
                                           >
                                           <span
@@ -273,7 +273,7 @@ class SegmentGeneralSummary extends HTMLElement {
                                       </div>
                                       <div>
                                           <span
-                                              class="text-[9px] text-slate-500 uppercase block mb-0.5"
+                                              class="text-[9px] text-slate-500 block mb-0.5"
                                               >$Time$</span
                                           >
                                           <span
@@ -285,7 +285,7 @@ class SegmentGeneralSummary extends HTMLElement {
 
                                   <div class="space-y-2 text-xs font-mono">
                                       <div
-                                          class="flex justify-between border-b border-slate-700/50 pb-1"
+                                          class="flex justify-between border-b border-white/10 pb-1"
                                       >
                                           <span class="text-slate-500"
                                               >Range</span
@@ -295,18 +295,18 @@ class SegmentGeneralSummary extends HTMLElement {
                                           >
                                       </div>
                                       <div
-                                          class="flex justify-between border-b border-slate-700/50 pb-1"
+                                          class="flex justify-between border-b border-white/10 pb-1"
                                       >
                                           <span class="text-slate-500"
                                               >Rep ID</span
                                           >
-                                          <span class="text-blue-300"
+                                          <span class="text-emerald-200"
                                               >${origin.repId}</span
                                           >
                                       </div>
                                       <div class="pt-1">
                                           <span
-                                              class="text-slate-500 block mb-1 text-[9px] uppercase"
+                                              class="text-slate-500 block mb-1 text-[9px]"
                                               >Template</span
                                           >
                                           <code
@@ -325,10 +325,10 @@ class SegmentGeneralSummary extends HTMLElement {
                 ${bitstream
                     ? html`
                           <div
-                              class="bg-slate-800 rounded-xl p-5 border border-slate-700 flex flex-col justify-between relative overflow-hidden group hover:border-slate-600 transition-colors"
+                              class="bg-white/5 rounded-md p-5 border border-white/10 flex flex-col justify-between relative overflow-hidden group hover:border-slate-600 transition-colors"
                           >
                               <h3
-                                  class="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2"
+                                  class="text-[10px] font-bold text-slate-500 mb-2"
                               >
                                   Composition
                               </h3>
@@ -361,10 +361,10 @@ class SegmentGeneralSummary extends HTMLElement {
                                       class="flex flex-col items-center gap-2 flex-1"
                                   >
                                       <div
-                                          class="w-full bg-blue-500/20 h-full relative rounded-t-sm overflow-hidden"
+                                          class="w-full bg-emerald-500/10 h-full relative rounded-t-sm overflow-hidden"
                                       >
                                           <div
-                                              class="absolute bottom-0 left-0 right-0 bg-blue-500 transition-all duration-500"
+                                              class="absolute bottom-0 left-0 right-0 bg-emerald-500/10 transition-all duration-500"
                                               style="height: ${(bitstream
                                                   .distribution.P /
                                                   bitstream.totalFrames) *
@@ -372,7 +372,7 @@ class SegmentGeneralSummary extends HTMLElement {
                                           ></div>
                                       </div>
                                       <span
-                                          class="text-sm font-bold text-blue-400"
+                                          class="text-sm font-bold text-emerald-200"
                                       >
                                           ${bitstream.distribution.P} P
                                       </span>
@@ -402,7 +402,7 @@ class SegmentGeneralSummary extends HTMLElement {
                               </div>
 
                               <div
-                                  class="flex justify-between items-center text-xs text-slate-400 mt-2 pt-2 border-t border-slate-700/50"
+                                  class="flex justify-between items-center text-xs text-slate-400 mt-2 pt-2 border-t border-white/10"
                               >
                                   <span
                                       >Avg GOP:
@@ -420,7 +420,7 @@ class SegmentGeneralSummary extends HTMLElement {
                       `
                     : html`
                           <div
-                              class="bg-slate-800 rounded-xl p-5 border border-slate-700 flex items-center justify-center text-slate-600 text-xs italic"
+                              class="bg-white/5 rounded-md p-5 border border-white/10 flex items-center justify-center text-slate-600 text-xs italic"
                           >
                               Bitstream analysis unavailable.
                               ${stats.formatLabel.includes('TS')

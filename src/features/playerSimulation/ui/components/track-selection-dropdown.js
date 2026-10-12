@@ -5,11 +5,11 @@ import { formatBitrate } from '@/ui/shared/format';
 import { html } from 'lit-html';
 
 const dropdownContainerClass =
-    'dropdown-panel bg-slate-800 backdrop-blur-xl border border-slate-800 rounded-xl shadow-2xl w-80 overflow-hidden ring-1 ring-slate-800 flex flex-col max-h-[60vh]';
+    'dropdown-panel bg-white/5  border border-white/10 rounded-md  w-80 overflow-hidden ring-1 ring-slate-800 flex flex-col max-h-[60vh]';
 const scrollContainerClass =
     'overflow-y-auto p-2 space-y-1 custom-scrollbar grow';
 const headerClass =
-    'px-3 py-2 bg-slate-800 border-b border-slate-800 text-[10px] font-bold uppercase tracking-widest text-slate-400 flex justify-between items-center';
+    'px-3 py-2 bg-white/5 border-b border-white/10 text-[10px] font-bold   text-slate-400 flex justify-between items-center';
 
 const trackItemTemplate = ({
     label,
@@ -22,15 +22,11 @@ const trackItemTemplate = ({
     return html`
         <button
             @click=${onClick}
-            class="group w-full text-left p-2 rounded-lg transition-all duration-200 flex items-center gap-3 border ${isActive
-                ? 'bg-blue-500 border-blue-500 shadow-md shadow-[#3b82f6]'
-                : 'bg-transparent border-transparent hover:bg-slate-800 hover:border-slate-800'}"
+            class="group w-full text-left p-2 rounded-md transition-all duration-200 flex items-center gap-3 border ${isActive ? 'bg-emerald-500/10 border-emerald-400/25 ' : 'bg-transparent border-transparent hover:bg-white/10 hover:border-white/10'}"
         >
             <!-- Status Indicator -->
             <div
-                class="shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isActive
-                    ? 'bg-slate-800 text-slate-100'
-                    : 'bg-slate-800 text-slate-400 group-hover:bg-slate-800 group-hover:text-slate-100'}"
+                class="shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isActive ? 'bg-white/5 text-slate-100' : 'bg-white/5 text-slate-400 group-hover:bg-white/10 group-hover:text-slate-100'}"
             >
                 ${isActive ? icons.checkCircle : icons.circle}
             </div>
@@ -39,9 +35,7 @@ const trackItemTemplate = ({
             <div class="grow min-w-0 flex flex-col">
                 <div class="flex items-center justify-between gap-2">
                     <span
-                        class="text-sm font-bold truncate ${isActive
-                            ? 'text-slate-100'
-                            : 'text-slate-100'}"
+                        class="text-sm font-bold truncate ${isActive ? 'text-slate-100' : 'text-slate-100'}"
                     >
                         ${label}
                     </span>
@@ -51,9 +45,7 @@ const trackItemTemplate = ({
                                   ${tags.map(
                                       (t) => html`
                                           <span
-                                              class="text-[9px] px-1.5 rounded border font-mono uppercase ${isActive
-                                                  ? 'bg-blue-500 border-blue-500 text-slate-100'
-                                                  : 'bg-slate-800 border-slate-800 text-slate-400'}"
+                                              class="text-[9px] px-1.5 rounded border font-mono ${isActive ? 'bg-emerald-500/10 border-emerald-400/25 text-slate-100' : 'bg-white/5 border-white/10 text-slate-400'}"
                                           >
                                               ${t}
                                           </span>
@@ -65,9 +57,7 @@ const trackItemTemplate = ({
                 </div>
 
                 <div
-                    class="flex items-center gap-2 text-xs ${isActive
-                        ? 'text-slate-100'
-                        : 'text-slate-400'} font-mono mt-0.5"
+                    class="flex items-center gap-2 text-xs ${isActive ? 'text-slate-100' : 'text-slate-400'} font-mono mt-0.5"
                 >
                     ${primaryMeta ? html`<span>${primaryMeta}</span>` : ''}
                     ${primaryMeta && secondaryMeta
@@ -122,7 +112,7 @@ export const videoSelectionPanelTemplate = (
             <div class="${headerClass}">
                 <span>Video Quality</span>
                 <span
-                    class="bg-slate-800 px-1.5 py-0.5 rounded text-slate-100"
+                    class="bg-white/5 px-1.5 py-0.5 rounded text-slate-100"
                     >${tracksToRender.length} Levels</span
                 >
             </div>
@@ -135,7 +125,7 @@ export const videoSelectionPanelTemplate = (
                     tags: ['Auto'],
                     onClick: () => handleSelect(null),
                 })}
-                <div class="h-px bg-slate-800 mx-2 my-1"></div>
+                <div class="h-px bg-white/5 mx-2 my-1"></div>
                 ${tracksToRender.map((track) => {
                     const bitrate = formatBitrate(
                         track.videoBandwidth || track.bandwidth
@@ -176,7 +166,7 @@ export const audioSelectionPanelTemplate = (audioTracks, streamId) => {
             <div class="${headerClass}">
                 <span>Audio Tracks</span>
                 <span
-                    class="bg-slate-800 px-1.5 py-0.5 rounded text-slate-100"
+                    class="bg-white/5 px-1.5 py-0.5 rounded text-slate-100"
                     >${audioTracks.length} Available</span
                 >
             </div>
@@ -222,7 +212,7 @@ export const textSelectionPanelTemplate = (textTracks, streamId) => {
                     isActive: noneActive,
                     onClick: () => handleSelect(null),
                 })}
-                <div class="h-px bg-slate-800 mx-2 my-1"></div>
+                <div class="h-px bg-white/5 mx-2 my-1"></div>
                 ${textTracks.map((track) => {
                     const label = track.label || track.language || 'Untitled';
                     return trackItemTemplate({

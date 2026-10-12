@@ -1,7 +1,6 @@
 import { useAnalysisStore } from '@/state/analysisStore';
 import { useSegmentCacheStore } from '@/state/segmentCacheStore';
 import { uiActions, useUiStore } from '@/state/uiStore';
-import * as icons from '@/ui/icons';
 import { html, render } from 'lit-html';
 import { explorerToolbarTemplate } from './components/explorer-toolbar.js';
 import { segmentBottomPanelTemplate } from './components/segment-bottom-panel.js';
@@ -97,14 +96,16 @@ class SegmentExplorerView {
         const stream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
 
         // --- EMPTY STATE ---
-        if (!stream) {
+        if (!stream || !stream.manifest) {
             render(
                 html`
-                    <div class="h-full flex flex-col items-center justify-center text-slate-400 bg-slate-900">
-                        <div class="p-6 bg-slate-800 rounded-2xl shadow-xl border border-slate-800 mb-4 animate-pulse">
-                            ${icons.search}
-                        </div>
-                        <p class="font-medium">No stream loaded.</p>
+                    <div class="flex flex-col items-center justify-center h-full p-8 text-center">
+                        <p class="text-[15px] font-medium text-slate-200 mb-1">
+                            No stream loaded.
+                        </p>
+                        <p class="mono text-[11px] text-slate-600">
+                            Analyze a manifest to explore its segments.
+                        </p>
                     </div>
                 `,
                 this.container
@@ -134,28 +135,26 @@ class SegmentExplorerView {
         } catch (err) {
             console.error('Segment Explorer Render Error:', err);
             content = html`
-                <div class="w-full h-full flex flex-col items-center justify-center text-red-400">
-                    <div class="mb-2">${icons.alertTriangle}</div>
-                    <div class="font-bold">Failed to load timeline</div>
-                    <div class="text-xs opacity-70 mt-2 max-w-md text-center font-mono bg-black/20 p-2 rounded">${err.message}</div>
+                <div class="w-full h-full flex flex-col items-center justify-center p-8 text-center">
+                    <p class="text-[15px] font-medium text-slate-200 mb-1">Timeline unavailable.</p>
+                    <p class="mono text-[11px] text-slate-600 max-w-md break-words">${err.message}</p>
                 </div>
             `;
         }
 
-        // Glass Wrapper for the Grid, with toolbar on top and the bottom
-        // panel below (both in-flow; 1.2.0 has no shell slots).
         const template = html`
-            <div class="w-full h-full box-border flex flex-col relative z-0 overflow-hidden" style="gap: 0.75rem">
-                 <div class="shrink-0">${toolbarPanel}</div>
-                 <!-- Glass Card Container -->
-                 <div class="grow w-full relative rounded-3xl border border-slate-800 bg-slate-800 shadow-2xl backdrop-blur-xl overflow-hidden flex flex-col min-h-0">
-                     <div class="grow min-h-0 relative z-0 w-full">
+            <div class="w-full h-full flex flex-col min-h-0 bg-[#06090f]">
+                 <div class="shrink-0 px-4 pt-3">${toolbarPanel}</div>
+                 <div class="grow w-full relative rounded-md border border-white/5 bg-[#0b111c] overflow-hidden flex flex-col min-h-0 mx-4 mt-3" style="width: auto;">
+                     <div class="grow min-h-0 relative w-full">
                         ${content}
                      </div>
                  </div>
-                 <div class="shrink-0 max-h-[32%] overflow-y-auto custom-scrollbar min-h-0">
-                    ${bottomPanel}
-                 </div>
+                 ${bottomPanel
+                    ? html`<div class="shrink-0 max-h-[36%] overflow-y-auto custom-scrollbar min-h-0 mx-4 mb-4 mt-2 rounded-md border border-white/5 bg-[#0b111c]">
+                        ${bottomPanel}
+                     </div>`
+                    : ''}
             </div>
         `;
 

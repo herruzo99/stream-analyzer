@@ -93,16 +93,16 @@ export const headerDetailsTemplate = (headers, flaggedKeys = new Set()) => {
                 if (Object.keys(headerGroup).length === 0) return '';
                 return html`
                     <div
-                        class="bg-slate-800/50 rounded border border-slate-800/50 overflow-hidden"
+                        class="bg-white/5 rounded border border-white/10 overflow-hidden"
                     >
                         <h5
-                            class="font-semibold text-slate-400 p-2 bg-slate-800/50 text-xs"
+                            class="font-semibold text-slate-400 p-2 bg-white/5 text-xs"
                         >
                             ${category}
                         </h5>
                         <table class="w-full text-left text-xs table-auto">
                             <tbody
-                                class="divide-y divide-slate-800/50"
+                                class="divide-y divide-white/10"
                             >
                                 ${Object.entries(headerGroup).map(
                                     ([key, value]) => {
@@ -113,7 +113,7 @@ export const headerDetailsTemplate = (headers, flaggedKeys = new Set()) => {
                                             flaggedKeys.has(lowerKey);
                                         const rowClass = isFlagged
                                             ? 'bg-red-500/20'
-                                            : 'hover:bg-slate-800/50';
+                                            : 'hover:bg-white/10';
                                         const textClass = isFlagged
                                             ? 'text-red-400'
                                             : 'text-slate-200';
@@ -121,9 +121,7 @@ export const headerDetailsTemplate = (headers, flaggedKeys = new Set()) => {
                                         return html`
                                             <tr class="${rowClass}">
                                                 <td
-                                                    class="p-2 font-semibold ${textClass} align-top w-1/3 ${definition
-                                                        ? tooltipTriggerClasses
-                                                        : ''}"
+                                                    class="p-2 font-semibold ${textClass} align-top w-1/3 ${definition ? tooltipTriggerClasses : ''}"
                                                     data-tooltip=${definition ||
                                                     ''}
                                                 >

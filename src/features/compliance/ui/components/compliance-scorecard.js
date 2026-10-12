@@ -1,5 +1,4 @@
 import { html, render } from 'lit-html';
-import * as icons from '@/ui/icons';
 
 export class ComplianceScorecard extends HTMLElement {
     /** @type {any} */
@@ -20,123 +19,135 @@ export class ComplianceScorecard extends HTMLElement {
         return this.__data;
     }
 
-
-
-
     render() {
         if (!this._data) return;
-        const { totalScore, label, summary, categories } = this._data;
+        const data = this._data || {};
+        const totalScore =
+            typeof data.totalScore === 'number' ? data.totalScore : null;
+        const label = data.label || 'unknown';
+        const summary = data.summary || { errors: 0, warnings: 0 };
+        const categories = Array.isArray(data.categories)
+            ? data.categories
+            : [];
+        const errors = summary.errors ?? 0;
+        const warnings = summary.warnings ?? 0;
 
-        // Colors
-        let scoreColor = '#f1f5f9';
-        if (totalScore >= 90) scoreColor = '#10b981';
-        else if (totalScore >= 70) scoreColor = '#f59e0b';
-        else scoreColor = '#ef4444';
+        const scoreClass =
+            totalScore === null
+                ? 'text-slate-500'
+                : totalScore >= 90
+                  ? 'text-emerald-300'
+                  : totalScore >= 70
+                    ? 'text-amber-300'
+                    : 'text-red-300';
 
-        // Reusable card wrapper with "Cyberpunk/Tech" styling
-        const renderTechCard = (content, classes = '') => html`
-            <div class="layout-card rounded-xl p-5 relative overflow-hidden group border border-slate-800 ${classes}">
-                <!-- Tech Lines Decoration -->
-                <div class="absolute top-0 right-0 w-16 h-16 border-t-2 border-r-2 border-[var(--sidebar-accent,#3b82f6)]/10 rounded-tr-[0.75rem] pointer-events-none"></div>
-                <div class="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-slate-400/10 rounded-bl-[0.75rem] pointer-events-none"></div>
-
-                <div class="relative z-10 font-sans">
-                    ${content}
-                </div>
-            </div>
-        `;
+        const labelClass =
+            label === 'FAIL'
+                ? 'text-red-300 bg-red-500/10 border-red-400/25'
+                : label === 'WARNING'
+                  ? 'text-amber-300 bg-amber-500/10 border-amber-400/25'
+                  : label === 'PASS'
+                    ? 'text-emerald-200 bg-emerald-500/10 border-emerald-400/25'
+                    : 'text-slate-500 bg-white/5 border-white/10';
 
         const template = html`
-                ${renderTechCard(html`
-                    <div class="flex flex-col gap-6">
-                        
-                        <!-- 1. Top Section: Score & Protocol -->
-                        <div class="flex items-center justify-between">
-                            <!-- Condition (Left) -->
-                            <div>
-                                <div class="text-[10px] font-mono text-slate-400 mb-1 opacity-60 uppercase">CONDITION</div>
-                                <div class="text-2xl font-black tracking-tighter" style="color: ${scoreColor}">
-                                    ${label}
-                                </div>
-                            </div>
-
-                            <!-- Score (Right) -->
-                            <div class="flex flex-col items-end">
-                                <div class="text-[10px] font-mono text-slate-400 mb-1 opacity-60 uppercase">SCORE</div>
-                                <div class="flex items-baseline gap-1">
-                                    <span class="text-4xl font-black text-slate-100 tracking-tighter">
-                                        ${totalScore}
-                                    </span>
-                                    <span class="text-xs font-bold text-slate-400 opacity-60">/100</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- 2. Middle Section: Critical & Warnings -->
-                        <div class="grid grid-cols-2 gap-2">
-                            <!-- Critical -->
-                            <div class="p-2 rounded bg-slate-900/30 border border-white/5 flex flex-col items-center justify-center relative overflow-hidden">
-                                <span class="text-2xl font-black mb-1 z-10" style="color: ${summary.errors > 0 ? '#ef4444' : '#f1f5f9'}">
-                                    ${summary.errors}
-                                </span>
-                                <div class="flex items-center gap-2 opacity-80 z-10">
-                                    <span class="text-red-400 scale-75">${icons.xCircle}</span>
-                                    <span class="text-[9px] font-mono text-slate-400 uppercase">Critical</span>
-                                </div>
-                            </div>
-
-                            <!-- Warnings -->
-                            <div class="p-2 rounded bg-slate-900/30 border border-white/5 flex flex-col items-center justify-center relative overflow-hidden">
-                                <span class="text-2xl font-black mb-1 z-10" style="color: ${summary.warnings > 0 ? '#f59e0b' : '#f1f5f9'}">
-                                    ${summary.warnings}
-                                </span>
-                                <div class="flex items-center gap-2 opacity-80 z-10">
-                                    <span class="text-amber-400 scale-75">${icons.alertTriangle}</span>
-                                    <span class="text-[9px] font-mono text-slate-400 uppercase">Warnings</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- 3. Bottom Section: Category Analysis -->
-                         <div class="flex flex-col gap-4 pt-4 border-t border-slate-800/50">
-                            <div class="flex items-center justify-between">
-                                <div class="text-[10px] font-mono text-slate-400 opacity-60 uppercase">
-                                    Category Analysis
-                                </div>
-                                <div class="text-[10px] font-bold text-slate-100 bg-slate-900/50 px-2 py-0.5 rounded-full border border-white/5">
-                                    ${categories.length} ZONES
-                                </div>
-                            </div>
-                            
-                            <div class="flex flex-col gap-3">
-                                ${categories.map(cat => {
-            let barColor = '#94a3b8';
-            if (cat.score >= 90) barColor = '#10b981';
-            else if (cat.score >= 70) barColor = '#f59e0b';
-            else barColor = '#ef4444';
-
-            return html`
-                                        <div class="flex flex-col gap-1.5 group/cat">
-                                            <div class="flex items-center justify-between">
-                                                <span class="text-xs font-bold text-slate-100 tracking-wide group-hover/cat:text-white transition-colors">${cat.name}</span>
-                                                <span class="text-xs font-mono font-bold" style="color: ${barColor}">${cat.score}%</span>
-                                            </div>
-                                            <div class="w-full h-1 bg-slate-900 rounded-full overflow-hidden">
-                                                <div 
-                                                    class="h-full rounded-full transition-all duration-500 relative"
-                                                    style="width: ${cat.score}%; background: ${barColor}"
-                                                >
-                                                     <div class="absolute right-0 top-0 bottom-0 w-2 bg-white/20"></div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    `;
-        })}
-                            </div>
-                        </div>
-
+            <div
+                class="rounded-md border border-white/5 bg-[#0b111c] p-4 flex flex-col gap-4"
+            >
+                <div class="flex items-center justify-between gap-3">
+                    <div>
+                        <p class="mono text-[10px] text-slate-600">
+                            overall
+                        </p>
+                        <p class="text-xl tabular-nums ${scoreClass}">
+                            ${totalScore === null ? '–' : totalScore}<span
+                                class="mono text-[10px] text-slate-600"
+                                >/100</span
+                            >
+                        </p>
                     </div>
-                `)}
+                    <span
+                        class="mono text-[10px] px-1.5 py-px rounded border ${labelClass}"
+                        >${String(label).toLowerCase()}</span
+                    >
+                </div>
+
+                <div class="grid grid-cols-2 gap-1.5">
+                    <div
+                        class="rounded border border-white/5 bg-white/[0.02] p-2.5 text-center"
+                    >
+                        <p
+                            class="text-xl tabular-nums ${errors > 0 ? 'text-red-300' : 'text-slate-200'}"
+                        >
+                            ${errors}
+                        </p>
+                        <p class="mono text-[9px] text-slate-600">
+                            critical
+                        </p>
+                    </div>
+                    <div
+                        class="rounded border border-white/5 bg-white/[0.02] p-2.5 text-center"
+                    >
+                        <p
+                            class="text-xl tabular-nums ${warnings > 0 ? 'text-amber-300' : 'text-slate-200'}"
+                        >
+                            ${warnings}
+                        </p>
+                        <p class="mono text-[9px] text-slate-600">
+                            warnings
+                        </p>
+                    </div>
+                </div>
+
+                ${categories.length > 0
+                    ? html`<div class="flex flex-col gap-2.5">
+                          <p class="mono text-[10px] text-slate-600">
+                              by category
+                          </p>
+                          ${categories.map((cat) => {
+                              const score =
+                                  typeof cat.score === 'number'
+                                      ? cat.score
+                                      : null;
+                              const barClass =
+                                  score === null
+                                      ? 'bg-white/10'
+                                      : score >= 90
+                                        ? 'bg-emerald-400'
+                                        : score >= 70
+                                          ? 'bg-amber-400'
+                                          : 'bg-red-400';
+                              return html`
+                                  <div class="flex flex-col gap-1">
+                                      <div
+                                          class="flex items-center justify-between gap-2"
+                                      >
+                                          <span
+                                              class="text-[13px] text-slate-200 truncate"
+                                              title="${cat.name}"
+                                              >${cat.name}</span
+                                          >
+                                          <span
+                                              class="mono text-[10px] text-slate-500 tabular-nums shrink-0"
+                                              >${score === null ? '–' : `${score}%`}</span
+                                          >
+                                      </div>
+                                      <div
+                                          class="w-full h-1 bg-white/5 rounded-full overflow-hidden"
+                                      >
+                                          <div
+                                              class="h-full rounded-full ${barClass}"
+                                              style="width: ${score === null ? 0 : Math.min(100, Math.max(0, score))}%"
+                                          ></div>
+                                      </div>
+                                  </div>
+                              `;
+                          })}
+                      </div>`
+                    : html`<p class="mono text-[11px] text-slate-600">
+                          No category breakdown for this update.
+                      </p>`}
+            </div>
         `;
 
         render(template, this);

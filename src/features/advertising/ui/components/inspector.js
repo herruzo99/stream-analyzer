@@ -5,23 +5,23 @@ import { html } from 'lit-html';
 
 const creativeItem = (creative, idx) => html`
     <div
-        class="bg-slate-800 rounded-xl border border-slate-800/30 p-3 mb-2 hover:bg-slate-800 transition-colors duration-300 group"
+        class="bg-white/5 rounded-md border border-white/10 p-3 mb-2 hover:bg-white/10 transition-colors duration-300 group"
     >
         <div class="flex justify-between items-start mb-2">
             <span
-                class="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2"
-                ><span class="p-1 rounded bg-slate-800/50"
+                class="text-xs font-bold text-emerald-200 r flex items-center gap-2"
+                ><span class="p-1 rounded bg-white/5"
                     >${icons.film}</span
                 >
                 Creative ${idx + 1}</span
             >
             <span
-                class="text-xs font-mono text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-800/20"
+                class="text-xs font-mono text-slate-400 bg-white/5 px-1.5 py-0.5 rounded border border-white/10"
                 >${creative.duration}s</span
             >
         </div>
         <div
-            class="text-[10px] text-slate-100 break-all font-mono bg-slate-800/50 p-2.5 rounded-lg mb-3 border border-slate-800/20 shadow-inner select-all"
+            class="text-[10px] text-slate-100 break-all font-mono bg-white/5 p-2.5 rounded-md mb-3 border border-white/10 select-all"
         >
             ${creative.mediaFileUrl || 'No Media File URL'}
         </div>
@@ -31,14 +31,14 @@ const creativeItem = (creative, idx) => html`
                       <a
                           href="${creative.mediaFileUrl}"
                           target="_blank"
-                          class="text-[10px] flex items-center gap-1.5 bg-blue-500/10 text-blue-400 px-2.5 py-1.5 rounded-lg border border-blue-500/20 hover:bg-blue-500/20 hover:border-blue-500/40 transition-all font-bold"
+                          class="text-[10px] flex items-center gap-1.5 bg-emerald-500/10 text-emerald-200 px-2.5 py-1.5 rounded-md border border-emerald-400/25 hover:bg-emerald-500/10 hover:border-emerald-400/50 transition-all font-bold"
                       >
                           ${icons.play} Open Media
                       </a>
                   `
                 : ''}
             <div
-                class="text-[10px] flex items-center gap-1.5 bg-slate-800/50 text-slate-400 px-2.5 py-1.5 rounded-lg border border-slate-800/20"
+                class="text-[10px] flex items-center gap-1.5 bg-white/5 text-slate-400 px-2.5 py-1.5 rounded-md border border-white/10"
             >
                 ${icons.activity} ${creative.trackingUrls.size} Trackers
             </div>
@@ -48,23 +48,23 @@ const creativeItem = (creative, idx) => html`
 
 const scte224Template = (signal) => html`
     <div
-        class="p-4 bg-slate-800 rounded-xl border border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.1)] relative overflow-hidden group"
+        class="p-4 bg-white/5 rounded-md border border-white/10 relative overflow-hidden group"
     >
         <div
-            class="absolute top-0 left-0 w-1 h-full bg-purple-500/50"
+            class="absolute top-0 left-0 w-1 h-full bg-white/5"
         ></div>
         <div class="flex justify-between items-center mb-3">
             <span
-                class="text-xs font-bold text-purple-300 flex items-center gap-2"
+                class="text-xs font-bold text-slate-300 flex items-center gap-2"
                 >${icons.zap} SCTE-224 (ESNI)</span
             >
             <span
-                class="text-[10px] font-mono text-slate-400 bg-slate-800/50 px-1.5 py-0.5 rounded border border-slate-800/20"
+                class="text-[10px] font-mono text-slate-400 bg-white/5 px-1.5 py-0.5 rounded border border-white/10"
                 >ID: ${signal.id}</span
             >
         </div>
         <div
-            class="text-xs text-slate-100 mb-4 bg-slate-800 p-2 rounded-lg border border-slate-800/10"
+            class="text-xs text-slate-100 mb-4 bg-white/5 p-2 rounded-md border border-white/10"
         >
             ${signal.description || 'No description'}
         </div>
@@ -72,7 +72,7 @@ const scte224Template = (signal) => html`
         ${signal.mediaPoints.length > 0
             ? html`
                   <div
-                      class="text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wider opacity-80"
+                      class="text-[10px] font-bold text-slate-400 mb-2 r opacity-80"
                   >
                       Media Points
                   </div>
@@ -80,7 +80,7 @@ const scte224Template = (signal) => html`
                       ${signal.mediaPoints.map(
                           (mp) => html`
                               <div
-                                  class="flex justify-between bg-slate-800/50 p-2 rounded-lg border border-slate-800/10"
+                                  class="flex justify-between bg-white/5 p-2 rounded-md border border-white/10"
                               >
                                   <span
                                       class="font-mono text-slate-100 text-[10px]"
@@ -99,7 +99,7 @@ const scte224Template = (signal) => html`
         ${signal.audiences.length > 0
             ? html`
                   <div
-                      class="text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wider opacity-80"
+                      class="text-[10px] font-bold text-slate-400 mb-2 r opacity-80"
                   >
                       Audiences
                   </div>
@@ -107,7 +107,7 @@ const scte224Template = (signal) => html`
                       ${signal.audiences.map(
                           (a) => html`
                               <span
-                                  class="px-2 py-1 bg-purple-500/10 border border-purple-500/30 text-purple-300 rounded-md text-[10px] font-medium"
+                                  class="px-2 py-1 bg-white/5 border border-white/10 text-slate-300 rounded-md text-[10px] font-medium"
                                   >${a.id}</span
                               >
                           `
@@ -126,13 +126,13 @@ export const inspectorTemplate = (avail, onClose) => {
             <div class="h-full flex flex-col bg-transparent">
                 <!-- Header -->
                 <div
-                    class="p-6 border-b border-slate-800/30 bg-slate-800/20 backdrop-blur-md"
+                    class="p-6 border-b border-white/10 bg-white/5"
                 >
                     <h2
                         class="text-xl font-bold text-slate-100 flex items-center gap-3"
                     >
                         <div
-                            class="p-2 rounded-lg bg-slate-800/50 border border-slate-800/30 text-slate-400"
+                            class="p-2 rounded-md bg-white/5 border border-white/10 text-slate-400"
                         >
                             ${icons.settings}
                         </div>
@@ -157,23 +157,23 @@ export const inspectorTemplate = (avail, onClose) => {
     return html`
         <div class="h-full flex flex-col bg-transparent animate-slideInRight relative">
             <!-- Header -->
-            <div class="p-6 border-b border-slate-800/30 bg-gradient-to-b from-slate-800/40 to-slate-800/10 backdrop-blur-md shrink-0 z-10">
+            <div class="p-6 border-b border-white/10 shrink-0 z-10">
                 <div class="flex justify-between items-start">
                     <div>
-                        <h2 class="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-slate-100 to-slate-400">
+                        <h2 class="text-xl font-bold text-slate-100">
                             Break Details
                         </h2>
                         <div class="flex items-center gap-2 mt-1">
-                            <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-800/50 border border-slate-800/30 text-slate-400 select-all">
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-white/5 border border-white/10 text-slate-400 select-all">
                                 ${avail.id}
                             </span>
                         </div>
                     </div>
                     <div class="text-right">
-                        <div class="text-3xl font-mono text-blue-400 font-light drop-shadow-[0_0_12px_#3b82f6]">
+                        <div class="text-3xl font-mono text-emerald-200 font-light drop-">
                             ${avail.duration.toFixed(2)}s
                         </div>
-                        <div class="text-[9px] uppercase text-slate-400 font-bold tracking-[0.2em] opacity-70 mt-1">
+                        <div class="text-[9px] text-slate-400 font-bold opacity-70 mt-1">
                             Duration
                         </div>
                     </div>
@@ -193,7 +193,7 @@ export const inspectorTemplate = (avail, onClose) => {
                                       ${icons.layers} VMAP Schedule
                                   </h3>
                                   <div
-                                      class="bg-slate-800 border border-blue-500/30 rounded-xl p-3 flex justify-between items-center shadow-lg"
+                                      class="bg-white/5 border border-emerald-400/25 rounded-md p-3 flex justify-between items-center"
                                   >
                                       <span
                                           class="text-xs text-slate-100 font-mono"
@@ -201,13 +201,13 @@ export const inspectorTemplate = (avail, onClose) => {
                                           ${avail.vmapInfo.version}</span
                                       >
                                       <span
-                                          class="text-xs font-bold text-blue-400 bg-blue-500/10 px-2 py-1 rounded-lg border border-blue-500/20"
+                                          class="text-xs font-bold text-emerald-200 bg-emerald-500/10 px-2 py-1 rounded-md border border-emerald-400/25"
                                           >${avail.vmapInfo.breakCount} Breaks
                                           Found</span
                                       >
                                   </div>
                               </section>
-                              <hr class="border-slate-800" />
+                              <hr class="border-white/10" />
                           `
                         : ''
                 }
@@ -219,7 +219,7 @@ export const inspectorTemplate = (avail, onClose) => {
                     >
                         ${icons.film} Ad Creatives
                         <span
-                            class="bg-slate-800 text-slate-400 text-[10px] px-2 py-0.5 rounded-full"
+                            class="bg-white/5 text-slate-400 text-[10px] px-2 py-0.5 rounded-full"
                             >${avail.creatives?.length || 0}</span
                         >
                     </h3>
@@ -228,10 +228,10 @@ export const inspectorTemplate = (avail, onClose) => {
                         avail.adManifestUrl
                             ? html`
                                   <div
-                                      class="flex items-center gap-2 mb-3 bg-slate-700 border border-blue-500 p-2 rounded-lg"
+                                      class="flex items-center gap-2 mb-3 bg-white/5 border border-emerald-400/25 p-2 rounded-md"
                                   >
                                       <span
-                                          class="text-blue-400 scale-75"
+                                          class="text-emerald-200 scale-75"
                                           >${icons.link}</span
                                       >
                                       <span
@@ -245,7 +245,7 @@ export const inspectorTemplate = (avail, onClose) => {
                                                   avail.adManifestUrl,
                                                   'URL Copied'
                                               )}
-                                          class="text-blue-400 hover:text-slate-100 p-1"
+                                          class="text-emerald-200 hover:text-slate-100 p-1"
                                       >
                                           ${icons.clipboardCopy}
                                       </button>
@@ -257,14 +257,14 @@ export const inspectorTemplate = (avail, onClose) => {
                         avail.creatives && avail.creatives.length > 0
                             ? avail.creatives.map((c, i) => creativeItem(c, i))
                             : html`<div
-                                  class="p-6 border border-dashed border-slate-800/30 rounded-xl text-center text-xs text-slate-400/70 bg-slate-800"
+                                  class="p-6 border border-dashed border-white/10 rounded-md text-center text-xs text-slate-400/70 bg-white/5"
                               >
                                   No creatives resolved.
                               </div>`
                     }
                 </section>
 
-                <hr class="border-slate-800" />
+                <hr class="border-white/10" />
 
                 <!-- Signals -->
                 <section>
@@ -283,7 +283,7 @@ export const inspectorTemplate = (avail, onClose) => {
                             ? html`
                                   <div class="mt-4">
                                       <div
-                                          class="text-xs font-bold text-slate-400 uppercase mb-2"
+                                          class="text-xs font-bold text-slate-400 mb-2"
                                       >
                                           SCTE-35
                                       </div>
@@ -309,10 +309,10 @@ export const inspectorTemplate = (avail, onClose) => {
             </div>
             
             <!-- Footer: Back to Settings -->
-            <div class="p-4 border-t border-slate-800/20 bg-slate-800 backdrop-blur-xl shrink-0">
+            <div class="p-4 border-t border-white/10 bg-white/5 shrink-0">
                 <button 
                     @click=${onClose}
-                    class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-slate-800 text-slate-100 hover:bg-blue-500/20 hover:text-blue-400 border border-slate-800/30 hover:border-blue-500/50 transition-all duration-300 text-sm font-bold shadow-sm hover:shadow-[0_0_15px_#3b82f6]/10"
+                    class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-md bg-white/5 text-slate-100 hover:bg-emerald-500/10 hover:text-emerald-200 border border-white/10 hover:border-emerald-400/50 transition-all duration-300 text-sm font-bold"
                 >
                     ${icons.settings} Configure Detection
                 </button>

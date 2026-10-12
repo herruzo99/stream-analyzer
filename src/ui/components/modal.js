@@ -40,11 +40,11 @@ const pendingStreamRow = (input) => {
     const name = input.name || new URL(input.url).hostname;
     return html`
         <div
-            class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 mb-2 group hover:border-slate-600 transition-colors"
+            class="flex items-center justify-between p-3 bg-white/5 rounded-md border border-white/10 mb-2 group hover:border-slate-600 transition-colors"
         >
             <div class="flex items-center gap-3 min-w-0">
                 <div
-                    class="w-8 h-8 rounded bg-slate-700 flex items-center justify-center text-slate-400 shrink-0 border border-slate-600"
+                    class="w-8 h-8 rounded bg-white/5 flex items-center justify-center text-slate-400 shrink-0 border border-slate-600"
                 >
                     ${input.file ? icons.fileText : icons.link}
                 </div>
@@ -107,7 +107,7 @@ function getContentTemplate(modalContent) {
         case 'networkResponse':
             return html`
                 <div
-                    class="h-full flex flex-col bg-slate-900 overflow-hidden p-4"
+                    class="h-full flex flex-col bg-white/5 overflow-hidden p-4"
                 >
                     <response-viewer
                         .event=${modalContent.data.event}
@@ -126,11 +126,11 @@ function getContentTemplate(modalContent) {
             const hasPending = pendingInputs.length > 0;
 
             return html`
-                <div class="flex flex-col bg-slate-900 h-full overflow-hidden">
+                <div class="flex flex-col bg-white/5 h-full overflow-hidden">
                     <div class="grow flex flex-col p-8 min-h-0 overflow-y-auto">
                         <div class="text-center mb-6 shrink-0">
                             <div
-                                class="inline-flex p-3 bg-blue-500/10 rounded-full mb-3 text-blue-400 shadow-inner border border-blue-500/20"
+                                class="inline-flex p-3 bg-emerald-500/10 rounded-full mb-3 text-emerald-200 border border-emerald-400/25"
                             >
                                 ${icons.plusCircle}
                             </div>
@@ -156,19 +156,19 @@ function getContentTemplate(modalContent) {
                         ${hasPending
                             ? html`
                                   <div
-                                      class="w-full max-w-2xl mx-auto flex flex-col min-h-0 shrink-0 animate-fadeIn"
+                                      class="w-full max-w-2xl mx-auto flex flex-col min-h-0 shrink-0"
                                   >
                                       <div
                                           class="flex items-center justify-between mb-3 px-1"
                                       >
                                           <div class="flex items-center gap-2">
                                               <h4
-                                                  class="text-xs font-bold uppercase tracking-wider text-slate-500"
+                                                  class="text-xs font-bold r text-slate-500"
                                               >
                                                   Staging Queue
                                               </h4>
                                               <span
-                                                  class="px-1.5 py-0.5 bg-blue-900/30 text-blue-300 rounded text-[10px] font-bold border border-blue-500/30"
+                                                  class="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-200 rounded text-[10px] font-bold border border-emerald-400/25"
                                                   >${pendingInputs.length}</span
                                               >
                                           </div>
@@ -190,7 +190,7 @@ function getContentTemplate(modalContent) {
 
                     <!-- Footer Actions -->
                     <div
-                        class="p-4 bg-slate-800/50 border-t border-slate-800 flex justify-end gap-3 shrink-0 z-10"
+                        class="p-4 bg-white/5 border-t border-white/10 flex justify-end gap-3 shrink-0 z-10"
                     >
                         <button
                             @click=${closeModal}
@@ -201,7 +201,7 @@ function getContentTemplate(modalContent) {
                         <button
                             @click=${handleAddStreams}
                             ?disabled=${!hasPending}
-                            class="px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 text-white text-sm font-bold rounded-lg shadow-lg shadow-blue-900/20 flex items-center gap-2 transition-all hover:scale-[1.02] active:scale-95"
+                            class="px-5 py-2 bg-emerald-500/10 hover:bg-emerald-500/10 disabled:bg-white/5 disabled:text-slate-500 text-white text-sm font-bold rounded-md shadow-blue-900/20 flex items-center gap-2 transition-all hover:scale-[1.02] active:scale-95"
                         >
                             ${icons.checkCircle} Add to Session
                         </button>
@@ -228,6 +228,13 @@ function renderModal() {
     if (isOpening) {
         dom.modalTitle.textContent = modalState.modalTitle;
 
+        // Chromeless content (e.g. About) brings its own header:
+        // hide the shell header row instead of showing an empty bar.
+        const headerRow = dom.modalTitle.parentElement;
+        if (headerRow) {
+            headerRow.classList.toggle('hidden', !modalState.modalTitle);
+        }
+
         const hasUrl = !!modalState.modalUrl;
         dom.modalSegmentUrl.textContent = modalState.modalUrl;
         const urlContainer = dom.modalSegmentUrl.parentElement;
@@ -247,22 +254,34 @@ function renderModal() {
         const modalContentContainer = dom.segmentModal.querySelector('div');
 
         if (modalContentContainer) {
-            // Reset classes first
-            modalContentContainer.className =
-                'bg-slate-800 p-0 rounded-xl w-11/12 border border-slate-700 flex flex-col overflow-hidden shadow-2xl ring-1 ring-white/10';
-
-            // Apply Width logic
-            if (modalState.isModalFullWidth) {
-                modalContentContainer.classList.add('max-w-7xl');
+            const isChromeless =
+                !modalState.modalTitle && !modalState.modalUrl;
+            if (isChromeless) {
+                // Content brings its own frame: the shell becomes a
+                // transparent sizer so no slate halo peeks through.
+                modalContentContainer.className =
+                    'w-11/12 max-w-3xl h-auto max-h-[85vh] flex flex-col bg-transparent border-0 overflow-visible';
             } else {
-                modalContentContainer.classList.add('max-w-4xl');
-            }
+                // Reset classes first
+                modalContentContainer.className =
+                    'bg-white/5 p-0 rounded-md w-11/12 border border-white/10 flex flex-col overflow-hidden  ring-1 ring-white/10';
 
-            // Apply Height logic
-            if (modalState.modalContent?.type === 'memoryManagement') {
-                modalContentContainer.classList.add('h-auto', 'max-h-[90vh]');
-            } else {
-                modalContentContainer.classList.add('h-[90vh]');
+                // Apply Width logic
+                if (modalState.isModalFullWidth) {
+                    modalContentContainer.classList.add('max-w-7xl');
+                } else {
+                    modalContentContainer.classList.add('max-w-4xl');
+                }
+
+                // Apply Height logic
+                if (modalState.modalContent?.type === 'memoryManagement') {
+                    modalContentContainer.classList.add(
+                        'h-auto',
+                        'max-h-[90vh]'
+                    );
+                } else {
+                    modalContentContainer.classList.add('h-[90vh]');
+                }
             }
         }
 

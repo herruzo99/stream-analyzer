@@ -9,6 +9,7 @@ import { generateDashSummary } from '../../parsing/dash/summary-generator.js';
 import { parseManifest as parseHlsManifest } from '../../parsing/hls/index.js';
 import { generateHlsSummary } from '../../parsing/hls/summary-generator.js';
 import { fetchWithAuth } from '../http.js';
+import { randomId } from '@/shared/utils/random.js';
 
 // --- MEMORY PROTECTION SETTINGS ---
 const MAX_SEGMENT_HISTORY = 300;
@@ -782,7 +783,7 @@ export async function handleShakaManifestFetch(payload, signal) {
     self.postMessage({
         type: 'worker:network-event',
         payload: {
-            id: crypto.randomUUID(),
+            id: randomId(),
             url: response.url,
             resourceType: 'manifest',
             streamId,

@@ -8,15 +8,13 @@ import { responseViewerTemplate } from './response-viewer.js';
 
 const detailItem = (label, value, isMono = false) => html`
     <div
-        class="flex justify-between py-2 border-b border-slate-800 last:border-0 hover:bg-slate-800 px-2 transition-colors rounded"
+        class="flex justify-between py-2 border-b border-white/10 last:border-0 hover:bg-white/10 px-2 transition-colors rounded"
     >
         <span class="text-slate-400 font-medium"
             >${label}</span
         >
         <span
-            class="text-slate-200 ${isMono
-        ? 'font-mono text-xs'
-        : 'text-sm'} text-right truncate max-w-[200px]"
+            class="text-slate-200 ${isMono ? 'font-mono text-xs' : 'text-sm'} text-right truncate max-w-[200px]"
             title="${String(value)}"
         >
             ${value}
@@ -38,7 +36,7 @@ const breakdownBar = (label, valueMs, totalMs, colorClass) => {
                 >
             </div>
             <div
-                class="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden"
+                class="h-1.5 w-full bg-white/5 rounded-full overflow-hidden"
             >
                 <div
                     class="h-full ${colorClass} rounded-full"
@@ -54,7 +52,7 @@ const auditFindingsTemplate = (issues) => {
     return html`
         <section class="mb-4">
             <h5
-                class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2"
+                class="text-xs font-bold text-slate-400 r mb-2 flex items-center gap-2"
             >
                 ${icons.shieldCheck} Audit Findings
             </h5>
@@ -62,10 +60,7 @@ const auditFindingsTemplate = (issues) => {
                 ${issues.map(
         (issue) => html`
                         <div
-                            class="p-2 rounded border text-xs flex gap-2 items-start ${issue.level ===
-                'error'
-                ? 'bg-red-500/20 border-red-500/30 text-red-400'
-                : 'bg-amber-500/20 border-amber-500/30 text-amber-400'}"
+                            class="p-2 rounded border text-xs flex gap-2 items-start ${issue.level === 'error' ? 'bg-red-500/20 border-red-500/30 text-red-400' : 'bg-amber-500/20 border-amber-500/30 text-amber-400'}"
                         >
                             <span class="shrink-0 mt-0.5"
                                 >${issue.level === 'error'
@@ -98,7 +93,7 @@ export const networkDetailsPanelTemplate = (event) => {
                 class="h-full flex flex-col items-center justify-center text-center text-slate-400 p-6"
             >
                 <div
-                    class="p-4 bg-slate-800 rounded-full mb-3 shadow-[0 8px 30px rgb(0 0 0 / 0.35)]"
+                    class="p-4 bg-white/5 rounded-full mb-3"
                 >
                     ${icons.search}
                 </div>
@@ -128,13 +123,13 @@ export const networkDetailsPanelTemplate = (event) => {
         <div class="flex flex-col h-full overflow-hidden">
              <!-- Use layout-header style manually -->
             <div
-                class="p-3 border-b border-slate-800 bg-slate-800 backdrop-blur-sm"
+                class="p-3 border-b border-white/10 bg-white/5"
                 style="padding: 1rem;"
             >
                 <h4
                     class="font-bold text-slate-200 text-sm flex items-center gap-2 break-all"
                 >
-                    <span class="text-blue-400"
+                    <span class="text-emerald-200"
                         >${icons.network}</span
                     >
                     <span class="truncate"
@@ -145,7 +140,7 @@ export const networkDetailsPanelTemplate = (event) => {
                 <a
                     href="${event.url}"
                     target="_blank"
-                    class="text-[10px] text-blue-400 hover:underline mt-1 block truncate font-mono"
+                    class="text-[10px] text-emerald-200 hover:underline mt-1 block truncate font-mono"
                     >${event.url}</a
                 >
             </div>
@@ -157,12 +152,12 @@ export const networkDetailsPanelTemplate = (event) => {
                     <!-- Overview -->
                     <section>
                         <h5
-                            class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2"
+                            class="text-xs font-bold text-slate-400 r mb-2"
                         >
                             Overview
                         </h5>
                         <div
-                            class="bg-slate-800 rounded-lg border border-slate-800 p-1 backdrop-blur-md"
+                            class="bg-white/5 rounded-md border border-white/10 p-1"
                         >
                             ${detailItem(
             'Status',
@@ -192,12 +187,12 @@ export const networkDetailsPanelTemplate = (event) => {
                     <!-- Response Body -->
                     <section>
                         <h5
-                            class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2"
+                            class="text-xs font-bold text-slate-400 r mb-2"
                         >
                             Response Body
                         </h5>
                         <div
-                            class="bg-slate-800 rounded-lg border border-slate-800 p-2 min-h-[200px]"
+                            class="bg-white/5 rounded-md border border-white/10 p-2 min-h-[200px]"
                         >
                             ${responseViewerTemplate(event)}
                         </div>
@@ -206,10 +201,10 @@ export const networkDetailsPanelTemplate = (event) => {
                     <!-- Headers -->
                     <details class="group">
                         <summary
-                            class="list-none flex items-center justify-between cursor-pointer py-2 border-b border-slate-800"
+                            class="list-none flex items-center justify-between cursor-pointer py-2 border-b border-white/10"
                         >
                             <h5
-                                class="text-xs font-bold text-slate-400 uppercase tracking-wider"
+                                class="text-xs font-bold text-slate-400 r"
                             >
                                 Response Headers
                             </h5>
@@ -228,10 +223,10 @@ export const networkDetailsPanelTemplate = (event) => {
 
                     <details class="group">
                         <summary
-                            class="list-none flex items-center justify-between cursor-pointer py-2 border-b border-slate-800"
+                            class="list-none flex items-center justify-between cursor-pointer py-2 border-b border-white/10"
                         >
                             <h5
-                                class="text-xs font-bold text-slate-400 uppercase tracking-wider"
+                                class="text-xs font-bold text-slate-400 r"
                             >
                                 Request Headers
                             </h5>
@@ -248,12 +243,12 @@ export const networkDetailsPanelTemplate = (event) => {
                     <!-- Timing -->
                     <section>
                         <h5
-                            class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2"
+                            class="text-xs font-bold text-slate-400 r mb-2"
                         >
                             Timing (${totalTime.toFixed(1)}ms)
                         </h5>
                         <div
-                            class="bg-slate-800 rounded-lg border border-slate-800 p-3"
+                            class="bg-white/5 rounded-md border border-white/10 p-3"
                         >
                             ${hasDetailedTiming
             ? html`
@@ -279,13 +274,13 @@ export const networkDetailsPanelTemplate = (event) => {
                 'TLS Handshake',
                 breakdown.tls,
                 totalTime,
-                'bg-purple-500'
+                'bg-white/5'
             )}
                                       ${breakdownBar(
                 'Waiting (TTFB)',
                 breakdown.ttfb,
                 totalTime,
-                'bg-blue-500'
+                'bg-emerald-500/10'
             )}
                                       ${breakdownBar(
                 'Content Download',

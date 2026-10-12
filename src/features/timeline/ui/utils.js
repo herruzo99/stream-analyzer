@@ -3,7 +3,7 @@
  */
 export const TRACK_COLORS = {
     video: {
-        base: '#3b82f6', // blue-500
+        base: '#34d399', // emerald-400
         border: '#60a5fa', // blue-400
         gradient: ['rgba(59, 130, 246, 0.6)', 'rgba(59, 130, 246, 0.2)'],
     },

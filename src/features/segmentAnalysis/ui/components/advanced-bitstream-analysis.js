@@ -494,20 +494,20 @@ class AdvancedBitstreamAnalysis extends HTMLElement {
             tooltipB64
         ) => html`
             <div
-                class="bg-slate-800/50 rounded-xl border border-slate-700/50 p-3 flex flex-col justify-between relative group hover:bg-slate-800 hover:border-slate-600 transition-all duration-200 ${tooltipTriggerClasses}"
+                class="bg-white/5 rounded-md border border-white/10 p-3 flex flex-col justify-between relative group hover:bg-white/5 hover:border-slate-600 transition-all duration-200 ${tooltipTriggerClasses}"
                 data-tooltip-html-b64="${tooltipB64}"
             >
                 <span
-                    class="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1 flex justify-between"
+                    class="text-[10px] font-bold text-slate-500 mb-1 flex justify-between"
                 >
                     ${title}
                     <span
-                        class="text-slate-600 group-hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                        class="text-slate-600 group-hover:text-emerald-200 opacity-0 group-hover:opacity-100 transition-opacity"
                         >${icons.info}</span
                     >
                 </span>
                 <div class="flex items-baseline gap-2">
-                    <span class="text-xl font-mono font-black ${color}"
+                    <span class="text-xl font-mono font-bold ${color}"
                         >${value}</span
                     >
                     ${subtext
@@ -570,7 +570,7 @@ class AdvancedBitstreamAnalysis extends HTMLElement {
                         'Efficiency',
                         efficiencyVal,
                         'I/P Ratio',
-                        'text-blue-400',
+                        'text-emerald-200',
                         effTooltip
                     )}
                     ${metricCard(
@@ -584,7 +584,7 @@ class AdvancedBitstreamAnalysis extends HTMLElement {
                         'GOP',
                         gopVal,
                         gopStructVal,
-                        'text-purple-400',
+                        'text-slate-300',
                         gopTooltip
                     )}
                 </div>
@@ -593,13 +593,13 @@ class AdvancedBitstreamAnalysis extends HTMLElement {
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 grow min-h-0">
                     <!-- Left: Hero Chart (Span 2) -->
                     <div
-                        class="lg:col-span-2 bg-slate-900 rounded-xl border border-slate-800 p-1 flex flex-col shadow-sm relative overflow-hidden"
+                        class="lg:col-span-2 bg-white/5 rounded-md border border-white/10 p-1 flex flex-col relative overflow-hidden"
                     >
                         <div
                             class="absolute top-3 left-4 z-10 pointer-events-none"
                         >
                             <h3
-                                class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2"
+                                class="text-xs font-bold text-slate-400 r flex items-center gap-2"
                             >
                                 ${icons.activity} Bitstream DNA
                             </h3>
@@ -616,13 +616,13 @@ class AdvancedBitstreamAnalysis extends HTMLElement {
                     <div class="flex flex-col gap-4 min-h-0">
                         <!-- Distribution -->
                         <div
-                            class="flex-1 bg-slate-900 rounded-xl border border-slate-800 p-1 flex flex-col relative overflow-hidden"
+                            class="flex-1 bg-white/5 rounded-md border border-white/10 p-1 flex flex-col relative overflow-hidden"
                         >
                             <div
                                 class="absolute top-3 left-4 z-10 pointer-events-none"
                             >
                                 <h3
-                                    class="text-xs font-bold text-slate-400 uppercase tracking-wider"
+                                    class="text-xs font-bold text-slate-400 r"
                                 >
                                     Size Distribution
                                 </h3>
@@ -637,13 +637,13 @@ class AdvancedBitstreamAnalysis extends HTMLElement {
 
                         <!-- GOP Health -->
                         <div
-                            class="flex-1 bg-slate-900 rounded-xl border border-slate-800 p-1 flex flex-col relative overflow-hidden"
+                            class="flex-1 bg-white/5 rounded-md border border-white/10 p-1 flex flex-col relative overflow-hidden"
                         >
                             <div
                                 class="absolute top-3 left-4 z-10 pointer-events-none"
                             >
                                 <h3
-                                    class="text-xs font-bold text-slate-400 uppercase tracking-wider"
+                                    class="text-xs font-bold text-slate-400 r"
                                 >
                                     GOP Consistency
                                 </h3>

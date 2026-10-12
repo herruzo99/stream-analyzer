@@ -6,7 +6,7 @@ import { html } from 'lit-html';
 
 const kv = (k, v) => html`
     <div
-        class="flex justify-between text-[10px] border-b border-slate-800 py-1 last:border-0"
+        class="flex justify-between text-[10px] border-b border-white/10 py-1 last:border-0"
     >
         <span class="text-slate-500 font-semibold">${k}</span>
         <span
@@ -25,9 +25,9 @@ const timelineTable = (el) => {
         </div>`;
 
     return html`
-        <div class="mt-2 overflow-hidden rounded border border-slate-700">
+        <div class="mt-2 overflow-hidden rounded border border-white/10">
             <table class="w-full text-[10px] text-left">
-                <thead class="bg-slate-800 text-slate-400 font-semibold">
+                <thead class="bg-white/5 text-slate-400 font-semibold">
                     <tr>
                         <th class="px-2 py-1">Start (t)</th>
                         <th class="px-2 py-1">Dur (d)</th>
@@ -35,7 +35,7 @@ const timelineTable = (el) => {
                     </tr>
                 </thead>
                 <tbody
-                    class="bg-slate-900/50 divide-y divide-slate-800 font-mono"
+                    class="bg-white/5 divide-y divide-white/10 font-mono"
                 >
                     ${s.slice(0, 10).map(
                         (entry) => html`
@@ -88,20 +88,20 @@ export const timingInfoTemplate = (data, stream) => {
     return html`
         <div class="grid grid-cols-1 gap-3">
             <div>
-                <h4 class="text-[10px] font-bold text-slate-400 uppercase mb-1">
+                <h4 class="text-[10px] font-bold text-slate-400 mb-1">
                     Attributes
                 </h4>
-                <div class="bg-slate-800/50 rounded p-2">
+                <div class="bg-white/5 rounded p-2">
                     ${commonProps}
                     ${getAttr(element, 'media')
                         ? html`
-                              <div class="mt-1 pt-1 border-t border-slate-700">
+                              <div class="mt-1 pt-1 border-t border-white/10">
                                   <span
                                       class="text-[10px] text-slate-500 block mb-0.5"
                                       >Template</span
                                   >
                                   <code
-                                      class="text-[9px] text-blue-300 break-all bg-slate-900 px-1 py-0.5 rounded block"
+                                      class="text-[9px] text-emerald-200 break-all bg-white/5 px-1 py-0.5 rounded block"
                                       >${getAttr(element, 'media')}</code
                                   >
                               </div>
@@ -113,7 +113,7 @@ export const timingInfoTemplate = (data, stream) => {
                 ? html`
                       <div>
                           <h4
-                              class="text-[10px] font-bold text-slate-400 uppercase mb-1"
+                              class="text-[10px] font-bold text-slate-400 mb-1"
                           >
                               Timeline
                           </h4>

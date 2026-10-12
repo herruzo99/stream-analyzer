@@ -22,7 +22,9 @@ export const getSmartTokenDetails = (
     // When the S-aggregator parent panel renders alongside (sidebar shows
     // it as PARENT CONTEXT), the child d/t/r panel skips its own verdict
     // hero + timeline strip so the run logic isn't duplicated.
-    suppressVerdictPanel = false
+    suppressVerdictPanel = false,
+    // Extra badge context (e.g. SegmentTimeline child runs).
+    extra = {}
 ) => {
     const context = {
         timescale: contextTimescale,
@@ -33,6 +35,7 @@ export const getSmartTokenDetails = (
         now,
         isSpdActive,
         suppressVerdictPanel,
+        ...extra,
     };
 
     return SmartBadgeService.getDetails(key, value, context);
@@ -51,8 +54,15 @@ export const renderSmartToken = (
     pto = null,
     spd = null,
     now = null,
-    isSpdActive = false
+    isSpdActive = false,
+    // Extra badge context (e.g. SegmentTimeline child runs).
+    extra = {},
+    // Global kill-switch (SMART toggle): when false, no pills render.
+    // Threaded as an explicit arg (not a store import) so the domain
+    // stays UI-store-free and unit-testable.
+    smartTagsEnabled = true
 ) => {
+    if (!smartTagsEnabled) return null;
     const context = {
         timescale: contextTimescale,
         anchorTime,
@@ -61,6 +71,7 @@ export const renderSmartToken = (
         allAttributes,
         now,
         isSpdActive,
+        ...extra,
     };
 
     return SmartBadgeService.renderBadge(key, value, context);

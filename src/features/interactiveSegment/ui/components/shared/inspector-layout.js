@@ -9,17 +9,13 @@ const mobileTabButton = (label, tabKey, icon) => {
     return html`
         <button
             @click=${() => uiActions.setInteractiveSegmentActiveTab(tabKey)}
-            class="flex-1 flex flex-col items-center justify-center py-3 transition-all duration-200 border-t-2 ${isActive
-                ? 'text-blue-400 border-[#3b82f6] bg-[#3b82f6]/5 shadow-[0_-5px_15px_#3b82f6/10]'
-                : 'text-slate-400 border-transparent hover:text-slate-100 hover:bg-slate-800/50'}"
+            class="flex-1 flex flex-col items-center justify-center py-3 transition-all duration-200 border-t-2 ${isActive ? 'text-emerald-200 border-[#3b82f6] bg-[#3b82f6]/5 ' : 'text-slate-400 border-transparent hover:text-slate-100 hover:bg-white/10'}"
         >
             <span
-                class="${isActive
-                    ? 'scale-110 drop-shadow-[0_0_5px_#3b82f6/50]'
-                    : ''} transition-transform duration-200"
+                class="${isActive ? 'scale-110 drop-' : ''} transition-transform duration-200"
                 >${icon}</span
             >
-            <span class="text-[10px] font-bold mt-1 uppercase tracking-wider"
+            <span class="text-[10px] font-bold mt-1 r"
                 >${label}</span
             >
         </button>
@@ -39,17 +35,17 @@ export const inspectorLayoutTemplate = ({
         hidden: interactiveSegmentActiveTab !== key,
         'h-full': true,
         'w-full': true,
-        'animate-fadeIn': true,
+        '': true,
     });
 
     return html`
         <div
-            class="h-full w-full bg-slate-900 flex flex-col overflow-hidden relative"
+            class="h-full w-full bg-white/5 flex flex-col overflow-hidden relative"
         >
             <!-- Optional Toolbar -->
             ${toolbar
                 ? html`<div
-                      class="shrink-0 border-b border-slate-800 bg-slate-800/90 backdrop-blur-md z-20 relative shadow-sm"
+                      class="shrink-0 border-b border-white/10 bg-white/5 z-20 relative"
                   >
                       ${toolbar}
                   </div>`
@@ -57,25 +53,25 @@ export const inspectorLayoutTemplate = ({
 
             <!-- Desktop Grid Layout -->
             <div
-                class="hidden lg:grid lg:grid-cols-[300px_auto_1fr] grow min-h-0 divide-x divide-slate-700"
+                class="hidden lg:grid lg:grid-cols-[300px_auto_1fr] grow min-h-0 divide-x divide-white/10"
             >
                 <!-- Left: Structure Tree (Surface B) -->
                 <div
-                    class="h-full min-h-0 flex flex-col bg-slate-800/30 backdrop-blur-sm overflow-y-auto relative"
+                    class="h-full min-h-0 flex flex-col bg-white/5 overflow-y-auto relative"
                 >
                     ${structureContent}
                 </div>
 
                 <!-- Center: Hex View (Surface A - The Workbench) -->
                 <div
-                    class="h-full min-h-0 min-w-[790px] flex flex-col bg-slate-900 relative z-10 shadow-2xl overflow-hidden"
+                    class="h-full min-h-0 min-w-[790px] flex flex-col bg-white/5 relative z-10 overflow-hidden"
                 >
                     ${hexContent}
                 </div>
 
                 <!-- Right: Inspector (Surface B) -->
                 <div
-                    class="h-full min-h-0 flex flex-col bg-slate-800/50 backdrop-blur-md overflow-y-auto relative border-l border-slate-700"
+                    class="h-full min-h-0 flex flex-col bg-white/5 overflow-y-auto relative border-l border-white/10"
                 >
                     ${inspectorContent}
                 </div>
@@ -83,7 +79,7 @@ export const inspectorLayoutTemplate = ({
 
             <!-- Mobile Layout -->
             <div
-                class="lg:hidden flex flex-col grow min-h-0 relative bg-slate-900"
+                class="lg:hidden flex flex-col grow min-h-0 relative bg-white/5"
             >
                 <div class="grow min-h-0 relative">
                     <div class=${classMap(mobileViewClasses('structure'))}>
@@ -99,7 +95,7 @@ export const inspectorLayoutTemplate = ({
 
                 <!-- Mobile Bottom Nav -->
                 <div
-                    class="shrink-0 bg-slate-800/95 backdrop-blur-xl border-t border-slate-800 flex items-stretch z-50 pb-safe shadow-[0_-5px_20px_rgba(0,0,0,0.3)]"
+                    class="shrink-0 bg-white/5 border-t border-white/10 flex items-stretch z-50 pb-safe"
                 >
                     ${mobileTabButton(
                         'Structure',

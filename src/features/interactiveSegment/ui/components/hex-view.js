@@ -25,10 +25,10 @@ const getCachedRows = (buffer) => {
 
 // Static color map to avoid recreation on every render
 const THEME_COLOR_MAP = {
-    1: 'bg-blue-500/30 text-blue-300',
+    1: 'bg-emerald-500/10 text-emerald-200',
     2: 'bg-emerald-500/30 text-emerald-300',
     3: 'bg-amber-500/30 text-amber-300',
-    4: 'bg-purple-500/30 text-purple-300',
+    4: 'bg-white/5 text-slate-300',
     5: 'bg-slate-500/30 text-[#64748b]',
     6: 'bg-rose-500/30 text-[#f43f5e]',
     7: 'bg-cyan-500/30 text-[#06b6d4]',
@@ -65,7 +65,7 @@ export class HexViewComponent extends HTMLElement {
             'flex-col',
             'h-full',
             'overflow-hidden',
-            'bg-slate-900',
+            'bg-white/5',
             'relative'
         );
         this.renderStructure();
@@ -347,7 +347,7 @@ export class HexViewComponent extends HTMLElement {
             // Precedence: Field Hover > Selection > Box Hover
             if (isHovered && isFieldHover) {
                 // Field Hover (Highest Priority)
-                bgClass = 'bg-slate-800';
+                bgClass = 'bg-white/5';
                 textClass = 'text-slate-100 font-bold';
             } else if (isSelected) {
                 // Selection (Medium Priority)
@@ -355,7 +355,7 @@ export class HexViewComponent extends HTMLElement {
                 textClass = 'text-slate-100 font-bold';
             } else if (isHovered) {
                 // Box Hover (Lowest Priority)
-                bgClass = 'bg-slate-800';
+                bgClass = 'bg-white/5';
                 textClass = 'text-slate-100 font-bold';
             } else if (isRange) {
                 bgClass = 'bg-[var(--secondary-500)]/20';
@@ -452,11 +452,11 @@ export class HexViewComponent extends HTMLElement {
 
         return html`
             <div
-                class="flex font-mono h-5 hover:bg-slate-800/30 min-w-[580px]"
+                class="flex font-mono h-5 hover:bg-white/10 min-w-[580px]"
                 style="contain: content; transform: translateZ(0);"
             >
                 <div
-                    class="w-24 text-right pr-4 text-slate-400 select-none bg-slate-800/50 border-r border-slate-800 shrink-0 text-[10px] leading-5"
+                    class="w-24 text-right pr-4 text-slate-400 select-none bg-white/5 border-r border-white/10 shrink-0 text-[10px] leading-5"
                 >
                     ${rowStartOffset
                         .toString(16)
@@ -464,7 +464,7 @@ export class HexViewComponent extends HTMLElement {
                         .toUpperCase()}
                 </div>
                 <div class="flex px-3 select-none shrink-0">${byteNodes}</div>
-                <div class="w-px bg-slate-700 mx-2 shrink-0"></div>
+                <div class="w-px bg-white/5 mx-2 shrink-0"></div>
                 <div class="flex select-none shrink-0">${asciiNodes}</div>
             </div>
         `;
@@ -476,24 +476,24 @@ export class HexViewComponent extends HTMLElement {
             : '0.00';
         const template = html`
             <div
-                class="shrink-0 h-10 bg-slate-800/80 backdrop-blur-md border-b border-slate-800 flex items-center justify-between px-4 shadow-sm z-30 relative"
+                class="shrink-0 h-10 bg-white/5 border-b border-white/10 flex items-center justify-between px-4 z-30 relative"
             >
                 <div
                     class="text-xs font-bold text-slate-400 flex items-center gap-2"
                 >
                     ${icons.binary}
-                    <span class="uppercase tracking-wider"
+                    <span class="r"
                         >Bitstream Explorer</span
                     >
                     <span
-                        class="bg-slate-800 text-slate-400 px-1.5 rounded border border-slate-800 font-mono"
+                        class="bg-white/5 text-slate-400 px-1.5 rounded border border-white/10 font-mono"
                         >${fileSizeKB} KB</span
                     >
                 </div>
                 <div class="flex gap-1">
                     <button
                         @click=${() => this.handleCopy('hex')}
-                        class="p-1.5 text-slate-400 hover:text-slate-100 transition-colors rounded hover:bg-slate-800"
+                        class="p-1.5 text-slate-400 hover:text-slate-100 transition-colors rounded hover:bg-white/10"
                         title="Copy Hex"
                     >
                         ${icons.clipboardCopy}
@@ -502,7 +502,7 @@ export class HexViewComponent extends HTMLElement {
             </div>
 
             <div
-                class="flex bg-slate-800/90 border-b border-slate-800 text-[10px] font-bold text-slate-400 uppercase py-1.5 select-none z-20 backdrop-blur font-mono min-w-[580px] overflow-hidden"
+                class="flex bg-white/5 border-b border-white/10 text-[10px] font-bold text-slate-400 py-1.5 select-none z-20 font-mono min-w-[580px] overflow-hidden"
             >
                 <div class="w-24 text-right pr-4 shrink-0">Offset</div>
                 <div class="w-[384px] px-3 shrink-0">

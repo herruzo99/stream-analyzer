@@ -12,7 +12,7 @@ import { html } from 'lit-html';
 const selector = (id, entries, selected, onSelect, label) => html`
     <label class="flex flex-col gap-1 min-w-0">
         <span
-            class="text-[10px] font-bold uppercase tracking-widest text-slate-400"
+            class="text-[10px] font-bold text-slate-400"
             >${label}</span
         >
         <select
@@ -23,7 +23,7 @@ const selector = (id, entries, selected, onSelect, label) => html`
                 );
                 if (entry) onSelect(entry);
             }}
-            class="w-full bg-slate-800 border border-slate-700 text-slate-100 text-xs rounded-lg px-2 py-2 outline-none focus:border-blue-500 font-mono"
+            class="w-full bg-white/5 border border-white/10 text-slate-100 text-xs rounded-md px-2 py-2 outline-none focus:border-emerald-400/25 font-mono"
         >
             ${entries.length === 0
                 ? html`<option value="">No segments</option>`
@@ -61,7 +61,7 @@ export const comparisonHeaderTemplate = ({
             )}
         </div>
         <div
-            class="pb-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest shrink-0"
+            class="pb-2 text-[10px] font-bold text-slate-500 shrink-0"
         >
             vs
         </div>

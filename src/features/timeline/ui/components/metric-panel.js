@@ -6,8 +6,8 @@ const statusColors = {
     success: 'text-emerald-400 border-emerald-500/30 bg-emerald-900/10',
     warning: 'text-amber-400 border-amber-500/30 bg-amber-900/10',
     error: 'text-red-400 border-red-500/30 bg-red-900/10',
-    neutral: 'text-slate-300 border-slate-700 bg-slate-800/50',
-    info: 'text-blue-400 border-blue-500/30 bg-blue-900/10',
+    neutral: 'text-slate-300 border-white/10 bg-white/5',
+    info: 'text-emerald-200 border-emerald-400/25 bg-emerald-500/10',
 };
 
 /**
@@ -41,7 +41,7 @@ const createTooltipContent = (metric) => {
             }
             ${
                 metric.technical
-                    ? `<div class="text-[10px] font-mono text-blue-200 bg-blue-900/20 p-1.5 rounded border border-blue-500/20 break-all">
+                    ? `<div class="text-[10px] font-mono text-emerald-200 bg-emerald-500/10 p-1.5 rounded border border-emerald-400/25 break-all">
                     ${metric.technical}
                 </div>`
                     : ''
@@ -60,11 +60,11 @@ const metricItem = (m) => {
         flex: true,
         'flex-col': true,
         'p-2.5': true,
-        'rounded-lg': true,
+        'rounded-md': true,
         border: true,
         'transition-all': true,
         'duration-200': true,
-        'hover:bg-slate-800': true,
+        'hover:bg-white/10': true,
         // Add tooltip trigger class to enable global event listener
         [tooltipTriggerClasses]: true,
     };
@@ -77,7 +77,7 @@ const metricItem = (m) => {
         <div class="${className}" data-tooltip-html-b64="${tooltipB64}">
             <div class="flex justify-between items-start mb-1">
                 <span
-                    class="text-[10px] font-bold uppercase tracking-wider opacity-70"
+                    class="text-[10px] font-bold r opacity-70"
                     >${m.name}</span
                 >
                 <span class="scale-75 opacity-60">${icons[m.icon]}</span>
@@ -100,10 +100,10 @@ export const metricPanelTemplate = (groups) => {
             ${groups.map(
                 (group) => html`
                     <div
-                        class="bg-slate-900/50 rounded-xl border border-slate-800 p-4 shadow-sm"
+                        class="bg-white/5 rounded-md border border-white/10 p-4"
                     >
                         <h4
-                            class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2"
+                            class="text-xs font-bold text-slate-500 r mb-3 flex items-center gap-2"
                         >
                             ${group.title}
                         </h4>

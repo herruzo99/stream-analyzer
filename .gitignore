@@ -10,6 +10,14 @@ yarn-error.log
 dist/
 deployment/
 
+# Tooling / agent artifacts
+.codegraph/
+.pi/
+.serena/
+.tmp/
+*.tmp.mjs
+*.backup
+
 # Nix & direnv
 .direnv/
 result*

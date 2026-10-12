@@ -1,5 +1,6 @@
 import { showToast } from '@/ui/components/toast';
 import { createStore } from 'zustand/vanilla';
+import { randomId } from '@/shared/utils/random.js';
 
 const STORAGE_KEY = 'stream-analyzer_test_suites';
 
@@ -111,12 +112,15 @@ export const useTestSuiteStore = createStore((set, get) => ({
     suites: loadSuites(),
     activeSuiteId: null,
     lastRunResult: null,
+    // Live run state: idle | running. Progress 0..1 while running.
+    runState: 'idle',
+    runProgress: 0,
 
     addSuite: (suite) => {
         set((state) => {
             const newSuites = [
                 ...state.suites,
-                { ...suite, id: crypto.randomUUID() },
+                { ...suite, id: randomId() },
             ];
             saveSuites(newSuites);
             return {
@@ -141,11 +145,11 @@ export const useTestSuiteStore = createStore((set, get) => ({
             // Regenerate IDs to avoid collisions with existing suites
             const importedSuite = {
                 ...suiteData,
-                id: crypto.randomUUID(),
+                id: randomId(),
                 name: `${suiteData.name} (Imported)`,
                 assertions: suiteData.assertions.map((a) => ({
                     ...a,
-                    id: crypto.randomUUID(),
+                    id: randomId(),
                 })),
             };
 
@@ -174,17 +178,52 @@ export const useTestSuiteStore = createStore((set, get) => ({
         set((state) => {
             const newSuites = state.suites.filter((s) => s.id !== id);
             saveSuites(newSuites);
+            const removingActive = state.activeSuiteId === id;
+            const last = state.lastRunResult;
+            const lastSuiteId = last?.suiteId ?? last?.suite?.id;
             return {
                 suites: newSuites,
-                activeSuiteId:
-                    state.activeSuiteId === id ? null : state.activeSuiteId,
+                activeSuiteId: removingActive ? null : state.activeSuiteId,
+                lastRunResult: lastSuiteId === id ? null : last,
             };
         });
     },
 
-    setActiveSuiteId: (id) => set({ activeSuiteId: id, lastRunResult: null }),
+    exportSuite: (id) => {
+        const suite = get().suites.find((s) => s.id === id);
+        if (!suite) {
+            showToast({ message: 'Suite not found.', type: 'fail' });
+            return;
+        }
+        try {
+            const blob = new Blob([JSON.stringify(suite, null, 2)], {
+                type: 'application/json;charset=utf-8',
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${suite.name || 'suite'}.regression.json`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            showToast({
+                message: `Exported “${suite.name}”.`,
+                type: 'pass',
+            });
+        } catch {
+            showToast({ message: 'Export failed.', type: 'fail' });
+        }
+    },
+
+    // Switching suites keeps prior results: the runner shows results
+    // only when they belong to the active suite.
+    setActiveSuiteId: (id) => set({ activeSuiteId: id }),
 
     setLastRunResult: (result) => set({ lastRunResult: result }),
+
+    setRunState: (runState, runProgress = 0) =>
+        set({ runState, runProgress }),
 
     resetDefaults: () => {
         set({ suites: [...DEFAULT_SUITES] });

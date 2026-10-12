@@ -1,19 +1,19 @@
+import { uiActions, useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
 import { html, render } from 'lit-html';
-import { styleMap } from 'lit-html/directives/style-map.js';
+
+const TABS = [
+    { id: 'shaka', label: 'shaka', icon: icons.play },
+    { id: 'hlsjs', label: 'hls.js', icon: icons.layers },
+    { id: 'dashjs', label: 'dash.js', icon: icons.activity },
+    { id: 'html5', label: 'native', icon: icons.code },
+];
 
 class IntegrationGuide extends HTMLElement {
     constructor() {
         super();
         this._data = null;
-        this._isGlass = false;
-        this.activeTab = 'shaka'; // default
-    }
-
-    set isGlass(val) {
-        this._isGlass = val;
-        this.render();
     }
 
     set data(val) {
@@ -25,106 +25,91 @@ class IntegrationGuide extends HTMLElement {
         this.render();
     }
 
+    get activeTab() {
+        const { integratorReportActiveTab } = useUiStore.getState();
+        return TABS.some((t) => t.id === integratorReportActiveTab)
+            ? integratorReportActiveTab
+            : 'shaka';
+    }
+
     setActiveTab(tab) {
-        this.activeTab = tab;
+        uiActions.setIntegratorReportActiveTab(tab);
         this.render();
     }
 
     handleCopy() {
-        const code = this._data.codeSnippets[this.activeTab];
-        copyTextToClipboard(code, 'Code snippet copied!');
+        const snippets = this._data?.codeSnippets;
+        const code = snippets?.[this.activeTab];
+        if (typeof code === 'string' && code)
+            copyTextToClipboard(code, 'snippet copied');
+    }
+
+    handleCopyAll() {
+        const snippets = this._data?.codeSnippets;
+        if (!snippets) return;
+        const all = TABS.map(
+            ({ id, label }) =>
+                `--- ${label} ---\n${snippets[id] || '(unavailable)'}`
+        ).join('\n\n');
+        copyTextToClipboard(all, 'all snippets copied');
     }
 
     render() {
         if (!this._data) return;
         const { codeSnippets } = this._data;
-        const code = codeSnippets[this.activeTab];
-
-        const tabBtn = (id, label, icon) => html`
-            <button
-                @click=${() => this.setActiveTab(id)}
-                class="px-4 py-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 relative group overflow-hidden ${this
-                .activeTab === id
-                ? 'border-blue-500 text-slate-200 bg-slate-900/10'
-                : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/5'}"
-            >
-                ${this.activeTab === id
-                ? html`<div
-                          class="absolute inset-0 bg-blue-500/10 blur-md"
-                      ></div>`
-                : ''}
-                ${icon
-                ? html`<span
-                          class="scale-90 relative z-10 ${this.activeTab === id
-                        ? 'text-[#60a5fa]'
-                        : ''}"
-                          >${icon}</span
-                      >`
-                : ''}
-                <span class="relative z-10 tracking-wide">${label}</span>
-            </button>
-        `;
-
-        const glassStyles = {
-            borderRadius: '0.75rem',
-            backdropFilter: 'blur(12px)',
-            boxShadow: '0 8px 30px rgb(0 0 0 / 0.35)',
-            background: '#1e293b',
-        };
-
-        const containerClass = this._isGlass
-            ? "flex flex-col h-full relative overflow-hidden group"
-            : "flex flex-col h-full relative overflow-hidden group bg-slate-800 border border-slate-800 rounded-sm";
+        const activeTab = this.activeTab;
+        const code = codeSnippets?.[activeTab] ?? '';
 
         const template = html`
-            <div
-                class="${containerClass}"
-                style=${styleMap(this._isGlass ? glassStyles : {})}
-            >
-                <!-- Top Accent -->
-                <div
-                    class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500/50 via-[#60a5fa]/50 to-blue-500/50 opacity-50"
-                ></div>
-
-                <div
-                    class="shrink-0 bg-slate-800/50 border-b border-slate-800 flex justify-between items-center pr-3"
-                >
-                    <div class="flex">
-                        ${tabBtn('shaka', 'Shaka Player', icons.play)}
-                        ${tabBtn('hlsjs', 'HLS.js', icons.layers)}
-                        ${tabBtn('dashjs', 'Dash.js', icons.activity)}
-                        ${tabBtn('html5', 'Native / HTML5', icons.code)}
+            <div class="flex flex-col h-full rounded-md border border-white/5 bg-[#0b111c] overflow-hidden">
+                <div class="shrink-0 border-b border-white/5 flex items-stretch">
+                    <div class="flex grow min-w-0 overflow-x-auto custom-scrollbar">
+                        ${TABS.map(
+                            ({ id, label, icon }) => html`
+                                <button
+                                    @click=${() => this.setActiveTab(id)}
+                                    aria-pressed=${activeTab === id}
+                                    class="px-3.5 py-2.5 mono text-[11px] border-b transition-colors flex items-center gap-1.5 whitespace-nowrap ${activeTab === id
+                                        ? 'border-emerald-400/60 text-slate-100 bg-white/[0.03]'
+                                        : 'border-transparent text-slate-500 hover:text-slate-200'}"
+                                >
+                                    <span class="${activeTab === id ? 'text-emerald-300' : 'text-slate-600'}">${icon}</span>
+                                    ${label}
+                                </button>
+                            `
+                        )}
                     </div>
-                    <button
-                        @click=${() => this.handleCopy()}
-                        class="text-slate-400 hover:text-slate-200 p-2 rounded-lg hover:bg-slate-900/10 transition-all active:scale-95"
-                        title="Copy Code"
-                    >
-                        ${icons.clipboardCopy}
-                    </button>
+                    <div class="flex items-center gap-1 px-2 shrink-0">
+                        <button
+                            @click=${() => this.handleCopyAll()}
+                            class="p-1.5 rounded-md text-slate-500 hover:text-slate-100 hover:bg-white/5 transition-colors"
+                            title="Copy all snippets"
+                            aria-label="Copy all snippets"
+                        >
+                            ${icons.layers}
+                        </button>
+                        <button
+                            @click=${() => this.handleCopy()}
+                            class="p-1.5 rounded-md text-slate-500 hover:text-slate-100 hover:bg-white/5 transition-colors"
+                            title="Copy this snippet"
+                            aria-label="Copy this snippet"
+                        >
+                            ${icons.clipboardCopy}
+                        </button>
+                    </div>
                 </div>
 
-                <div
-                    class="relative grow bg-slate-900 group border-t border-slate-800 min-h-0"
-                >
-                    <div
-                        class="absolute inset-0 bg-gradient-to-b from-black/5 to-transparent pointer-events-none"
-                    ></div>
+                <div class="relative grow min-h-0 bg-black/40">
                     <pre
-                        class="absolute inset-0 p-6 overflow-auto custom-scrollbar text-xs font-mono leading-relaxed text-slate-100 selection:bg-blue-500/30"
+                        class="absolute inset-0 p-4 overflow-auto custom-scrollbar font-mono text-[12px] leading-relaxed text-slate-200"
                     ><code>${code}</code></pre>
                 </div>
 
-                <div
-                    class="shrink-0 p-3 bg-slate-800/50 border-t border-slate-800 text-[10px] text-slate-400 flex justify-between font-medium"
-                >
-                    <span class="flex items-center gap-2">
-                        <span
-                            class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"
-                        ></span>
-                        Generated for ${this.activeTab} integration
+                <div class="shrink-0 px-4 py-2 border-t border-white/5 flex items-center justify-between">
+                    <span class="mono text-[10px] text-slate-600">
+                        generated for ${activeTab}
                     </span>
-                    <span class="font-mono opacity-70">JavaScript</span>
+                    <span class="mono text-[10px] text-slate-600">javascript</span>
                 </div>
             </div>
         `;
@@ -133,7 +118,9 @@ class IntegrationGuide extends HTMLElement {
     }
 }
 
-customElements.define('integration-guide', IntegrationGuide);
+if (!customElements.get('integration-guide')) {
+    customElements.define('integration-guide', IntegrationGuide);
+}
 
-export const integrationGuideTemplate = (vm, isGlass) =>
-    html`<integration-guide .data=${vm} .isGlass=${isGlass}></integration-guide>`;
+export const integrationGuideTemplate = (vm) =>
+    html`<integration-guide .data=${vm}></integration-guide>`;

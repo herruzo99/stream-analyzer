@@ -114,16 +114,16 @@ class SignalMonitorAudio extends HTMLElement {
     render() {
         // Compact Audio Monitor (Horizontal Layout)
         const meterBar = (id) => html`
-            <div class="relative w-1.5 h-full bg-slate-800 rounded-full overflow-hidden border border-slate-800/30 group mx-0.5">
+            <div class="relative w-1.5 h-full bg-white/5 rounded-full overflow-hidden border border-white/10 group mx-0.5">
                 <div id="${id}"
-                    class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-emerald-500 via-amber-500 to-red-500 opacity-90 transition-[height] duration-75 ease-linear"
+                    class="absolute bottom-0 left-0 right-0 bg-emerald-400 opacity-90 transition-[height] duration-75 ease-linear"
                     style="height: 0%"
                 ></div>
             </div>
         `;
 
         const template = html`
-            <div class="h-full w-full flex items-center bg-slate-800 px-3 gap-3 backdrop-blur-md">
+            <div class="h-full w-full flex items-center bg-white/5 px-3 gap-3">
                 
                 <!-- 1. Meters (L/R) -->
                 <div class="h-12 flex items-end justify-center">
@@ -139,11 +139,11 @@ class SignalMonitorAudio extends HTMLElement {
                 </div>
 
                 <!-- 3. Phase Correlation (Simple Horizontal Bar or Compact Needle) -->
-                <div class="w-16 h-8 relative shrink-0 border-l border-slate-800/30 pl-3 ml-1">
+                <div class="w-16 h-8 relative shrink-0 border-l border-white/10 pl-3 ml-1">
                     <div class="w-full h-full relative overflow-hidden">
                         <!-- Scale -->
-                        <div class="absolute bottom-0 left-1/2 w-px h-full bg-slate-800/30"></div>
-                        <div class="absolute bottom-0 left-0 right-0 h-px bg-slate-800/30"></div>
+                        <div class="absolute bottom-0 left-1/2 w-px h-full bg-white/5"></div>
+                        <div class="absolute bottom-0 left-0 right-0 h-px bg-white/5"></div>
                         
                         <!-- Needle -->
                         <div id="phase-needle"
@@ -291,15 +291,12 @@ class SignalMonitorVideo extends HTMLElement {
             icon,
             label,
             onClick,
-            activeColor = 'bg-blue-500'
+            activeColor = 'bg-emerald-500/10'
         ) => html`
             <button
                 @click=${onClick}
                 ?disabled=${isDrmLocked || isRestricted}
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all ${active
-                ? `${activeColor} text-white border-transparent shadow-[0_0_10px_#3b82f6]`
-                : 'bg-slate-800 border-slate-800/50 text-slate-400 hover:bg-slate-800 hover:text-slate-100 hover:border-slate-800'} 
-                       disabled:opacity-50 disabled:cursor-not-allowed text-[10px] font-bold uppercase tracking-wider whitespace-nowrap"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-md border transition-all ${active ? `${activeColor} text-white border-transparent ` : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 hover:text-slate-100 hover:border-white/10'} disabled:opacity-50 disabled:cursor-not-allowed text-[10px] font-bold r whitespace-nowrap"
             >
                 <span class="scale-90">${icon}</span>
                 <span>${label}</span>
@@ -310,7 +307,7 @@ class SignalMonitorVideo extends HTMLElement {
         if (isDrmLocked) {
             overlay = html`
                 <div
-                    class="absolute inset-0 z-20 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center text-slate-400 p-4 text-center"
+                    class="absolute inset-0 z-20 bg-black/80 flex flex-col items-center justify-center text-slate-400 p-4 text-center"
                 >
                     <div class="text-amber-400 mb-2 scale-150">
                         ${icons.shield}
@@ -329,7 +326,7 @@ class SignalMonitorVideo extends HTMLElement {
         } else if (isRestricted) {
             overlay = html`
                 <div
-                    class="absolute inset-0 z-20 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center text-slate-400 p-4"
+                    class="absolute inset-0 z-20 bg-black/80 flex flex-col items-center justify-center text-slate-400 p-4"
                 >
                     <div class="text-red-400 mb-2">
                         ${icons.lockClosed}
@@ -341,13 +338,13 @@ class SignalMonitorVideo extends HTMLElement {
 
         const template = html`
             <div
-                class="flex flex-col h-full bg-slate-800 border-t border-slate-800/50 relative overflow-hidden backdrop-blur-3xl"
+                class="flex flex-col h-full bg-white/5 border-t border-white/10 relative overflow-hidden"
             >
                 ${overlay}
 
                 <!-- Top Controls Toolbar -->
                 <div
-                    class="w-full shrink-0 bg-slate-800 border-b border-slate-800/50 flex items-center p-2 gap-2 z-10 overflow-x-auto custom-scrollbar backdrop-blur-xl"
+                    class="w-full shrink-0 bg-white/5 border-b border-white/10 flex items-center p-2 gap-2 z-10 overflow-x-auto custom-scrollbar"
                 >
                     ${btn(
             this._state.showWaveform,
@@ -372,7 +369,7 @@ class SignalMonitorVideo extends HTMLElement {
         )}
 
                     <div
-                        class="h-6 w-px bg-slate-800/30 mx-1 shrink-0"
+                        class="h-6 w-px bg-white/5 mx-1 shrink-0"
                     ></div>
 
                     ${btn(

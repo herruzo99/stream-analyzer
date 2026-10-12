@@ -1,7 +1,7 @@
 import * as icons from '@/ui/icons';
+import { uiActions, useUiStore } from '@/state/uiStore';
 import { html } from 'lit-html';
-import { featureTileTemplate } from './feature-tile.js';
-import { styleMap } from 'lit-html/directives/style-map.js';
+import { featureSlug } from './feature-slug.js';
 
 const CATEGORY_ICONS = {
     'Core Streaming': icons.server,
@@ -12,82 +12,92 @@ const CATEGORY_ICONS = {
     'Accessibility & Metadata': icons.fileText,
 };
 
-const layoutCardStyles = {
-    
-    borderRadius: '0.75rem',
-    boxShadow: '0 8px 30px rgb(0 0 0 / 0.35)',
-    backdropFilter: 'blur(12px)',
-    background: '#1e293b',
-};
+export const featureMatrixTemplate = (groupedFeatures) => {
+    const { featuresSelectedId } = useUiStore.getState();
 
-export const featureMatrixTemplate = (groupedFeatures, categoryStats = {}) => {
     return html`
-        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3" style="gap: 0.75rem">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
             ${Object.entries(groupedFeatures).map(([category, features]) => {
-        // Use global stats if available, otherwise fall back to view-only counts
-        const stats = categoryStats[category] || {
-            used: features.filter((f) => f.used).length,
-            total: features.length
-        };
+                const list = Array.isArray(features) ? features : [];
+                const activeCount = list.filter((f) => f.used).length;
+                const totalCount = list.length;
+                const categoryIcon = CATEGORY_ICONS[category] || icons.tag;
+                const pct =
+                    totalCount > 0
+                        ? Math.round((activeCount / totalCount) * 100)
+                        : 0;
 
-        const activeCount = stats.used;
-        const totalCount = stats.total;
-        const categoryIcon = CATEGORY_ICONS[category] || icons.tag;
-
-        // Calculate category health/activity
-        const activityPercent = (activeCount / totalCount) * 100;
-        let barColor = 'bg-slate-900/50';
-        // Check activeCount against totalCount correctly for color status
-        if (activeCount > 0) barColor = 'bg-blue-500';
-        if (activeCount === totalCount && totalCount > 0)
-            barColor = 'bg-emerald-500';
-
-        return html`
+                return html`
                     <div
-                        class="flex flex-col overflow-hidden transition-all duration-300 group hover:border-slate-800 hover:shadow-md"
-                        style=${styleMap(layoutCardStyles)}
+                        class="flex flex-col overflow-hidden rounded-md border border-white/5 bg-[#0b111c]"
                     >
-                        <!-- Category Header -->
                         <div
-                            class="p-4 border-b border-slate-800 bg-slate-800/50 flex items-center justify-between"
+                            class="px-4 py-3 border-b border-white/5 flex items-center justify-between gap-3"
                         >
                             <div
-                                class="flex items-center gap-2.5 text-sm font-bold text-slate-200"
+                                class="flex items-center gap-2 text-[13px] font-medium text-slate-200 min-w-0"
                             >
-                                <span
-                                    class="text-slate-400 scale-90"
+                                <span class="text-slate-600 shrink-0"
                                     >${categoryIcon}</span
                                 >
-                                ${category}
+                                <span class="truncate">${category}</span>
                             </div>
                             <span
-                                class="text-[10px] font-bold font-mono bg-slate-900 text-slate-400 border border-slate-700 px-2 py-0.5 rounded-full shadow-inner"
+                                class="mono text-[10px] text-slate-500 shrink-0"
                             >
                                 ${activeCount}/${totalCount}
                             </span>
                         </div>
 
-                        <!-- Progress Line -->
-                        <div
-                            class="h-0.5 w-full bg-slate-900/50"
-                        >
+                        <div class="h-0.5 w-full bg-white/5">
                             <div
-                                class="h-full ${barColor} transition-all duration-500 shadow-[0_0_10px_currentColor]"
-                                style="width: ${activityPercent}%"
+                                class="h-full ${activeCount > 0 ? 'bg-emerald-400' : 'bg-white/10'}"
+                                style="width: ${pct}%"
                             ></div>
                         </div>
 
-                        <!-- Grid -->
                         <div
-                            class="p-4 grid grid-cols-2 gap-3 grow content-start"
+                            class="p-3 grid grid-cols-2 gap-1.5 grow content-start"
                         >
-                            ${features.map((feature) =>
-            featureTileTemplate(feature)
-        )}
+                            ${list.map((feature) => {
+                                const slug = featureSlug(feature);
+                                const selected = featuresSelectedId === slug;
+                                const isUsed = feature.used === true;
+                                return html`
+                                    <button
+                                        @click=${() =>
+                                            uiActions.setFeaturesSelectedId(
+                                                selected ? null : slug
+                                            )}
+                                        aria-pressed=${selected}
+                                        title="${feature.name || 'feature'} — ${isUsed ? 'detected' : 'not detected'}"
+                                        class="text-left rounded-md border px-3 py-2.5 transition-colors flex items-center gap-2 min-w-0 ${selected
+                                            ? 'border-emerald-400/40 bg-emerald-500/[0.06]'
+                                            : isUsed
+                                              ? 'border-white/10 bg-white/[0.02] hover:border-white/25'
+                                              : 'border-white/5 hover:border-white/15'}"
+                                    >
+                                        <span
+                                            class="${isUsed ? 'text-emerald-300' : 'text-slate-700'} shrink-0"
+                                            >${isUsed ? icons.checkCircle : icons.circle}</span
+                                        >
+                                        <span class="min-w-0">
+                                            <span
+                                                class="block text-[13px] ${isUsed ? 'text-slate-200' : 'text-slate-500'} truncate"
+                                                >${feature.name || 'unnamed'}</span
+                                            >
+                                            <span
+                                                class="mono block text-[10px] text-slate-600 truncate"
+                                                >${feature.isoRef || ''}</span
+                                            >
+                                        </span>
+                                    </button>
+                                `;
+                            })}
                         </div>
                     </div>
                 `;
-    })}
+            })}
         </div>
     `;
 };

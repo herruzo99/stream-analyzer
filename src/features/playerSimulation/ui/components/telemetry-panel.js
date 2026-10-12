@@ -6,7 +6,7 @@ import { html } from 'lit-html';
 const metricTile = (label, value, unit = '', status = 'neutral') => {
     const statusColors = {
         neutral:
-            'bg-slate-800 border-slate-800 text-slate-100',
+            'bg-white/5 border-white/10 text-slate-100',
         good: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400',
         warn: 'bg-amber-500/20 border-amber-500/30 text-amber-400',
         bad: 'bg-red-500/20 border-red-500/30 text-red-400',
@@ -14,12 +14,10 @@ const metricTile = (label, value, unit = '', status = 'neutral') => {
 
     return html`
         <div
-            class="p-3 rounded-lg border flex flex-col justify-between ${statusColors[
-                status
-            ]} transition-colors"
+            class="p-3 rounded-md border flex flex-col justify-between ${statusColors[ status ]} transition-colors"
         >
             <span
-                class="text-[10px] uppercase font-bold opacity-60 tracking-wider mb-1"
+                class="text-[10px] font-bold opacity-60 r mb-1"
                 >${label}</span
             >
             <span
@@ -83,7 +81,7 @@ export const telemetryPanelTemplate = (stats) => {
                     class="flex items-center gap-2 mb-3 text-slate-400"
                 >
                     ${icons.activity}
-                    <h4 class="text-xs font-bold uppercase tracking-wider">
+                    <h4 class="text-xs font-bold r">
                         Health & Timing
                     </h4>
                 </div>
@@ -120,7 +118,7 @@ export const telemetryPanelTemplate = (stats) => {
                     class="flex items-center gap-2 mb-3 text-slate-400"
                 >
                     ${icons.network}
-                    <h4 class="text-xs font-bold uppercase tracking-wider">
+                    <h4 class="text-xs font-bold r">
                         Network & Adaptation
                     </h4>
                 </div>
@@ -149,7 +147,7 @@ export const telemetryPanelTemplate = (stats) => {
                     class="flex items-center gap-2 mb-3 text-slate-400"
                 >
                     ${icons.history}
-                    <h4 class="text-xs font-bold uppercase tracking-wider">
+                    <h4 class="text-xs font-bold r">
                         Session Stats
                     </h4>
                 </div>

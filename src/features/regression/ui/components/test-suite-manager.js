@@ -2,6 +2,7 @@ import { testSuiteActions } from '@/state/testSuiteStore';
 import * as icons from '@/ui/icons';
 import { closeDropdown, toggleDropdown } from '@/ui/services/dropdownService';
 import { html } from 'lit-html';
+import { randomId } from '@/shared/utils/random.js';
 import {
     OPERATORS_BY_TYPE,
     PROPERTY_CATEGORIES,
@@ -35,22 +36,21 @@ const propertyDropdownContent = (currentPath, onSelect) => {
 
         return html`
             <div
-                class="dropdown-panel bg-slate-800 backdrop-blur-xl border border-slate-800 rounded-xl shadow-2xl w-80 ring-1 ring-black/50 flex flex-col max-h-[60vh]"
+                class="dropdown-panel bg-[#0b111c] border border-white/10 rounded-md w-80 flex flex-col max-h-[60vh]"
             >
-                <!-- Search Header -->
                 <div
-                    class="p-3 border-b border-slate-800 bg-slate-800 sticky top-0 z-10"
+                    class="p-2.5 border-b border-white/5 bg-[#0b111c] sticky top-0 z-10"
                 >
                     <div class="relative">
-                        <div
-                            class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none scale-75"
+                        <span
+                            class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none"
                         >
                             ${icons.search}
-                        </div>
+                        </span>
                         <input
                             type="text"
-                            placeholder="Find property..."
-                            class="w-full bg-slate-800 border border-slate-800 rounded-lg py-1.5 pl-8 pr-3 text-xs text-slate-100 focus:border-blue-500 outline-none"
+                            placeholder="find property"
+                            class="w-full bg-[#06090f] border border-white/10 rounded-md py-2 pl-8 pr-3 text-[13px] text-slate-100 focus:border-emerald-400/60 outline-none placeholder:text-slate-600"
                             @input=${(e) => {
                 searchTerm = e.target.value;
                 updateDropdown();
@@ -60,16 +60,15 @@ const propertyDropdownContent = (currentPath, onSelect) => {
                     </div>
                 </div>
 
-                <!-- Scrollable List -->
                 <div class="overflow-y-auto custom-scrollbar p-2 space-y-3">
                     ${categoryKeys.map((catKey) => {
                 const cat = PROPERTY_CATEGORIES[catKey];
                 return html`
                             <div>
                                 <div
-                                    class="px-2 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2"
+                                    class="px-2 mb-1 mono text-[10px] text-slate-500 flex items-center gap-2"
                                 >
-                                    <span class="${cat.color} scale-75"
+                                    <span class="${cat.color}"
                                         >${cat.icon}</span
                                     >
                                     ${cat.label}
@@ -83,18 +82,17 @@ const propertyDropdownContent = (currentPath, onSelect) => {
                             onSelect(p);
                             closeDropdown();
                         }}
-                                                class="w-full text-left px-3 py-2 rounded-lg text-xs transition-colors flex items-center justify-between group ${currentPath ===
+                                                class="w-full text-left px-3 py-2 rounded-md text-[13px] transition-colors flex items-center justify-between ${currentPath ===
                             p.path
-                            ? 'bg-blue-500 text-white shadow-md'
-                            : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}"
+                            ? 'bg-emerald-500/10 text-emerald-200 border border-emerald-400/25'
+                            : 'text-slate-400 hover:bg-white/5 hover:text-slate-100 border border-transparent'}"
                                             >
                                                 <span class="truncate"
                                                     >${p.label}</span
                                                 >
                                                 ${currentPath === p.path
                             ? html`<span
-                                                          class="scale-75"
-                                                          >${icons.checkCircle}</span
+                                                          >${icons.check}</span
                                                       >`
                             : ''}
                                             </button>
@@ -106,23 +104,22 @@ const propertyDropdownContent = (currentPath, onSelect) => {
             })}
                     ${categoryKeys.length === 0
                 ? html`<div
-                              class="p-4 text-center text-slate-400 text-xs italic"
+                              class="p-4 text-center mono text-[11px] text-slate-600"
                           >
-                              No matching properties.
+                              no matching properties
                           </div>`
                 : ''}
 
-                    <!-- Custom Path Fallback -->
-                    <div class="border-t border-slate-800 pt-2">
+                    <div class="border-t border-white/5 pt-2">
                         <button
                             @click=${(e) => {
                 e.stopPropagation();
                 onSelect(null);
                 closeDropdown();
             }}
-                            class="w-full text-left px-3 py-2 rounded-lg text-xs text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-colors flex items-center gap-2 border border-transparent hover:border-slate-800"
+                            class="w-full text-left px-3 py-2 rounded-md text-[13px] text-slate-400 hover:bg-white/5 hover:text-slate-100 transition-colors flex items-center gap-2"
                         >
-                            ${icons.code} Use Custom JSON Path
+                            ${icons.code} use custom path
                         </button>
                     </div>
                 </div>
@@ -145,10 +142,11 @@ const propertyDropdownContent = (currentPath, onSelect) => {
     return html`<div id="property-dropdown-container">${renderContent()}</div>`;
 };
 
-const assertionRow = (assert, index, onUpdate, onRemove, isGlass) => {
+const assertionRow = (assert, index, onUpdate, onRemove) => {
     const propDef = TESTABLE_PROPERTIES.find((p) => p.path === assert.path);
     const dataType = propDef ? propDef.type : 'string';
-    const operators = OPERATORS_BY_TYPE[dataType] || OPERATORS_BY_TYPE.string;
+    const operators =
+        OPERATORS_BY_TYPE[dataType] || OPERATORS_BY_TYPE.string;
     const category = propDef
         ? PROPERTY_CATEGORIES[propDef.category]
         : PROPERTY_CATEGORIES.general;
@@ -156,7 +154,7 @@ const assertionRow = (assert, index, onUpdate, onRemove, isGlass) => {
     const handlePropSelect = (p) => {
         if (p) {
             const newType = p.type;
-            const defaultOp = OPERATORS_BY_TYPE[newType][0].value;
+            const defaultOp = (OPERATORS_BY_TYPE[newType] || OPERATORS_BY_TYPE.string)[0].value;
             let defaultVal = '';
             if (newType === 'boolean') defaultVal = 'true';
             if (newType === 'number') defaultVal = '0';
@@ -178,13 +176,15 @@ const assertionRow = (assert, index, onUpdate, onRemove, isGlass) => {
     };
 
     // --- Type-Specific Inputs ---
+    const fieldClass =
+        'h-10 bg-[#06090f] border border-white/10 hover:border-white/25 rounded-md px-3.5 text-[13px] text-slate-100 font-mono w-full focus:border-emerald-400/60 outline-none transition-colors placeholder:text-slate-600';
     let valueInput;
     if (assert.operator === 'exists') {
         valueInput = html`
             <div
-                class="h-10 flex items-center px-4 bg-slate-800 border border-slate-800 rounded-lg text-xs text-slate-400 italic select-none w-full"
+                class="h-10 flex items-center px-3.5 border border-white/5 rounded-md mono text-[11px] text-slate-600 select-none w-full"
             >
-                Check presence only
+                checks presence only
             </div>
         `;
     } else if (dataType === 'boolean') {
@@ -192,142 +192,129 @@ const assertionRow = (assert, index, onUpdate, onRemove, isGlass) => {
         valueInput = html`
             <button
                 @click=${() => onUpdate(index, { value: String(!isTrue) })}
-                class="h-10 px-4 rounded-lg text-xs font-bold border transition-all w-full flex items-center justify-center gap-2 ${isTrue
-                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/30 shadow-[0_0_10px_#10b981]'
-                : 'bg-red-500/20 text-red-400 border-red-500/40 hover:bg-red-500/30 shadow-[0_0_10px_#ef4444]'}"
+                role="switch"
+                aria-checked=${isTrue}
+                aria-label="Expected value (currently ${isTrue ? 'true' : 'false'})"
+                class="h-10 px-4 rounded-md mono text-[11px] border transition-colors w-full flex items-center justify-center gap-2 ${isTrue
+                    ? 'bg-emerald-500/10 text-emerald-200 border-emerald-400/25'
+                    : 'bg-white/[0.02] text-slate-400 border-white/10'}"
             >
-                ${isTrue ? icons.checkCircle : icons.xCircle}
-                ${isTrue ? 'TRUE' : 'FALSE'}
+                ${isTrue ? 'true' : 'false'}
             </button>
         `;
     } else if (dataType === 'number') {
         valueInput = html`
-            <div class="relative flex items-center w-full group/input">
+            <div class="relative flex items-center w-full">
                 <input
                     type="number"
-                    class="h-10 bg-slate-800 border border-slate-800 hover:border-blue-500/50 rounded-lg py-1.5 pl-4 pr-10 text-xs text-slate-100 font-mono w-full focus:border-blue-500 focus:bg-blue-500/5 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                    class="${fieldClass} pr-10"
                     .value=${assert.value}
                     @input=${(e) => onUpdate(index, { value: e.target.value })}
                     step="any"
+                    aria-label="Expected numeric value"
                 />
                 ${propDef?.unit
-                ? html`<span
-                          class="absolute right-3 text-[10px] text-slate-400 select-none font-bold group-focus-within/input:text-blue-400 transition-colors"
+                    ? html`<span
+                          class="absolute right-3 mono text-[10px] text-slate-600 select-none"
                           >${propDef.unit}</span
                       >`
-                : ''}
+                    : ''}
             </div>
         `;
     } else {
         valueInput = html`
             <input
                 type="text"
-                class="h-10 bg-slate-800 border border-slate-800 hover:border-blue-500/50 rounded-lg py-1.5 px-4 text-xs text-slate-100 font-mono w-full focus:border-blue-500 focus:bg-blue-500/5 focus:ring-1 focus:ring-blue-500 outline-none transition-all placeholder-slate-400/50"
+                class="${fieldClass}"
                 .value=${assert.value}
-                placeholder="Expected Value..."
+                placeholder="expected value"
+                aria-label="Expected value"
                 @input=${(e) => onUpdate(index, { value: e.target.value })}
             />
         `;
     }
 
-    // Row Styling Condition
-    const rowBase = "layout-card flex flex-col transition-all hover:shadow-[0_0_20px_rgba(0,0,0,0.3)] hover:border-slate-800 hover:bg-slate-800 group animate-fadeIn relative";
-    const rowStyle = isGlass
-        ? "" // Glass: Let default flow, no border/bg overrides
-        : "bg-slate-800 border border-slate-800";
-
     return html`
-        <div class="${rowBase} ${rowStyle}">
-            
-            <!-- Header: Index, Category, Remove -->
-            <div class="flex items-center justify-between p-3 border-b border-slate-800 bg-slate-800/30">
-                <div class="flex items-center gap-3">
-                    <span class="text-[10px] font-mono text-slate-400 opacity-50 select-none">
-                        #${String(index + 1).padStart(2, '0')}
+        <div class="rounded-md border border-white/5 bg-[#0b111c] flex flex-col">
+            <div class="flex items-center justify-between px-3 py-2 border-b border-white/5">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <span class="mono text-[10px] text-slate-600 select-none">
+                        ${String(index + 1).padStart(2, '0')}
                     </span>
-                    
-                    <!-- Small Category Badge -->
-                    <div class="flex items-center gap-2 pl-2 border-l border-slate-800">
-                        <span class="${category.color} scale-75">${category.icon}</span>
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider opacity-80">
-                            ${category.label}
-                        </span>
-                    </div>
+                    <span class="mono text-[10px] text-slate-500 truncate">
+                        ${String(category.label).toLowerCase()}
+                    </span>
                 </div>
 
                 <button
                     @click=${() => onRemove(index)}
-                    class="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors"
-                    title="Remove Rule"
+                    class="p-1.5 text-slate-600 hover:text-red-300 rounded transition-colors"
+                    title="Remove rule"
+                    aria-label="Remove rule ${index + 1}"
                 >
-                    ${icons.xCircle}
+                    ${icons.x}
                 </button>
             </div>
 
-            <!-- Body: Controls -->
-            <div class="p-3 flex flex-col gap-3">
-                
-                <!-- Row 1: Property Selector -->
-                <div class="relative w-full">
+            <div class="p-3 flex flex-col gap-2.5">
+                <div class="w-full">
                     <button
                         @click=${(e) =>
-            toggleDropdown(
-                e.currentTarget,
-                () =>
-                    propertyDropdownContent(
-                        assert.path,
-                        handlePropSelect
-                    ),
-                e
-            )}
-                        class="flex items-center justify-between w-full bg-slate-800 border border-slate-800 hover:border-blue-500/50 rounded-lg px-3 py-2 text-xs text-left transition-all shadow-inner group/btn hover:bg-slate-800"
+                            toggleDropdown(
+                                e.currentTarget,
+                                () =>
+                                    propertyDropdownContent(
+                                        assert.path,
+                                        handlePropSelect
+                                    ),
+                                e
+                            )}
+                        class="flex items-center justify-between w-full bg-[#06090f] border border-white/10 hover:border-white/25 rounded-md px-3 py-2.5 text-[13px] text-left transition-colors"
                     >
-                        <div class="flex items-center gap-2 min-w-0">
-                            <span class="text-slate-400 scale-75">${icons.search}</span>
-                            <span class="text-slate-100 font-bold truncate">
-                                ${propDef ? propDef.label : assert.path || 'Select Property...'}
-                            </span>
-                        </div>
-                        <span class="text-slate-400 group-hover/btn:text-slate-100 scale-75 transition-colors">
+                        <span class="text-slate-100 font-medium truncate">
+                            ${propDef ? propDef.label : assert.path || 'Select property'}
+                        </span>
+                        <span class="text-slate-500 shrink-0">
                             ${icons.chevronDown}
                         </span>
                     </button>
                     ${!propDef
-            ? html`<input
+                        ? html`<input
                               type="text"
-                              class="mt-2 w-full bg-slate-800 border border-slate-800 rounded-lg px-3 py-2 text-[10px] font-mono text-slate-400 focus:border-blue-500/50 outline-none transition-colors"
+                              class="mt-2 w-full bg-[#06090f] border border-white/10 rounded-md px-3 py-2.5 mono text-[11px] text-slate-300 focus:border-emerald-400/60 outline-none transition-colors"
                               .value=${assert.path}
                               @change=${(e) =>
-                    onUpdate(index, { path: e.target.value })}
-                              placeholder="path.to.property"
+                                onUpdate(index, { path: e.target.value })}
+                              placeholder="manifest.summary.duration"
+                              aria-label="Custom JSON path"
                           />`
-            : ''}
+                        : ''}
                 </div>
 
-                <!-- Row 2: Condition -->
                 <div class="flex items-center gap-2">
                     <div class="relative w-1/3 min-w-[120px]">
                         <select
-                            class="w-full h-10 bg-slate-800 border border-slate-800 hover:border-slate-800 rounded-lg px-3 text-xs text-slate-100 appearance-none cursor-pointer focus:border-blue-500 outline-none transition-colors font-medium"
+                            class="w-full h-10 bg-[#06090f] border border-white/10 rounded-md px-3 text-[13px] text-slate-100 appearance-none cursor-pointer hover:border-white/25 focus:border-emerald-400/60 outline-none transition-colors"
                             .value=${assert.operator}
                             @change=${(e) =>
-            onUpdate(index, { operator: e.target.value })}
+                                onUpdate(index, { operator: e.target.value })}
+                            aria-label="Comparison operator"
                         >
                             ${operators.map(
-                (op) =>
-                    html`<option value=${op.value}>
+                                (op) =>
+                                    html`<option value=${op.value}>
                                         ${op.label}
                                     </option>`
-            )}
+                            )}
                         </select>
-                        <div
-                            class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none scale-75"
+                        <span
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
                         >
                             ${icons.chevronDown}
-                        </div>
+                        </span>
                     </div>
 
-                    <div class="grow">${valueInput}</div>
+                    <div class="grow min-w-0">${valueInput}</div>
                 </div>
             </div>
         </div>
@@ -337,26 +324,23 @@ const assertionRow = (assert, index, onUpdate, onRemove, isGlass) => {
 export const testSuiteManagerTemplate = (suite) => {
     if (!suite) return html``;
 
-    // Port: no themes in 1.2.0; solid styling throughout.
-    const isGlass = false;
-    const gridGap = isGlass ? 'gap-4' : 'gap-2';
-
-    const emptyStateStyle = isGlass
-        ? "bg-slate-800 border-2 border-dashed border-slate-700"
-        : "bg-slate-800 border-2 border-dashed border-slate-700";
-
     const updateAssertion = (index, updates) => {
-        const newAssertions = [...suite.assertions];
+        const current = Array.isArray(suite.assertions)
+            ? suite.assertions
+            : [];
+        const newAssertions = [...current];
         newAssertions[index] = { ...newAssertions[index], ...updates };
         testSuiteActions.updateSuite(suite.id, { assertions: newAssertions });
     };
 
+    // New rules start valid: `exists` needs no value, so the rule can
+    // run immediately instead of failing validation first.
     const addAssertion = () => {
         const newAssertion = {
-            id: crypto.randomUUID(),
+            id: randomId(),
             name: 'New Rule',
             path: '',
-            operator: 'equals',
+            operator: 'exists',
             value: '',
         };
         testSuiteActions.updateSuite(suite.id, {
@@ -365,69 +349,59 @@ export const testSuiteManagerTemplate = (suite) => {
     };
 
     const removeAssertion = (index) => {
-        const newAssertions = suite.assertions.filter((_, i) => i !== index);
+        const current = Array.isArray(suite.assertions)
+            ? suite.assertions
+            : [];
+        const newAssertions = current.filter((_, i) => i !== index);
         testSuiteActions.updateSuite(suite.id, { assertions: newAssertions });
     };
 
     return html`
-        <div class="flex flex-col h-full bg-transparent">
-            <!-- Editor Canvas -->
+        <div class="flex flex-col h-full">
             <div class="h-full overflow-y-auto custom-scrollbar p-4">
                 ${(suite.assertions || []).length === 0
             ? html`
                           <div
-                              class="layout-card flex flex-col items-center justify-center h-full min-h-[400px] rounded-xl text-slate-400 group hover:border-blue-500/30 hover:bg-slate-800 transition-all ${emptyStateStyle}"
+                              class="flex flex-col items-center justify-center h-full min-h-[320px] text-center"
                           >
-                              <div
-                                  class="p-6 bg-slate-800 rounded-full mb-6 shadow-2xl group-hover:scale-110 transition-transform duration-500"
-                              >
-                                  ${icons.beaker}
-                              </div>
-                              <h3
-                                  class="text-slate-200 font-bold mb-2 text-lg"
-                              >
-                                  No Rules Yet
-                              </h3>
                               <p
-                                  class="text-xs opacity-60 mb-8 max-w-xs text-center leading-relaxed"
+                                  class="text-[15px] font-medium text-slate-200 mb-1"
                               >
-                                  Add an assertion to start testing your stream
-                                  properties against specific criteria.
+                                  No rules yet.
+                              </p>
+                              <p
+                                  class="mono text-[11px] text-slate-600 mb-5 max-w-xs leading-relaxed"
+                              >
+                                  Rules check stream properties — add one,
+                                  then press Run in the header.
                               </p>
                               <button
                                   @click=${addAssertion}
-                                  class="px-8 py-3 bg-blue-500 hover:bg-[#60a5fa] text-white text-sm font-bold rounded-xl shadow-[0_0_20px_#3b82f6] hover:shadow-[0_0_30px_#3b82f6] transition-all flex items-center gap-3 hover:-translate-y-1"
+                                  class="px-4 py-2 bg-emerald-400 hover:bg-emerald-300 text-slate-950 text-[13px] font-medium rounded-md transition-colors flex items-center gap-2"
                               >
-                                  ${icons.plusCircle} Add First Rule
+                                  ${icons.plusCircle} Add first rule
                               </button>
                           </div>
                       `
             : html`
                           <div
-                              class="grid grid-cols-1 xl:grid-cols-2 ${gridGap} max-w-[1600px] mx-auto pb-10"
+                              class="grid grid-cols-1 xl:grid-cols-2 gap-2 max-w-[1600px] mx-auto pb-8"
                           >
                               ${suite.assertions.map((assert, i) =>
                 assertionRow(
                     assert,
                     i,
                     updateAssertion,
-                    removeAssertion,
-                    isGlass
+                    removeAssertion
                 )
             )}
 
                               <button
                                   @click=${addAssertion}
-                                  class="h-full min-h-[140px] border-2 border-dashed border-slate-700 rounded-xl text-slate-400 hover:text-blue-400 hover:border-blue-500/30 hover:bg-blue-500/[0.02] transition-all flex flex-col items-center justify-center gap-3 font-bold text-xs group"
+                                  class="min-h-[120px] border border-dashed border-white/10 hover:border-white/25 rounded-md text-slate-500 hover:text-slate-200 transition-colors flex flex-col items-center justify-center gap-2 mono text-[11px]"
                               >
-                                  <div
-                                      class="p-3 bg-slate-800 rounded-full group-hover:scale-110 transition-transform border border-slate-800 group-hover:border-blue-500/20 group-hover:bg-blue-500/10"
-                                  >
-                                      ${icons.plusCircle}
-                                  </div>
-                                  <span class="uppercase tracking-widest"
-                                      >Add New Rule</span
-                                  >
+                                  ${icons.plusCircle}
+                                  <span>add rule</span>
                               </button>
                           </div>
                       `}

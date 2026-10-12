@@ -55,10 +55,10 @@ class GraphsViewComponent extends HTMLElement {
     connectedCallback() {
         this.innerHTML = `
             <div class="space-y-8">
-                <div id="buffer-chart" class="h-72 bg-slate-800 p-4 rounded-lg border border-slate-800"></div>
-                <div id="latency-chart" class="h-72 bg-slate-800 p-4 rounded-lg border border-slate-800"></div>
-                <div id="bandwidth-chart" class="h-72 bg-slate-800 p-4 rounded-lg border border-slate-800"></div>
-                <div id="bitrate-chart" class="h-72 bg-slate-800 p-4 rounded-lg border border-slate-800"></div>
+                <div id="buffer-chart" class="h-72 bg-white/5 p-4 rounded-md border border-white/10"></div>
+                <div id="latency-chart" class="h-72 bg-white/5 p-4 rounded-md border border-white/10"></div>
+                <div id="bandwidth-chart" class="h-72 bg-white/5 p-4 rounded-md border border-white/10"></div>
+                <div id="bitrate-chart" class="h-72 bg-white/5 p-4 rounded-md border border-white/10"></div>
             </div>
         `;
         this.multiPlayerUnsubscribe = useMultiPlayerStore.subscribe(() =>

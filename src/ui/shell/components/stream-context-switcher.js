@@ -4,16 +4,36 @@ import * as icons from '@/ui/icons';
 import { closeDropdown, toggleDropdown } from '@/ui/services/dropdownService';
 import { openModalWithContent } from '@/ui/services/modalService';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
+import { showToast } from '@/ui/components/toast';
 import { html } from 'lit-html';
 
-const streamOptionTemplate = (stream, isActive, isGlass) => {
+function streamHostname(stream) {
+    try {
+        return new URL(stream.originalUrl).hostname || 'local file';
+    } catch {
+        return 'local file';
+    }
+}
+
+// Armed remove-button state. The dropdown re-renders on every store
+// write, which would wipe element state — so the arm lives here with a
+// timestamp, and the button re-arms visually from it on each render.
+let pendingRemoveArm = null;
+const REMOVE_ARM_MS = 4000;
+
+const streamOptionTemplate = (stream, isActive) => {
     const isLive = stream.manifest?.type === 'dynamic';
     const isDisabled = stream.disabled;
     const protocol = stream.protocol ? stream.protocol.toUpperCase() : 'ERR';
-    const radiusClass = isGlass ? 'rounded-xl' : 'rounded-sm';
 
     const handleSelect = () => {
-        if (isDisabled) return; // Prevent selection of disabled streams for now
+        if (isDisabled) {
+            showToast({
+                message: `“${stream.name}” failed to load (${stream.error || 'unknown error'}). Remove it or retry from the stream list.`,
+                type: 'fail',
+            });
+            return;
+        }
         analysisActions.setActiveStreamId(stream.id);
         closeDropdown();
     };
@@ -23,215 +43,171 @@ const streamOptionTemplate = (stream, isActive, isGlass) => {
         copyTextToClipboard(stream.originalUrl, 'Stream URL copied');
     };
 
+    // Two-tap inline confirm: first tap arms (“Remove?”), second removes.
+    // Module-level so it survives dropdown re-renders between taps.
     const handleRemove = (e) => {
         e.stopPropagation();
-        if (confirm('Remove this stream from the workspace?')) {
-            analysisActions.removeStreamInput(stream.id);
+        const btn = e.currentTarget;
+        if (btn?.dataset.armed !== stream.id) {
+            if (btn) {
+                btn.dataset.armed = stream.id;
+                btn.classList.add('text-red-300');
+            }
+            pendingRemoveArm = { id: stream.id, at: Date.now() };
+            return;
         }
+        delete btn.dataset.armed;
+        pendingRemoveArm = null;
+        analysisActions.removeStreamInput(stream.id);
+        showToast({
+            message: `Removed “${stream.name}” from the workspace.`,
+            type: 'pass',
+        });
     };
 
     // Disabled styling
     if (isDisabled) {
         return html`
             <div
-                class="w-full flex items-center justify-between p-2.5 ${radiusClass} border border-red-500/20 bg-red-500/5 opacity-80 cursor-not-allowed group"
+                class="w-full flex items-center justify-between px-2.5 py-2 rounded-md border border-red-400/25 bg-red-500/5 opacity-90"
             >
-                <div class="flex items-center gap-4 min-w-0">
-                    <div class="w-1 h-8 rounded-full bg-red-500"></div>
-                    <div class="flex flex-col items-start min-w-0">
-                        <div class="text-sm font-semibold truncate w-full text-left flex items-center gap-2 text-slate-400">
+                <button @click=${handleSelect} class="flex items-center gap-3 min-w-0 text-left grow" title="${stream.error || 'Load failed'}">
+                    <span class="w-0.5 self-stretch rounded-full bg-red-500 shrink-0"></span>
+                    <span class="flex flex-col items-start min-w-0">
+                        <span class="text-[13px] font-medium truncate w-full flex items-center gap-2 text-slate-300">
                             ${stream.name}
-                            <span class="text-red-400" data-tooltip="${stream.error}">${icons.alertTriangle}</span>
-                        </div>
-                        <div class="flex gap-1.5 mt-1 items-center">
-                            <span class="text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded-md border border-red-500/30 text-red-400">
-                                FAILED
+                            <span class="text-red-300" title="${stream.error || 'Load failed'}">${icons.alertTriangle}</span>
+                        </span>
+                        <span class="flex gap-1.5 mt-1 items-center">
+                            <span class="mono text-[10px] px-1.5 py-px rounded border border-red-400/25 text-red-300">
+                                failed
                             </span>
-                            <span class="text-[10px] text-slate-400 font-mono truncate max-w-[150px] opacity-60">
-                                ${new URL(stream.originalUrl).hostname}
+                            <span class="mono text-[10px] text-slate-600 truncate max-w-[150px]">
+                                ${streamHostname(stream)}
                             </span>
-                        </div>
-                    </div>
-                </div>
-                
-                 <!-- Actions -->
-                <div class="flex items-center gap-1.5 pl-2">
-                    <div class="flex gap-1.5">
-                         <div
-                            @click=${handleRemove}
-                            class="p-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
-                            data-tooltip="Remove Stream"
-                        >
-                            ${icons.xCircle}
-                        </div>
-                    </div>
-                </div>
+                        </span>
+                    </span>
+                </button>
+                <span class="flex items-center gap-1 pl-2 shrink-0">
+                    <button
+                        @click=${handleRemove}
+                        class="p-1.5 rounded transition-colors ${pendingRemoveArm?.id === stream.id && Date.now() - pendingRemoveArm.at < REMOVE_ARM_MS ? 'text-red-300 bg-red-500/10' : 'text-slate-500 hover:text-red-300'}"
+                        title="${pendingRemoveArm?.id === stream.id ? 'Click again to remove' : 'Remove stream'}"
+                        aria-label="${pendingRemoveArm?.id === stream.id ? `Confirm remove ${stream.name}` : `Remove stream ${stream.name}`}"
+                    >
+                        ${icons.x}
+                    </button>
+                </span>
             </div>
         `;
     }
 
-    // Match HLS item row styling
     return html`
-        <button
-            @click=${handleSelect}
-            class="w-full flex items-center justify-between p-2.5 ${radiusClass} transition-all duration-300 group ${isActive
-            ? 'bg-slate-800 border border-blue-500/40 shadow-lg'
-            : 'hover:bg-slate-800 border border-transparent hover:border-slate-800/30'}"
+        <div
+            class="w-full flex items-center justify-between px-2.5 py-2 rounded-md border transition-colors ${isActive
+                ? 'bg-transparent border-emerald-500/30'
+                : 'bg-transparent border-transparent hover:bg-white/5'}"
         >
-            <div class="flex items-center gap-4 min-w-0">
-                <!-- Status Indicator Bar -->
-                <div
-                    class="w-1 h-8 rounded-full transition-all duration-300 ${isActive
-            ? 'bg-gradient-to-b from-blue-500 to-[#60a5fa] shadow-[0_0_12px_#3b82f6] scale-y-110'
-            : isLive
-                ? 'bg-red-500 animate-pulse'
-                : 'bg-slate-800 group-hover:bg-slate-400'}"
-                ></div>
+            <button
+                @click=${handleSelect}
+                class="flex items-center gap-3 min-w-0 text-left grow"
+                aria-current=${isActive ? 'true' : 'false'}
+            >
+                <span
+                    class="w-0.5 self-stretch rounded-full shrink-0 ${isActive
+                        ? 'bg-emerald-400'
+                        : isLive
+                            ? 'bg-red-500'
+                            : 'bg-white/10'}"
+                ></span>
 
-                <div class="flex flex-col items-start min-w-0">
-                    <div
-                        class="text-sm font-semibold truncate w-full text-left flex items-center gap-2 ${isActive
-            ? 'text-slate-100'
-            : 'text-slate-100 group-hover:text-slate-100'}"
+                <span class="flex flex-col items-start min-w-0">
+                    <span
+                        class="text-[13px] font-medium truncate w-full flex items-center gap-2 text-slate-200"
                     >
                         ${stream.name}
-                        ${isActive
-            ? html`<span
-                                  class="text-blue-400 drop-shadow-[0_0_5px_#3b82f6]"
-                                  >${icons.checkCircle}</span
-                              >`
-            : ''}
                         ${isLive
-            ? html`<span
-                                  class="flex h-2 w-2 relative"
-                                  data-tooltip="Live Stream"
-                                  >
-                                  <span
-                                      class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"
-                                  ></span>
-                                  <span
-                                      class="relative inline-flex rounded-full h-2 w-2 bg-red-500"
-                                  ></span>
-                              </span>`
-            : ''}
-                    </div>
-                    <div class="flex gap-1.5 mt-1 items-center">
+                            ? html`<span class="mono flex items-center gap-1 text-[10px] text-red-300"><span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>live</span>`
+                            : ''}
+                    </span>
+                    <span class="flex gap-1.5 mt-1 items-center">
                         <span
-                            class="text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded-md border ${isActive
-            ? 'bg-blue-500/20 text-blue-400 border-blue-500/30'
-            : 'bg-slate-800 text-slate-400 border-slate-800/40 group-hover:border-slate-800/60'}"
+                            class="mono text-[10px] px-1.5 py-px rounded border ${isActive
+                                ? 'bg-emerald-500/10 text-emerald-200 border-emerald-400/25'
+                                : 'bg-white/5 text-slate-500 border-white/10'}"
                         >
-                            ${protocol}
+                            ${protocol.toLowerCase()}
                         </span>
                         <span
-                            class="text-[10px] text-slate-400 font-mono truncate max-w-[150px] opacity-60"
+                            class="mono text-[10px] text-slate-600 truncate max-w-[150px]"
                         >
-                            ${new URL(stream.originalUrl).hostname}
+                            ${streamHostname(stream)}
                         </span>
-                    </div>
-                </div>
-            </div>
+                    </span>
+                </span>
+            </button>
 
-            <!-- Actions (Visible on Hover/Active) -->
-            <div class="flex items-center gap-1.5 pl-2">
-                <div
-                    class="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+            <span class="flex items-center gap-1 pl-2 shrink-0">
+                <button
+                    @click=${handleCopy}
+                    class="p-1.5 rounded text-slate-600 hover:text-slate-200 transition-colors"
+                    title="Copy URL"
+                    aria-label="Copy URL of ${stream.name}"
                 >
-                    <div
-                        @click=${handleCopy}
-                        class="p-2 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-all"
-                        data-tooltip="Copy URL"
-                    >
-                        ${icons.clipboardCopy}
-                    </div>
-                    <div
-                        @click=${handleRemove}
-                        class="p-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
-                        data-tooltip="Remove Stream"
-                    >
-                        ${icons.xCircle}
-                    </div>
-                </div>
-            </div>
-        </button>
+                    ${icons.clipboardCopy}
+                </button>
+                <button
+                    @click=${handleRemove}
+                    class="p-1.5 rounded transition-colors ${pendingRemoveArm?.id === stream.id && Date.now() - pendingRemoveArm.at < REMOVE_ARM_MS ? 'text-red-300 bg-red-500/10' : 'text-slate-600 hover:text-red-300'}"
+                    title="${pendingRemoveArm?.id === stream.id ? 'Click again to remove' : 'Remove stream'}"
+                    aria-label="${pendingRemoveArm?.id === stream.id ? `Confirm remove ${stream.name}` : `Remove stream ${stream.name}`}"
+                >
+                    ${icons.x}
+                </button>
+            </span>
+        </div>
     `;
 };
 
-const dropdownContentTemplate = (streams, activeStreamId, isGlass) => {
+const dropdownContentTemplate = (streams, activeStreamId) => {
     const handleAddStream = () => {
         closeDropdown();
         openModalWithContent({
-            title: 'Add Stream',
+            title: 'Add stream',
             url: '',
             content: { type: 'addStream', data: {} },
             isFullWidth: true,
         });
     };
 
-    const panelClass = isGlass
-        ? "bg-slate-800/95 backdrop-blur-3xl border-slate-800/30 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] ring-1 ring-white/10"
-        : "bg-slate-800 border-slate-800 rounded-sm shadow-xl";
-
-    const headerClass = isGlass
-        ? "bg-slate-800 border-slate-800/20"
-        : "bg-slate-800 border-slate-800";
-
-    const listBgClass = isGlass
-        ? "bg-gradient-to-b from-transparent to-slate-800"
-        : "bg-slate-800";
-
     return html`
         <div
-            class="dropdown-panel border w-[320px] flex flex-col max-h-[70vh] overflow-hidden ${panelClass}"
+            class="dropdown-panel border border-white/10 bg-[#0b111c] rounded-md w-[320px] flex flex-col max-h-[70vh] overflow-hidden"
         >
-            <!-- Header -->
             <div
-                class="px-5 py-4 border-b flex items-center justify-between ${headerClass}"
+                class="px-4 py-3 border-b border-white/5 flex items-center justify-between"
             >
-                <div
-                    class="flex items-center gap-3 text-slate-400"
+                <span class="mono text-[11px] font-medium text-slate-400"
+                    >streams</span
                 >
-                    <span
-                        class="text-blue-400 drop-shadow-[0_0_8px_#3b82f6]"
-                        >${icons.activity}</span
-                    >
-                    <span
-                        class="text-xs font-extrabold uppercase tracking-[0.15em] opacity-80"
-                        >Active Workspace</span
-                    >
-                </div>
-                <span
-                    class="text-[10px] font-bold bg-slate-800 px-2.5 py-1 rounded-full text-slate-100 border border-slate-800/20"
+                <span class="mono text-[11px] text-slate-600"
+                    >${streams.length} stream${streams.length === 1 ? '' : 's'}</span
                 >
-                    ${streams.length}
-                </span>
             </div>
 
-            <!-- List -->
-            <div
-                class="p-3 space-y-1 overflow-y-auto custom-scrollbar grow ${listBgClass}"
-            >
+            <div class="p-2 overflow-y-auto custom-scrollbar grow">
                 ${streams.map((s) =>
-        streamOptionTemplate(s, s.id === activeStreamId, isGlass)
-    )}
+                    streamOptionTemplate(s, s.id === activeStreamId)
+                )}
             </div>
 
-            <!-- Footer -->
-            <div
-                class="p-4 border-t flex items-center ${headerClass}"
-            >
+            <div class="p-3 border-t border-white/5">
                 <button
                     @click=${handleAddStream}
-                    class="w-full py-3 ${isGlass ? 'rounded-xl' : 'rounded-sm'} border border-dashed border-slate-800/50 text-slate-400 hover:text-slate-100 hover:border-blue-500/50 hover:bg-blue-500/5 transition-all text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-3 group relative overflow-hidden"
+                    class="w-full py-2.5 rounded-md border border-white/10 text-slate-300 hover:text-slate-100 hover:border-white/25 hover:bg-white/5 transition-colors text-[13px] font-medium flex items-center justify-center gap-2"
                 >
-                    <div
-                        class="absolute inset-0 bg-gradient-to-r from-transparent via-blue-500/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"
-                    ></div>
-                    <span
-                        class="group-hover:rotate-90 group-hover:scale-110 transition-all duration-300 text-blue-400"
-                        >${icons.plusCircle}</span
-                    >
-                    <span>Add Stream Input</span>
+                    ${icons.plusCircle}
+                    <span>Add stream</span>
                 </button>
             </div>
         </div>
@@ -241,129 +217,89 @@ const dropdownContentTemplate = (streams, activeStreamId, isGlass) => {
 export const streamContextSwitcherTemplate = (streams, activeStreamId) => {
     if (streams.length === 0) return html``;
 
-    if (streams.length === 0) return html``;
-
-    // Port: no themes in 1.2.0; solid styling throughout.
-    const isGlass = false;
     const { isGlobalNavCompact } = useUiStore.getState();
 
     const activeStream =
         streams.find((s) => s.id === activeStreamId) || streams[0];
     const isLive = activeStream.manifest?.type === 'dynamic';
-    const protocol = activeStream.protocol
-        ? activeStream.protocol.toUpperCase()
-        : 'ERR';
+    const protocol = (activeStream.protocol || 'err').toLowerCase();
+
+    const openMenu = (e) =>
+        toggleDropdown(
+            e.currentTarget,
+            () => {
+                const { streams, activeStreamId } =
+                    useAnalysisStore.getState();
+                return dropdownContentTemplate(streams, activeStreamId);
+            },
+            e
+        );
 
     // Compact Mode Trigger
     if (isGlobalNavCompact) {
         return html`
-            <div class="relative w-full px-2 pt-4 pb-2 flex justify-center">
+            <div class="w-full px-2 py-3 flex justify-center">
                 <button
-                    @click=${(e) =>
-                toggleDropdown(
-                    e.currentTarget,
-                    () => {
-                        const { streams, activeStreamId } =
-                            useAnalysisStore.getState();
-                        return dropdownContentTemplate(
-                            streams,
-                            activeStreamId,
-                            isGlass
-                        );
-                    },
-                    e
-                )}
-                    class="w-10 h-10 bg-slate-800 hover:bg-slate-800 border border-slate-800/30 hover:border-blue-500/40 rounded-xl flex items-center justify-center transition-all duration-300 group shadow-lg relative overflow-hidden"
-                    data-tooltip="${activeStream.name} (${protocol})"
-                    data-tooltip-placement="right"
+                    @click=${openMenu}
+                    class="w-10 h-10 bg-white/5 hover:bg-white/10 border border-white/10 rounded-md flex items-center justify-center transition-colors relative"
+                    title="${activeStream.name} (${protocol}) — switch stream"
+                    aria-label="Switch stream (currently ${activeStream.name})"
                 >
-                     <div
-                        class="absolute inset-0 bg-gradient-to-tr from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"
-                    ></div>
-                    
-                    <span class="text-slate-100 text-[10px] font-bold tracking-tighter group-hover:scale-110 transition-transform relative z-10">
+                    <span class="mono text-[10px] text-slate-200">
                         ${protocol}
                     </span>
-
-                    ${isLive ? html`<div class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-red-500 ring-1 ring-slate-800 z-20"></div>` : ''}
+                    ${isLive
+                        ? html`<span
+                              class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-red-500"
+                          ></span>`
+                        : ''}
                 </button>
             </div>
         `;
     }
 
     return html`
-        <div class="relative w-full px-4 pt-6 pb-4">
+        <div class="w-full px-3 py-3">
             <button
-                @click=${(e) =>
-            toggleDropdown(
-                e.currentTarget,
-                () => {
-                    const { streams, activeStreamId } =
-                        useAnalysisStore.getState();
-                    return dropdownContentTemplate(
-                        streams,
-                        activeStreamId,
-                        isGlass
-                    );
-                },
-                e
-            )}
-                class="w-full ${isGlass ? 'bg-slate-800 hover:bg-slate-800 rounded-2xl' : 'bg-slate-800 rounded-sm'} border border-slate-800/30 hover:border-blue-500/40 p-4 transition-all duration-300 text-left group shadow-lg relative overflow-hidden"
+                @click=${openMenu}
+                class="w-full bg-white/[0.02] hover:bg-white/[0.05] border border-white/10 rounded-md p-3 transition-colors text-left"
+                aria-label="Switch stream (currently ${activeStream.name})"
             >
-                <!-- Hover Glow -->
-                <div
-                    class="absolute inset-x-0 bottom-0 h-[2px] bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-                ></div>
-
-                <div class="flex items-center justify-between relative z-10">
-                    <div class="min-w-0">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="min-w-0 grow">
                         <div
-                            class="text-[10px] font-extrabold uppercase tracking-[0.2em] text-slate-400/70 mb-1.5 group-hover:text-blue-400 transition-colors flex items-center gap-2"
+                            class="mono text-[10px] text-slate-500 mb-1 flex items-center gap-1.5"
                         >
-                            <span
-                                class="bg-blue-500/20 p-1 rounded-sm"
-                                >${icons.activity}</span
-                            >
-                            <span>STREAM INPUT</span>
+                            stream
                             ${isLive
-            ? html`<span
-                                      class="flex h-2 w-2 relative"
-                                      title="Live"
-                                  >
-                                      <span
-                                          class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"
-                                      ></span>
-                                      <span
-                                          class="relative inline-flex rounded-full h-2 w-2 bg-red-500"
-                                      ></span>
-                                  </span>`
-            : ''}
+                                ? html`<span
+                                      class="mono flex items-center gap-1 text-[10px] text-red-300"
+                                      ><span
+                                          class="w-1.5 h-1.5 rounded-full bg-red-500"
+                                      ></span
+                                      >live</span
+                                  >`
+                                : ''}
                         </div>
                         <div
-                            class="font-extrabold text-slate-100 text-sm group-hover:text-slate-100 truncate tracking-tight"
-                            data-tooltip="${activeStream.name}"
+                            class="font-medium text-slate-100 text-sm truncate"
+                            title="${activeStream.name}"
                         >
                             ${activeStream.name}
                         </div>
                         <div
-                            class="text-[10px] text-slate-400 font-mono truncate opacity-60 mt-1.5 flex items-center gap-2"
+                            class="mono text-[10px] text-slate-600 truncate mt-1 flex items-center gap-1.5"
                         >
-                            <span
-                                class="bg-slate-800 px-1.5 py-0.5 rounded border border-slate-800/20 font-bold tracking-wider"
-                                >${protocol}</span
-                            >
-                            <span class="opacity-50">•</span>
+                            <span>${protocol}</span>
+                            <span class="text-slate-700">·</span>
                             <span class="truncate"
-                                >${new URL(activeStream.originalUrl)
-            .hostname}</span
+                                >${streamHostname(activeStream)}</span
                             >
                         </div>
                     </div>
-                    <div
-                        class="text-slate-400 group-hover:text-blue-400 transition-all duration-300 pl-3 group-hover:translate-y-0.5"
+                    <span class="text-slate-500 shrink-0"
+                        >${icons.chevronDown}</span
                     >
-                        ${icons.chevronDown}
-                    </div>
                 </div>
             </button>
         </div>

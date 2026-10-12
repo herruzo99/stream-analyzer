@@ -7,7 +7,7 @@ const renderValue = (val, customColor = null) => {
         return html`<span class="text-slate-400 italic">null</span>`;
 
     if (typeof val === 'object' && val !== null && 'value' in val) {
-        const colorClass = customColor || 'text-blue-300';
+        const colorClass = customColor || 'text-emerald-200';
         return html`<span
             class="font-mono ${colorClass} break-all select-all text-[11px]"
             title="Offset: ${val.offset}, Len: ${val.length}"
@@ -55,9 +55,9 @@ const cardKV = (k, v, colorClass = null, parentPacket = null) => {
         <div 
             @mouseenter=${handleMouseEnter}
             @mouseleave=${handleMouseLeave}
-            class="flex justified-between items-start py-1.5 px-3 border-b border-slate-800/50 last:border-0 hover:bg-slate-800 transition-colors group cursor-default"
+            class="flex justified-between items-start py-1.5 px-3 border-b border-white/10 last:border-0 hover:bg-white/5 transition-colors group cursor-default"
         >
-            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide opacity-80 group-hover:opacity-100 group-hover:text-blue-300 transition-all shrink-0 mr-4 mt-0.5">
+            <span class="text-[10px] font-bold text-slate-400 opacity-80 group-hover:opacity-100 group-hover:text-emerald-200 transition-all shrink-0 mr-4 mt-0.5">
                 ${k.replace(/_/g, ' ')}
             </span>
             <div class="grow text-right font-mono text-xs select-all break-all max-w-[70%]">
@@ -69,9 +69,9 @@ const cardKV = (k, v, colorClass = null, parentPacket = null) => {
 
 const _sectionHeader = (title, icon = icons.info) => html`
     <h4
-        class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2 mt-6 first:mt-0 select-none"
+        class="text-xs font-bold text-slate-400 r mb-2 flex items-center gap-2 mt-6 first:mt-0 select-none"
     >
-        <span class="scale-90 text-blue-400 drop-shadow-[0_0_5px_rgba(59,130,246,0.3)]">${icon}</span> ${title}
+        <span class="scale-90 text-emerald-200 drop-">${icon}</span> ${title}
     </h4>
 `;
 
@@ -90,11 +90,11 @@ const renderDeepObject = (obj, parentPacket = null) => {
             if (v.length === 0) return '';
             return html`
                 <div class="mt-4 first:mt-0">
-                    <h5 class="text-[9px] font-bold text-blue-400/80 uppercase tracking-widest mb-2 pl-2 border-l border-blue-500/40">${k}</h5>
-                    <div class="space-y-2 pl-2 border-l border-slate-800/30 ml-0.5">
+                    <h5 class="text-[9px] font-bold text-emerald-200/80 mb-2 pl-2 border-l border-emerald-400/25">${k}</h5>
+                    <div class="space-y-2 pl-2 border-l border-white/10 ml-0.5">
                         ${v.map((item, i) => html`
-                            <div class="bg-slate-800/30 rounded border border-slate-800/40 overflow-hidden group/item">
-                                <div class="px-2 py-1 text-[9px] font-mono font-bold text-slate-400 bg-slate-800/50 border-b border-slate-800/30 flex justify-between items-center group-hover/item:text-blue-300 transition-colors">
+                            <div class="bg-white/5 rounded border border-white/10 overflow-hidden group/item">
+                                <div class="px-2 py-1 text-[9px] font-mono font-bold text-slate-400 bg-white/5 border-b border-white/10 flex justify-between items-center group-hover/item:text-emerald-200 transition-colors">
                                     <span>#${i}</span>
                                 </div>
                                 <div>
@@ -112,8 +112,8 @@ const renderDeepObject = (obj, parentPacket = null) => {
             if (k === 'fieldOffsets') return '';
             return html`
                 <div class="mt-3 first:mt-0">
-                    <h5 class="text-[9px] font-bold text-blue-400/80 uppercase tracking-widest mb-1.5 pl-2 border-l border-blue-500/40">${k}</h5>
-                    <div class="bg-slate-800/20 rounded-lg border border-slate-800/30 overflow-hidden ring-1 ring-white/5 ml-1">
+                    <h5 class="text-[9px] font-bold text-emerald-200/80 mb-1.5 pl-2 border-l border-emerald-400/25">${k}</h5>
+                    <div class="bg-white/5 rounded-md border border-white/10 overflow-hidden ring-1 ring-white/5 ml-1">
                         ${renderDeepObject(v, parentPacket)}
                     </div>
                 </div>
@@ -138,14 +138,14 @@ const BADGE_TONES = {
         border: 'border-amber-500/30',
     },
     'primary-500': {
-        bg: 'bg-blue-500/20',
-        text: 'text-blue-400',
-        border: 'border-blue-500/30',
+        bg: 'bg-emerald-500/10',
+        text: 'text-emerald-200',
+        border: 'border-emerald-400/25',
     },
     'secondary-500': {
-        bg: 'bg-purple-500/20',
-        text: 'text-purple-400',
-        border: 'border-purple-500/30',
+        bg: 'bg-white/5',
+        text: 'text-slate-300',
+        border: 'border-white/10',
     },
     'color-success': {
         bg: 'bg-emerald-500/20',
@@ -163,9 +163,7 @@ const badge = (label, colorVar = 'text-muted', filled = false) => {
     const tone = BADGE_TONES[colorVar] || BADGE_TONES['text-muted'];
     return html`
     <span
-        class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${filled
-        ? `${tone.bg} ${tone.text} ${tone.border}`
-        : 'text-slate-400 border-slate-700 bg-slate-800'}"
+        class="px-1.5 py-0.5 rounded text-[9px] font-bold r border ${filled ? `${tone.bg} ${tone.text} ${tone.border}` : 'text-slate-400 border-white/10 bg-white/5'}"
     >
         ${label}
     </span>
@@ -175,7 +173,7 @@ const badge = (label, colorVar = 'text-muted', filled = false) => {
 const renderDescriptor = (desc, parentPacket) => {
     return html`
         <div
-            class="bg-slate-900 border border-slate-700/50 rounded-lg p-2.5 mb-2 last:mb-0"
+            class="bg-white/5 border border-white/10 rounded-md p-2.5 mb-2 last:mb-0"
         >
             <div class="flex items-center justify-between mb-2">
                 <span class="text-xs font-bold text-amber-200"
@@ -195,7 +193,7 @@ const renderDescriptor = (desc, parentPacket) => {
 
 const renderPmtContent = (pmt, packet) => {
     return html`
-        <div class="bg-slate-800/30 rounded p-2 border border-slate-800 mb-4">
+        <div class="bg-white/5 rounded p-2 border border-white/10 mb-4">
             ${cardKV('PCR PID', pmt.pcr_pid, 'text-emerald-400 font-bold', packet)}
         </div>
 
@@ -203,7 +201,7 @@ const renderPmtContent = (pmt, packet) => {
             ? html`
                   <div class="mb-4">
                       <div
-                          class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2"
+                          class="text-[10px] font-bold text-slate-500 r mb-2"
                       >
                           Program Descriptors
                       </div>
@@ -216,7 +214,7 @@ const renderPmtContent = (pmt, packet) => {
 
         <div class="space-y-3">
             <div
-                class="text-[10px] font-bold text-slate-500 uppercase tracking-wider"
+                class="text-[10px] font-bold text-slate-500 r"
             >
                 Elementary Streams (${pmt.streams.length})
             </div>
@@ -225,12 +223,12 @@ const renderPmtContent = (pmt, packet) => {
                 const pid = stream.elementary_PID.value;
                 return html`
                     <div
-                        class="bg-slate-800/50 rounded-lg border border-slate-700 overflow-hidden"
+                        class="bg-white/5 rounded-md border border-white/10 overflow-hidden"
                     >
                         <div
-                            class="px-3 py-2 bg-slate-900/50 border-b border-slate-700/50 flex justify-between items-center"
+                            class="px-3 py-2 bg-white/5 border-b border-white/10 flex justify-between items-center"
                         >
-                            <span class="text-xs font-bold text-blue-300"
+                            <span class="text-xs font-bold text-emerald-200"
                                 >PID ${pid}</span
                             >
                             <span class="text-[10px] text-slate-400"
@@ -289,16 +287,16 @@ const renderPsiContent = (packet) => {
 };
 
 const renderHeaderTab = (packet) => html`
-    <div class="mb-6 animate-fadeIn">
-        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+    <div class="mb-6">
+        <h3 class="text-xs font-bold text-slate-400 mb-3 flex items-center gap-2">
             ${icons.fileText} <span class="opacity-80">Transport Header</span>
         </h3>
-        <div class="bg-slate-800/40 rounded-xl border border-slate-800 shadow-sm overflow-hidden ring-1 ring-white/5">
+        <div class="bg-white/5 rounded-md border border-white/10 overflow-hidden ring-1 ring-white/5">
             ${cardKV('Sync Byte', `0x${packet.header.sync_byte.value.toString(16)}`, 'text-slate-100', packet)}
             ${cardKV('Transport Error', packet.header.transport_error_indicator.value, packet.header.transport_error_indicator.value ? 'text-red-400' : 'text-slate-100', packet)}
             ${cardKV('Payload Start', packet.header.payload_unit_start_indicator.value, packet.header.payload_unit_start_indicator.value ? 'text-emerald-400' : 'text-slate-100', packet)}
             ${cardKV('Priority', packet.header.transport_priority.value, packet.header.transport_priority.value ? 'text-amber-400' : 'text-slate-100', packet)}
-            ${cardKV('PID', packet.header.pid.value, 'text-blue-400 font-bold', packet)}
+            ${cardKV('PID', packet.header.pid.value, 'text-emerald-200 font-bold', packet)}
             ${cardKV('Scrambling', packet.header.transport_scrambling_control.value, 'text-slate-100', packet)}
             ${cardKV('Adaptation Control', packet.header.adaptation_field_control.value, 'text-slate-100', packet)}
             ${cardKV('Continuity Counter', packet.header.continuity_counter.value, 'text-slate-100', packet)}
@@ -310,10 +308,10 @@ export const tsInspectorDetailsTemplate = (packet) => {
     if (!packet) {
         return html`
             <div class="h-full flex flex-col items-center justify-center text-center p-8 text-slate-400">
-                <div class="mb-6 p-6 bg-slate-800/40 backdrop-blur-xl rounded-full border border-slate-800 shadow-[0_0_30px_#3b82f6] ring-1 ring-white/10 group">
-                    <div class="text-blue-400 scale-150 group-hover:scale-[1.6] transition-transform duration-500">${icons.searchCode}</div>
+                <div class="mb-6 p-6 bg-white/5 rounded-full border border-white/10 ring-1 ring-white/10 group">
+                    <div class="text-emerald-200 scale-150 group-hover:scale-[1.6] transition-transform duration-500">${icons.searchCode}</div>
                 </div>
-                <p class="font-black text-lg text-slate-100 tracking-tight">Select a TS Packet</p>
+                <p class="font-bold text-lg text-slate-100">Select a TS Packet</p>
             </div>
         `;
     }
@@ -328,9 +326,9 @@ export const tsInspectorDetailsTemplate = (packet) => {
     return html`
         <div class="h-full flex flex-col bg-transparent overflow-hidden">
             <!-- Header Card -->
-            <div class="shrink-0 p-5 bg-slate-800/60 backdrop-blur-md border-b border-slate-800 shadow-sm z-10">
+            <div class="shrink-0 p-5 bg-white/5 border-b border-white/10 z-10">
                 <div class="flex items-center justify-between mb-2">
-                    <h2 class="text-xl font-black text-slate-100 font-mono tracking-tighter flex items-center gap-3">
+                    <h2 class="text-xl font-bold text-slate-100 font-mono flex items-center gap-3">
                         TS Packet
                     </h2>
                     ${badge(pType, payloadBadgeColor, true)}
@@ -338,7 +336,7 @@ export const tsInspectorDetailsTemplate = (packet) => {
                 
                 <div class="flex items-center gap-4 text-xs font-mono text-slate-400 mb-4 pl-0.5">
                     <span>Offset: <span class="text-slate-100 font-bold">${packet.offset}</span></span>
-                    <span>PID: <span class="text-blue-400 font-bold">${packet.pid}</span></span>
+                    <span>PID: <span class="text-emerald-200 font-bold">${packet.pid}</span></span>
                 </div>
 
                 <!-- Flags Row -->
@@ -358,25 +356,25 @@ export const tsInspectorDetailsTemplate = (packet) => {
                 ${renderHeaderTab(packet)}
 
                 ${packet.adaptationField ? html`
-                    <div class="mb-6 animate-fadeIn">
-                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <div class="mb-6">
+                        <h3 class="text-xs font-bold text-slate-400 mb-3 flex items-center gap-2">
                             ${icons.settings} <span class="opacity-80">Adaptation Field</span>
                         </h3>
-                        <div class="bg-slate-800/40 rounded-xl border border-slate-800 shadow-sm overflow-hidden ring-1 ring-white/5">
+                        <div class="bg-white/5 rounded-md border border-white/10 overflow-hidden ring-1 ring-white/5">
                             ${cardKV('Length', packet.adaptationField.length, 'text-slate-100', packet)}
                             ${packet.adaptationField.discontinuity_indicator?.value ? cardKV('Discontinuity', 'YES', 'text-amber-400 font-bold', packet) : ''}
                             ${packet.adaptationField.random_access_indicator?.value ? cardKV('Random Access', 'YES', 'text-emerald-400 font-bold', packet) : ''}
-                            ${packet.adaptationField.pcr ? cardKV('PCR', packet.adaptationField.pcr.value, 'text-blue-400 font-bold font-mono', packet) : ''}
+                            ${packet.adaptationField.pcr ? cardKV('PCR', packet.adaptationField.pcr.value, 'text-emerald-200 font-bold font-mono', packet) : ''}
                         </div>
                     </div>
                 ` : ''}
 
                 ${packet.psi || packet.pes || packet.videoDetails ? html`
-                    <div class="animate-fadeIn">
-                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <div class="">
+                        <h3 class="text-xs font-bold text-slate-400 mb-3 flex items-center gap-2">
                             ${icons.layers} <span class="opacity-80">Payload Data</span>
                         </h3>
-                        <div class="bg-slate-800/40 rounded-xl border border-slate-800 shadow-sm overflow-hidden ring-1 ring-white/5 p-1">
+                        <div class="bg-white/5 rounded-md border border-white/10 overflow-hidden ring-1 ring-white/5 p-1">
                              ${packet.psi ? renderPsiContent(packet) : ''}
                              ${packet.pes ? renderDeepObject(packet.pes, packet) : ''}
                              ${packet.videoDetails ? renderDeepObject(packet.videoDetails, packet) : ''}

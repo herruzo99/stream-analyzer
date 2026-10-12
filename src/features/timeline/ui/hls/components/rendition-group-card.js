@@ -12,17 +12,17 @@ const getIcon = (type) => {
 export const renditionGroupCardTemplate = (title, items, stream, type) => {
     return html`
         <div
-            class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-sm"
+            class="bg-white/5 rounded-md border border-white/10 overflow-hidden"
         >
             <div
-                class="px-4 py-3 bg-slate-800/80 border-b border-slate-700/50 flex items-center justify-between"
+                class="px-4 py-3 bg-white/5 border-b border-white/10 flex items-center justify-between"
             >
                 <div class="flex items-center gap-3">
                     <div class="text-slate-400">${getIcon(type)}</div>
                     <h3 class="font-bold text-slate-200 text-base">${title}</h3>
                 </div>
                 <span
-                    class="bg-slate-700 text-slate-300 px-2.5 py-1 rounded text-xs font-bold border border-slate-600"
+                    class="bg-white/5 text-slate-300 px-2.5 py-1 rounded text-xs font-bold border border-slate-600"
                 >
                     ${items.length}
                 </span>

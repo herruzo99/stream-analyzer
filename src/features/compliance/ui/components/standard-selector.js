@@ -1,7 +1,6 @@
 import { formattedOptionsDropdownTemplate } from '@/features/playerSimulation/ui/components/formatted-options-dropdown';
 import * as icons from '@/ui/icons';
 import { toggleDropdown } from '@/ui/services/dropdownService';
-import { useUiStore } from '@/state/uiStore';
 import { html } from 'lit-html';
 
 const HLS_VERSIONS = [
@@ -59,25 +58,24 @@ const HLS_VERSIONS = [
  * @param {Function} options.onVersionChange
  */
 export const standardSelectorTemplate = ({
+    protocol,
     selectedVersion,
     onVersionChange,
 }) => {
+    // Version pinning only applies to HLS. DASH follows the checked-in
+    // DASH-IF profile, so show a static chip instead of a dead control.
+    if (protocol !== 'hls') {
+        return html`<span
+            class="mono text-[10px] px-2 py-1.5 rounded-md border border-white/10 text-slate-500"
+            title="DASH checks follow the DASH-IF profile under test"
+        >
+            dash-if profile
+        </span>`;
+    }
+
+    const known = HLS_VERSIONS.some((v) => v.id === selectedVersion);
     const activeVersion =
         HLS_VERSIONS.find((v) => v.id === selectedVersion) || HLS_VERSIONS[0];
-
-    const { shell } = useUiStore.getState();
-    const isGlass = shell.config.activeThemeId.includes('glass');
-
-    // Container Classes
-    const containerRadius = isGlass ? 'rounded-xl' : 'rounded-sm';
-    const containerBlur = isGlass ? 'backdrop-blur-md' : '';
-    const containerClass = `flex items-center gap-3 p-1 border ${containerRadius} ${containerBlur}`;
-
-    // Button Classes
-    const btnRadius = isGlass ? 'rounded-lg' : 'rounded-sm';
-    const btnBg = isGlass
-        ? 'background: color-mix(in srgb, #3b82f6 5%, transparent);'
-        : 'background: #0f172a;';
 
     const handleDropdownToggle = (e) => {
         toggleDropdown(
@@ -88,32 +86,34 @@ export const standardSelectorTemplate = ({
                     selectedVersion,
                     (option) => onVersionChange(option.id)
                 ),
-            e
+            e,
+            { side: 'right' }
         );
     };
 
     return html`
-        <div
-            class="${containerClass}"
-            style="background: #1e293b; border-color: #1e293b;"
-        >
-            <span
-                class="text-[10px] font-bold uppercase tracking-wider pl-3 opacity-70 text-slate-400"
-                >Standard</span
-            >
+        <div class="flex items-center gap-2">
+            ${!known
+                ? html`<span
+                      class="mono text-[10px] text-amber-300"
+                      title="Stored version unrecognized — showing closest default"
+                      >version unknown</span
+                  >`
+                : ''}
             <button
                 @click=${handleDropdownToggle}
-                class="flex items-center justify-between gap-3 ${btnRadius} px-4 py-2 border transition-all duration-300 text-xs font-bold min-w-[200px] group hover:shadow-[0_0_20px_#3b82f6] relative overflow-hidden"
-                style="${btnBg} border-color: #1e293b; color: #e2e8f0;"
+                class="flex items-center justify-between gap-2.5 px-3 py-1.5 rounded-md border border-white/10 bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/15 transition-colors text-[13px] min-w-[190px] text-left"
+                aria-label="HLS standard version (currently ${activeVersion.label})"
             >
-                <div
-                    class="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-500/10 to-blue-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 pointer-events-none"
-                ></div>
-                <span class="truncate drop-shadow-sm relative z-10"
-                    >${activeVersion.label}</span
-                >
-                <span
-                    class="transition-transform duration-300 group-hover:translate-y-0.5 text-slate-400 group-hover:text-blue-400 relative z-10"
+                <span class="min-w-0">
+                    <span class="mono block text-[9px] text-slate-600"
+                        >standard</span
+                    >
+                    <span class="block text-slate-200 truncate"
+                        >${activeVersion.label}</span
+                    >
+                </span>
+                <span class="text-slate-500 shrink-0"
                     >${icons.chevronDown}</span
                 >
             </button>

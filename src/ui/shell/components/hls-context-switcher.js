@@ -18,65 +18,48 @@ const getLocalState = (streamId) => {
     return stateMap.get(streamId);
 };
 
-const renderBadge = (text, type = 'default') => {
-    const colors = {
-        default:
-            'bg-slate-800 text-slate-400 border-slate-800/40',
-        blue: 'bg-blue-500/20 text-blue-400 border-blue-500/30 shadow-[0_0_8px_#3b82f6]/20',
-        purple: 'bg-purple-500/20 text-purple-300 border-purple-500/30 shadow-[0_0_8px_rgba(168,85,247,0.2)]',
-        green: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-        yellow: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-    };
-    return html`
-        <span
-            class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border transition-all duration-300 ${colors[
-        type
-        ] || colors.default}"
-        >
-            ${text}
+const renderBadge = (text) => html`
+    <span
+        class="mono text-[10px] px-1.5 py-px rounded border bg-white/5 text-slate-500 border-white/10"
+    >
+        ${text}
+    </span>
+`;
+
+const renderItemRow = (item, isActive, onClick) => html`
+    <button
+        @click=${onClick}
+        aria-current=${isActive ? 'true' : 'false'}
+        class="w-full flex items-center justify-between px-2.5 py-2 rounded-md border transition-colors ${isActive
+            ? 'bg-transparent border-emerald-500/30'
+            : 'bg-transparent border-transparent hover:bg-white/5'}"
+    >
+        <span class="flex items-center gap-3 min-w-0">
+            <span
+                class="w-0.5 self-stretch rounded-full shrink-0 ${isActive
+                    ? 'bg-emerald-400'
+                    : 'bg-white/10'}"
+            ></span>
+            <span class="flex flex-col items-start min-w-0">
+                <span
+                    class="text-[13px] font-medium truncate w-full text-left text-slate-200"
+                >
+                    ${item.label}
+                </span>
+                <span class="flex flex-wrap gap-1 mt-1">
+                    ${item.badges.map((b) => renderBadge(b.text))}
+                </span>
+            </span>
         </span>
-    `;
-};
-
-const renderItemRow = (item, isActive, onClick, isGlass) => {
-    const radiusClass = isGlass ? 'rounded-xl' : 'rounded-sm';
-    return html`
-        <button
-            @click=${onClick}
-            class="w-full flex items-center justify-between p-2.5 ${radiusClass} transition-all duration-300 group ${isActive
-            ? 'bg-slate-800 border border-blue-500/40 shadow-lg'
-            : 'hover:bg-slate-800 border border-transparent hover:border-slate-800/30'}"
-        >
-            <div class="flex items-center gap-4 min-w-0">
-                <div
-                    class="w-1 h-8 rounded-full transition-all duration-300 ${isActive
-            ? 'bg-gradient-to-b from-blue-500 to-[#60a5fa] shadow-[0_0_12px_#3b82f6] scale-y-110'
-            : 'bg-slate-800 group-hover:bg-slate-400'}"
-                ></div>
-                <div class="flex flex-col items-start min-w-0">
-                    <div
-                        class="text-sm font-semibold truncate w-full text-left transition-colors ${isActive
-            ? 'text-slate-100'
-            : 'text-slate-100/80 group-hover:text-slate-100'}"
-                    >
-                        ${item.label}
-                    </div>
-                    <div class="flex flex-wrap gap-1.5 mt-1.5">
-                        ${item.badges.map((b) => renderBadge(b.text, b.color))}
-                    </div>
-                </div>
-            </div>
-            ${isActive
-            ? html`<span
-                      class="text-blue-400 drop-shadow-[0_0_8px_#3b82f6]"
-                      >${icons.checkCircle}</span
-                  >`
+        ${isActive
+            ? html`<span class="text-emerald-300 shrink-0"
+                  >${icons.checkCircle}</span
+              >`
             : ''}
-        </button>
-    `;
-};
+    </button>
+`;
 
-const hlsDropdownContent = (stream, isGlass) => {
+const hlsDropdownContent = (stream) => {
     const { activeMediaPlaylistId } = stream;
     const manifest = stream.manifest;
     const state = getLocalState(stream.id);
@@ -101,9 +84,9 @@ const hlsDropdownContent = (stream, isGlass) => {
                 id: rep.id,
                 label: rep.id,
                 badges: [
-                    { text: resolution, color: 'blue' },
-                    { text: bitrate, color: 'green' },
-                    { text: codecs, color: 'default' },
+                    { text: resolution },
+                    { text: bitrate },
+                    { text: codecs },
                 ],
                 group: 'variants',
             };
@@ -123,9 +106,9 @@ const hlsDropdownContent = (stream, isGlass) => {
                         id: rep.id,
                         label: rep.label,
                         badges: [
-                            { text: rep.lang || 'UND', color: 'purple' },
-                            { text: rep.format || 'FMT', color: 'yellow' },
-                            { text: group, color: 'default' },
+                            { text: rep.lang || 'UND' },
+                            { text: rep.format || 'FMT' },
+                            { text: group },
                         ],
                         group: type,
                     });
@@ -172,125 +155,101 @@ const hlsDropdownContent = (stream, isGlass) => {
         closeDropdown();
     };
 
-    const panelClass = isGlass
-        ? "bg-slate-800/95 backdrop-blur-3xl border-slate-800/30 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.4)] ring-1 ring-white/10"
-        : "bg-slate-800 border-slate-800 rounded-sm shadow-xl";
-
-    const headerClass = isGlass
-        ? "bg-slate-800 border-slate-800/20"
-        : "bg-slate-800 border-slate-800";
-
-    const masterSwitchClass = isGlass
-        ? "bg-slate-800 border-slate-800/20"
-        : "bg-slate-800 border-slate-800";
-
     return html`
         <div
-            class="dropdown-panel border w-[32rem] flex flex-col h-[520px] overflow-hidden ${panelClass}"
+            class="dropdown-panel border border-white/10 bg-[#0b111c] rounded-md w-80 sm:w-96 flex flex-col max-h-[70vh] overflow-hidden"
         >
-            <!-- Header -->
             <div
-                class="px-5 py-4 border-b flex items-center justify-between ${headerClass}"
+                class="px-4 py-3 border-b border-white/5 flex items-center justify-between"
             >
-                <div
-                    class="flex items-center gap-3 text-slate-400"
+                <span class="mono text-[11px] font-medium text-slate-400"
+                    >Track selection</span
                 >
-                    <span
-                        class="text-purple-300 drop-shadow-[0_0_8px_#a855f7]"
-                        >${icons.settings}</span
-                    >
-                    <span
-                        class="text-xs font-extrabold uppercase tracking-[0.15em] opacity-80"
-                        >Stream Context</span
-                    >
-                </div>
             </div>
 
-            <!-- Master Switch -->
-            <div
-                class="p-4 border-b ${masterSwitchClass}"
-            >
+            <div class="p-3 border-b border-white/5">
                 <button
                     @click=${() => handleSelect('master')}
-                    class="w-full flex items-center justify-between p-4 ${isGlass ? 'rounded-2xl' : 'rounded-sm'} border transition-all duration-500 group relative overflow-hidden ${activeMediaPlaylistId ===
-            'master'
-            ? 'bg-purple-500/10 border-purple-500/40 text-purple-300 shadow-lg'
-            : 'bg-slate-800/50 border-slate-800/30 hover:bg-slate-800 hover:border-purple-500/30 text-slate-100'}"
+                    aria-current=${activeMediaPlaylistId === 'master'
+                        ? 'true'
+                        : 'false'}
+                    class="w-full flex items-center justify-between px-3 py-2.5 rounded-md border transition-colors ${activeMediaPlaylistId ===
+                        'master'
+                        ? 'bg-transparent border-emerald-500/30'
+                        : 'bg-transparent border-white/5 hover:border-white/15'}"
                 >
-                    <div class="flex items-center gap-4 relative z-10">
-                        <div
-                            class="p-2.5 rounded-xl transition-all duration-500 ${activeMediaPlaylistId ===
-            'master'
-            ? 'bg-purple-500/20 text-purple-300 shadow-[0_0_15px_#a855f7]'
-            : 'bg-slate-800 text-slate-400 group-hover:bg-slate-800'}"
+                    <span class="flex items-center gap-3">
+                        <span
+                            class="text-slate-500"
                         >
                             ${icons.list}
-                        </div>
-                        <div class="text-left">
-                            <div class="font-extrabold text-sm tracking-tight">
-                                Master Playlist
-                            </div>
-                            <div
-                                class="text-[10px] opacity-60 font-mono mt-0.5"
+                        </span>
+                        <span class="text-left">
+                            <span
+                                class="block font-medium text-sm text-slate-100"
                             >
-                                Contains all variants & renditions
-                            </div>
-                        </div>
-                    </div>
+                                Master playlist
+                            </span>
+                            <span
+                                class="mono block text-[10px] text-slate-600 mt-0.5"
+                            >
+                                all variants and renditions
+                            </span>
+                        </span>
+                    </span>
                     ${activeMediaPlaylistId === 'master'
-            ? html`<span
-                              class="text-purple-300 drop-shadow-[0_0_8px_#a855f7]"
+                        ? html`<span class="text-emerald-300"
                               >${icons.checkCircle}</span
                           >`
-            : ''}
+                        : ''}
                 </button>
             </div>
 
-            <!-- Tabs -->
-            <div class="px-4 pt-4 pb-0">
+            <div class="px-3 pt-3">
                 <div
-                    class="flex gap-1.5 p-1.5 ${isGlass ? 'bg-slate-800 rounded-xl' : 'bg-slate-800 rounded-sm'} border border-slate-800/20 overflow-x-auto custom-scrollbar"
+                    class="flex gap-1 p-1 bg-black/30 rounded-md border border-white/5 overflow-x-auto custom-scrollbar"
+                    role="tablist"
                 >
                     ${tabs.map(
-                (tab) => html`
+                        (tab) => html`
                             <button
+                                role="tab"
+                                aria-selected=${state.activeCategory ===
+                                tab.key}
                                 @click=${() => handleTabClick(tab.key)}
-                                class="flex-1 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${state.activeCategory ===
-                        tab.key
-                        ? 'bg-slate-800 text-slate-100 shadow-md border border-white/10'
-                        : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'}"
+                                class="flex-1 px-3 py-1.5 rounded mono text-[11px] transition-colors whitespace-nowrap ${state.activeCategory ===
+                                tab.key
+                                ? 'bg-white/10 text-slate-100'
+                                : 'text-slate-500 hover:text-slate-200'}"
                             >
-                                ${tab.label}
-                                <span
-                                    class="ml-2 opacity-50 text-[10px] font-mono bg-slate-800 px-1.5 py-0.5 rounded-md border border-white/5"
+                                ${tab.label.toLowerCase()}
+                                <span class="text-slate-600"
                                     >${tab.count}</span
                                 >
                             </button>
                         `
-            )}
+                    )}
                 </div>
             </div>
 
-            <!-- List -->
-            <div class="p-3 overflow-y-auto custom-scrollbar grow">
-                <div class="flex flex-col gap-1">
+            <div class="p-2 overflow-y-auto custom-scrollbar grow">
+                <div class="flex flex-col">
                     ${items.map((item) =>
-                renderItemRow(
-                    item,
-                    stream.activeMediaPlaylistUrl === item.id ||
-                    stream.activeMediaPlaylistId === item.id, // Fallback check
-                    () => handleSelect(item.id),
-                    isGlass
-                )
-            )}
+                        renderItemRow(
+                            item,
+                            stream.activeMediaPlaylistUrl === item.id ||
+                                stream.activeMediaPlaylistId === item.id,
+                            () => handleSelect(item.id)
+                        )
+                    )}
                 </div>
                 ${items.length === 0
-            ? html`<div
-                          class="text-center p-8 text-slate-400 italic text-xs"
+                    ? html`<p
+                          class="mono text-center p-6 text-slate-600 text-[11px]"
                       >
                           No items in this category.
-                      </div>`
-            : ''}
+                      </p>`
+                    : ''}
             </div>
         </div>
     `;
@@ -298,13 +257,11 @@ const hlsDropdownContent = (stream, isGlass) => {
 
 export const hlsContextSwitcherTemplate = (stream) => {
     const { isGlobalNavCompact } = useUiStore.getState();
-    // Port: no themes in 1.2.0; solid styling throughout.
-    const isGlass = false;
-    const isMasterSelected = stream.activeMediaPlaylistId === 'master';
+    const isMasterSelected = !stream.activeMediaPlaylistId || stream.activeMediaPlaylistId === 'master';
     const state = getLocalState(stream.id);
 
-    let mainLabel = 'Master Playlist';
-    let subLabel = 'All Variants';
+    let mainLabel = 'Master playlist';
+    let subLabel = 'All variants';
 
     if (!isMasterSelected) {
         const activeVariant = (stream.manifest?.variants || []).find(
@@ -316,113 +273,93 @@ export const hlsContextSwitcherTemplate = (stream) => {
 
         if (activeVariant) {
             mainLabel = activeVariant.stableId || activeVariant.id || 'Variant';
-            subLabel = activeVariant.attributes.RESOLUTION
-                ? `${activeVariant.attributes.RESOLUTION} • ${formatBitrate(
-                    activeVariant.attributes.BANDWIDTH
-                )}`
-                : formatBitrate(activeVariant.attributes.BANDWIDTH);
+            const attrs = activeVariant.attributes || {};
+            subLabel = attrs.RESOLUTION
+                ? `${attrs.RESOLUTION} • ${formatBitrate(attrs.BANDWIDTH)}`
+                : formatBitrate(attrs.BANDWIDTH) || 'variant';
         } else {
             const media = (stream.manifest?.media || []).find(
-                (m) => m.value.URI === stream.activeMediaPlaylistId
+                (m) => m?.value?.URI === stream.activeMediaPlaylistId
             );
-            if (media) {
+            if (media?.value) {
                 mainLabel =
                     media.value.NAME || media.value.LANGUAGE || 'Rendition';
-                subLabel = `${media.value.TYPE} • ${media.value['GROUP-ID']}`;
+                subLabel = `${media.value.TYPE || 'track'} • ${media.value['GROUP-ID'] || 'default'}`;
+            } else if (stream.activeMediaPlaylistId) {
+                mainLabel = String(stream.activeMediaPlaylistId).slice(0, 40);
+                subLabel = 'Selected track';
             } else {
-                mainLabel = stream.activeMediaPlaylistId;
-                subLabel = 'Selected Track';
+                mainLabel = 'Master playlist';
+                subLabel = 'All variants';
             }
         }
     }
 
+    const openMenu = (e) => {
+        const handle = toggleDropdown(
+            e.currentTarget,
+            () => hlsDropdownContent(stream),
+            e
+        );
+        if (handle) {
+            state.dropdownHandle = handle;
+        }
+    };
+
     // Compact Mode Trigger
     if (isGlobalNavCompact) {
         return html`
-            <div class="relative w-full px-2 pb-4 flex justify-center">
+            <div class="w-full px-2 py-3 flex justify-center">
                 <button
-                    @click=${(e) => {
-                const handle = toggleDropdown(
-                    e.currentTarget,
-                    () => hlsDropdownContent(stream, isGlass),
-                    e
-                );
-                if (handle) {
-                    state.dropdownHandle = handle;
-                }
-            }}
-                    class="w-10 h-10 ${isGlass ? 'bg-slate-800 hover:bg-slate-800 rounded-xl' : 'bg-slate-800 rounded-sm'} border border-slate-800/30 hover:border-purple-500/40 flex items-center justify-center transition-all duration-300 group shadow-lg relative overflow-hidden"
-                    data-tooltip="${mainLabel} - ${subLabel}"
-                    data-tooltip-placement="right"
+                    @click=${openMenu}
+                    class="w-10 h-10 bg-white/5 hover:bg-white/10 border border-white/10 rounded-md flex items-center justify-center transition-colors relative"
+                    title="${mainLabel} — ${subLabel} (change track)"
+                    aria-label="Change track (currently ${mainLabel})"
                 >
-                    <div
-                        class="absolute inset-0 bg-gradient-to-tr from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"
-                    ></div>
-
-                    <span class="text-slate-400 group-hover:text-purple-300 transition-colors relative z-10 scale-75">
-                         ${icons.settings}
+                    <span class="text-slate-400">
+                        ${icons.settings}
                     </span>
-                    
-                     ${!isMasterSelected ? html`<div class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-purple-500 ring-1 ring-slate-800 z-20"></div>` : ''}
+                    ${!isMasterSelected
+                        ? html`<span
+                              class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-400"
+                          ></span>`
+                        : ''}
                 </button>
             </div>
         `;
     }
 
     return html`
-        <div class="relative w-full px-4 pb-4">
+        <div class="w-full px-3 py-3">
             <button
-                @click=${(e) => {
-            const handle = toggleDropdown(
-                e.currentTarget,
-                () => hlsDropdownContent(stream, isGlass),
-                e
-            );
-            // Store handle if returned (it might be undefined if closing)
-            if (handle) {
-                state.dropdownHandle = handle;
-            }
-        }}
-                class="w-full ${isGlass ? 'bg-slate-800 hover:bg-slate-800 rounded-2xl' : 'bg-slate-800 rounded-sm'} border border-slate-800/30 hover:border-purple-500/40 p-4 transition-all duration-500 text-left group shadow-lg relative overflow-hidden"
+                @click=${openMenu}
+                class="w-full bg-white/[0.02] hover:bg-white/[0.05] border border-white/10 rounded-md p-3 transition-colors text-left"
+                aria-label="Change track (currently ${mainLabel})"
             >
-                <!-- Hover Glow -->
-                <div
-                    class="absolute inset-x-0 bottom-0 h-[2px] bg-gradient-to-r from-transparent via-purple-500 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-                ></div>
-
-                <div class="flex items-center justify-between relative z-10">
-                    <div class="min-w-0">
-                        <div
-                            class="text-[10px] font-extrabold uppercase tracking-[0.2em] text-slate-400/70 mb-1.5 group-hover:text-purple-300 transition-colors flex items-center gap-2"
+                <div class="flex items-center justify-between gap-2">
+                    <div class="min-w-0 grow">
+                        <p
+                            class="mono text-[10px] text-slate-500 mb-1"
                         >
-                            <span
-                                class="bg-purple-500/20 p-1 rounded-sm"
-                                >${icons.settings}</span
-                            >
-                            <span>Active Context</span>
-                        </div>
-                        <div
-                            class="font-extrabold text-slate-100 text-sm group-hover:text-slate-100 truncate tracking-tight"
-                            data-tooltip="${mainLabel}"
+                            track
+                        </p>
+                        <p
+                            class="font-medium text-slate-100 text-sm truncate"
+                            title="${mainLabel}"
                         >
                             ${mainLabel}
-                        </div>
-                        <div
-                            class="text-[10px] text-slate-400 font-mono truncate opacity-60 mt-1.5 flex items-center gap-2"
+                        </p>
+                        <p
+                            class="mono text-[10px] text-slate-600 truncate mt-1 flex items-center gap-1.5"
                         >
-                            <span
-                                class="bg-slate-800 px-1.5 py-0.5 rounded border border-slate-800/20 font-bold tracking-wider"
-                                >HLS</span
-                            >
-                            <span class="opacity-50">•</span>
-                            <span class="truncate">${subLabel}</span>
-                        </div>
+                            <span>hls</span>
+                            <span class="text-slate-700">·</span>
+                            <span class="truncate">${subLabel.toLowerCase()}</span>
+                        </p>
                     </div>
-                    <div
-                        class="text-slate-400 group-hover:text-purple-300 transition-all duration-300 pl-3 group-hover:translate-y-0.5"
+                    <span class="text-slate-500 shrink-0 pl-2"
+                        >${icons.chevronDown}</span
                     >
-                        ${icons.chevronDown}
-                    </div>
                 </div>
             </button>
         </div>

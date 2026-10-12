@@ -46,17 +46,17 @@ const sparkline = (data, colorClass, height = 24, width = 100) => {
 
 const statusCard = (label, value, subtext, chartData, chartColor) => html`
     <div
-        class="flex flex-col justify-between bg-slate-800 rounded-xl border border-slate-800 p-4 min-w-[160px] relative overflow-hidden hover:bg-slate-800 transition-colors group"
+        class="flex flex-col justify-between bg-white/5 rounded-md border border-white/10 p-4 min-w-[160px] relative overflow-hidden hover:bg-white/10 transition-colors group"
     >
         <div class="flex justify-between items-start z-10">
             <div>
                 <div
-                    class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 group-hover:text-slate-100 transition-colors"
+                    class="text-xs font-bold text-slate-400 r mb-1 group-hover:text-slate-100 transition-colors"
                 >
                     ${label}
                 </div>
                 <div
-                    class="text-2xl font-mono font-bold text-slate-100 tracking-tight"
+                    class="text-2xl font-mono font-bold text-slate-100"
                 >
                     ${value}
                 </div>
@@ -99,20 +99,18 @@ export const metricsHeaderTemplate = (vm) => {
         >
             <!-- Pulse Status -->
             <div
-                class="flex items-center gap-5 bg-slate-800 rounded-xl border border-slate-800 p-4"
+                class="flex items-center gap-5 bg-white/5 rounded-md border border-white/10 p-4"
             >
                 <div
-                    class="w-12 h-12 rounded-full bg-slate-900 flex items-center justify-center border border-slate-700 shadow-inner relative"
+                    class="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center border border-white/10 relative"
                 >
                     <span
-                        class="${isLive
-            ? 'text-blue-400 animate-pulse scale-110'
-            : 'text-slate-400'}"
+                        class="${isLive ? 'text-emerald-200 animate-pulse scale-110' : 'text-slate-400'}"
                         >${icons.activity}</span
                     >
                     ${isLive
             ? html`<span
-                              class="absolute top-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-slate-900 rounded-full shadow-lg shadow-emerald-500/50"
+                              class="absolute top-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white/10 rounded-full shadow-emerald-500/50"
                           ></span>`
             : ''}
                 </div>
@@ -126,9 +124,7 @@ export const metricsHeaderTemplate = (vm) => {
                         class="text-xs font-medium text-slate-400 flex items-center gap-2"
                     >
                         <span
-                            class="w-2 h-2 rounded-full ${isLive
-            ? 'bg-emerald-500'
-            : 'bg-slate-400'}"
+                            class="w-2 h-2 rounded-full ${isLive ? 'bg-emerald-500' : 'bg-slate-400'}"
                         ></span>
                         ${statusLabel}
                     </div>
@@ -140,7 +136,7 @@ export const metricsHeaderTemplate = (vm) => {
                 `${(stats.avgInterval / 1000).toFixed(1)}s`,
                 'Avg Interval',
                 intervalTrend,
-                'text-blue-400'
+                'text-emerald-200'
             )}
             ${statusCard(
                 'Volatility',

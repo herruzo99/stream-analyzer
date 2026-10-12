@@ -1,59 +1,133 @@
 import { eventBus } from '@/application/event-bus';
+import { exampleStreams } from '@/data/example-streams';
 import {
     getLastUsedStreams,
     getPresets,
     getWorkspaces,
 } from '@/infrastructure/persistence/streamStorage';
 import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
+import { inputView } from '../input-view.js';
 import { uiActions, useUiStore } from '@/state/uiStore';
 import { EVENTS } from '@/types/events';
+import { showToast } from '@/ui/components/toast';
 import * as icons from '@/ui/icons';
 import { openModalWithContent } from '@/ui/services/modalService';
 import { html, render } from 'lit-html';
 import './smart-input.js';
 
+function safeHostname(url) {
+    if (typeof url !== 'string' || !url) return 'unknown host';
+    try {
+        const parsed = new URL(url);
+        if (parsed.protocol === 'blob:') return 'local file';
+        return parsed.hostname || 'unknown host';
+    } catch {
+        return url.length > 32 ? `${url.slice(0, 32)}…` : url;
+    }
+}
+
+function detectProtocol(url) {
+    if (typeof url !== 'string') return 'STREAM';
+    if (url.includes('.m3u8')) return 'HLS';
+    if (url.includes('.mpd')) return 'DASH';
+    if (url.includes('.ism')) return 'MSS';
+    return 'STREAM';
+}
+
+function protocolBadge(proto) {
+    const base =
+        'mono shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded border';
+    if (proto && proto !== 'STREAM')
+        return `${base} text-emerald-200 bg-emerald-500/10 border-emerald-400/25`;
+    return `${base} text-slate-400 bg-white/5 border-white/10`;
+}
+
+const FEATURED_URL_HINTS = ['x36xhzz', 'livesim2', 'clear_cmaf_1080p_h265'];
+
 class LandingViewComponent extends HTMLElement {
     constructor() {
         super();
         this.unsubs = [];
+        this._lastSig = '';
+        this._pending = false;
     }
 
     connectedCallback() {
-        this._render(); // Initial render
+        this._onBlurFlush = () => {
+            if (!this._pending) return;
+            // Focus may just be moving between controls inside the landing
+            // (e.g. input -> Analyze button). Only flush once it truly leaves,
+            // otherwise the forced re-render would replace the click target.
+            requestAnimationFrame(() => {
+                if (this.contains(document.activeElement)) return;
+                this._pending = false;
+                this._render(true);
+            });
+        };
+        this.addEventListener('blur', this._onBlurFlush, true);
+        this._render(true);
 
-        // React to UI store changes (Theme)
         this.unsubs.push(useUiStore.subscribe(() => this._render()));
-
-        // React to Analysis store changes (History updates)
         this.unsubs.push(useAnalysisStore.subscribe(() => this._render()));
     }
 
     disconnectedCallback() {
         this.unsubs.forEach((unsub) => unsub());
         this.unsubs = [];
+        this.removeEventListener('blur', this._onBlurFlush, true);
     }
 
-    _render() {
+    _render(force = false) {
+        if (!this.isConnected) return;
+
+        // Never yank the input out from under someone typing.
+        const active = document.activeElement;
+        if (
+            !force &&
+            active &&
+            this.contains(active) &&
+            (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')
+        ) {
+            this._pending = true;
+            return;
+        }
+
         const history = getLastUsedStreams();
         const presets = getPresets();
         const workspaces = getWorkspaces();
+        const { streamInputs } = useAnalysisStore.getState();
+        const stagedCount = streamInputs.length;
+        const stagedNames = streamInputs
+            .slice(0, 3)
+            .map((s) => s.name || safeHostname(s.url))
+            .join(', ');
 
+        // Signature covers everything rendered: top history rows (url+name),
+        // library counts, preset/workspace identities, and the staged queue.
+        const sig = [
+            history
+                .slice(0, 6)
+                .map((s) => `${s?.url ?? ''}|${s?.name ?? ''}`)
+                .join(';'),
+            presets.map((p) => `${p?.url ?? ''}|${p?.name ?? ''}`).join(';'),
+            workspaces.map((w) => w?.name ?? '').join(';'),
+            exampleStreams.length,
+            streamInputs.map((s) => `${s.id}:${s.url ?? ''}`).join(';'),
+        ].join(' # ');
+        if (!force && sig === this._lastSig) return;
+        this._lastSig = sig;
 
-        // 0. Styles
         const styles = html`
             <style>
-                /* 
-                 * Landing Root Override 
-                 */
                 .landing-root {
                     display: block !important;
                     width: 100%;
                     height: 100%;
                     position: relative;
                     overflow-y: auto;
-                    background: transparent;
                     padding: 0 !important;
                     gap: 0 !important;
+                    background: #06090f;
                 }
 
                 landing-view-component {
@@ -62,305 +136,457 @@ class LandingViewComponent extends HTMLElement {
                     height: 100%;
                 }
 
-                /* Custom Scrollbar */
-                ::-webkit-scrollbar {
-                    width: 4px; 
-                }
-                ::-webkit-scrollbar-track {
-                    background: transparent;
-                }
-                ::-webkit-scrollbar-thumb {
-                    background: #1e293b;
-                    border-radius: 99px;
-                }
-                ::-webkit-scrollbar-thumb:hover {
-                    background: #3b82f6;
+                .console-title {
+                    font-size: clamp(1.75rem, 1.2rem + 2.5vw, 2.75rem);
+                    line-height: 1.1;
+                    letter-spacing: -0.02em;
+                    font-weight: 700;
+                    color: #fff;
+                    text-wrap: balance;
                 }
 
-                /* Cinematic Hero Title */
-                .hero-title {
-                    font-size: 5rem;
-                    line-height: 1;
-                    letter-spacing: -0.05em;
-                    background: linear-gradient(135deg, #fff 0%, #3b82f6 50%, #a855f7 100%);
-                    -webkit-background-clip: text;
-                    -webkit-text-fill-color: transparent;
-                    filter: drop-shadow(0 0 30px rgba(59, 130, 246, 0.4));
+                .mono {
+                    font-family:
+                        'Fira Code', Menlo, Monaco, monospace;
                 }
 
-                @media (min-width: 768px) {
-                    .hero-title {
-                        font-size: 7rem;
+                .panel {
+                    background: #0b111c;
+                    border: 1px solid #1a2636;
+                    border-radius: 12px;
+                }
+
+                .landing-root a:focus-visible,
+                .landing-root button:focus-visible,
+                .landing-root input:focus-visible {
+                    outline: 2px solid #4cc38a;
+                    outline-offset: 2px;
+                }
+
+                .mount-fade {
+                    animation: landing-rise 0.45s ease-out both;
+                }
+
+                @keyframes landing-rise {
+                    from {
+                        opacity: 0;
+                        transform: translateY(8px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: none;
                     }
                 }
 
-                /* Floating Glass Card */
-                .glass-floater {
-                    background: #1e293b; /* Use Prism Glass variable */
-                    backdrop-filter: blur(40px);
-                    -webkit-backdrop-filter: blur(40px);
-                    box-shadow: 
-                        0 20px 50px -10px rgba(0, 0, 0, 0.5),
-                        inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-                    transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.4s ease;
-                }
-                
-                .glass-floater:hover {
-                    transform: translateY(-5px) scale(1.01);
-                    box-shadow: 
-                        0 30px 60px -10px rgba(0, 0, 0, 0.6),
-                        inset 0 0 0 1px rgba(255, 255, 255, 0.1),
-                        0 0 20px rgba(59, 130, 246, 0.2);
-                }
-
-                /* Ambient Background Animation */
-                .ambient-orb {
-                    position: absolute;
-                    border-radius: 50%;
-                    filter: blur(80px);
-                    opacity: 0.4;
-                    z-index: 0;
-                    animation: float 20s infinite ease-in-out;
-                }
-                
-                .orb-1 { width: 600px; height: 600px; background: #3b82f6; top: -20%; left: -10%; animation-delay: 0s; }
-                .orb-2 { width: 500px; height: 500px; background: #a855f7; top: 20%; right: -10%; animation-delay: -5s; }
-                .orb-3 { width: 300px; height: 300px; background: #14b8a6; bottom: -10%; left: 30%; animation-delay: -10s; }
-
-                @keyframes float {
-                    0%, 100% { transform: translate(0, 0) scale(1); }
-                    33% { transform: translate(30px, -50px) scale(1.1); }
-                    66% { transform: translate(-20px, 20px) scale(0.9); }
-                }
-
-                /* Entrance Stagger */
-                .animate-enter { animation: fadeInUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; opacity: 0; transform: translateY(20px); }
-                .delay-100 { animation-delay: 100ms; }
-                .delay-200 { animation-delay: 200ms; }
-                .delay-300 { animation-delay: 300ms; }
-                .delay-400 { animation-delay: 400ms; }
-
-                @keyframes fadeInUp {
-                    to { opacity: 1; transform: translateY(0); }
+                @media (prefers-reduced-motion: reduce) {
+                    .mount-fade {
+                        animation: none;
+                    }
                 }
             </style>
         `;
 
-        // 1. Resume Session Card Content
-        const latestStream = history.length > 0 ? history[0] : null;
+        const featured = FEATURED_URL_HINTS.map((hint) =>
+            exampleStreams.find((s) => s.url.includes(hint))
+        ).filter(Boolean);
 
-        const resumeContent =
-            history.length > 0
-                ? html`
-                      <div 
-                          class="glass-floater rounded-3xl p-6 h-full flex flex-col relative overflow-hidden group cursor-pointer"
-                          @click=${() => this._resumeSession(false)}
-                      >
-                          <!-- Internal Glow -->
-                          <div class="absolute top-0 right-0 w-64 h-64 bg-blue-500/20 blur-[60px] rounded-full pointer-events-none group-hover:bg-blue-500/30 transition-colors duration-500"></div>
-                          
-                          <div class="relative z-10 pointer-events-none">
-                              <div class="flex items-start justify-between mb-4">
-                                  <div class="p-3 rounded-2xl bg-white/5 text-blue-400">
-                                      ${icons.history}
-                                  </div>
-                                  <span class="text-[10px] font-black uppercase tracking-widest text-slate-400 bg-black/20 px-2 py-1 rounded-lg">Last Active</span>
-                              </div>
-                              
-                              <h3 class="text-2xl font-bold text-white mb-1">Resume Analysis</h3>
-                              <p class="text-sm text-slate-400 mb-6">Pick up exactly where you left off.</p>
-                              
-                              <div class="space-y-3 pointer-events-auto">
-                                  ${this._renderStreamItem(latestStream, true)}
-                              </div>
-                          </div>
-                          
-                          <div class="mt-auto pt-6 relative z-20 pointer-events-auto flex items-center gap-2">
-                               <button
-                                  @click=${(e) => {
-                        e.stopPropagation();
-                        this._resumeSession(true);
-                    }}
-                                  class="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 text-white text-sm font-bold shadow-[0_0_20px_#3b82f6] hover:shadow-[0_0_30px_#3b82f6] hover:scale-[1.02] active:scale-[0.98] transition-all"
-                                  title="Resume Latest"
-                              >
-                                  ${icons.play} RESUME SESSION
-                              </button>
-                               <button
-                                  @click=${async (e) => {
-                        e.stopPropagation();
-                        try {
-                            const clipboardText = await navigator.clipboard.readText();
-                            if (
-                                clipboardText &&
-                                (clipboardText.startsWith('http') ||
-                                    clipboardText.endsWith('.mpd') ||
-                                    clipboardText.endsWith('.m3u8'))
-                            ) {
-                                analysisActions.addStreamInputFromPreset({ url: clipboardText });
-                            }
-                        } catch {
-                            // Permission denied or empty
-                        }
-                    }}
-                                  class="p-3 rounded-xl bg-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
-                                  title="Manual Input"
-                              >
-                                  ${icons.plusCircle}
-                              </button>
-                          </div>
-                      </div>
-                  `
-                : html`
-                      <!-- New Analysis Hero Card -->
-                      <div class="glass-floater rounded-3xl p-8 h-full flex flex-col items-center justify-center text-center cursor-pointer group relative overflow-hidden" 
-                           @click=${() => this._focusInput()}>
-                           
-                          <div class="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-
-                          <div class="p-6 rounded-full bg-gradient-to-br from-slate-800 to-slate-800 text-blue-400 mb-6 text-5xl group-hover:scale-110 group-hover:rotate-12 transition-all duration-500 shadow-[0_0_40px_#3b82f6] ring-1 ring-blue-500/30 relative z-10">
-                              ${icons.plusCircle}
-                          </div>
-                          <h3 class="text-3xl font-bold text-white mb-2 tracking-tight relative z-10">Start New Analysis</h3>
-                          <p class="text-slate-400 max-w-sm text-base leading-relaxed relative z-10">Inspect manifests, validate streams, and debug playback issues.</p>
-                      </div>
-                  `;
-
-        // 2. Stats Grid
-        const statsContent = html`
-             <div class="grid grid-rows-2 gap-2 h-full"> 
-                <div 
-                    class="glass-floater rounded-3xl p-5 cursor-pointer relative overflow-hidden flex items-center justify-between group"
-                    @click=${() => {
-                uiActions.setStreamLibraryTab('workspaces');
-                uiActions.setLibraryModalOpen(true);
-            }}
-                >
-                    <div>
-                        <div class="text-4xl font-black text-white leading-none mb-1 group-hover:scale-110 origin-left transition-transform duration-300 transform">${workspaces.length}</div>
-                        <div class="text-[10px] text-teal-300 font-bold uppercase tracking-widest">Workspaces</div>
-                    </div>
-                    <div class="p-4 rounded-2xl bg-teal-500/10 text-teal-300 ring-1 ring-teal-500/20 shadow-[0_0_20px_rgba(20,184,166,0.2)] group-hover:bg-teal-500 group-hover:text-black transition-colors">
-                        ${icons.folder}
-                    </div>
-                </div>
-
-                <div 
-                    class="glass-floater rounded-3xl p-5 cursor-pointer relative overflow-hidden flex items-center justify-between group"
-                    @click=${() => {
-                uiActions.setStreamLibraryTab('presets');
-                uiActions.setLibraryModalOpen(true);
-            }}
-                >
-                    <div>
-                        <div class="text-4xl font-black text-white leading-none mb-1 group-hover:scale-110 origin-left transition-transform duration-300 transform">${presets.length}</div>
-                        <div class="text-[10px] text-purple-300 font-bold uppercase tracking-widest">Presets</div>
-                    </div>
-                    <div class="p-4 rounded-2xl bg-purple-500/10 text-purple-300 ring-1 ring-purple-500/20 shadow-[0_0_20px_rgba(168,85,247,0.2)] group-hover:bg-purple-500 group-hover:text-black transition-colors">
-                        ${icons.star}
-                    </div>
-                </div>
-             </div>
-        `;
+        const latest =
+            history.find(
+                (s) => s && typeof s.url === 'string' && s.url.length > 0
+            ) ?? null;
+        const earlier = history
+            .filter((s) => s && s !== latest)
+            .slice(0, 5);
 
         const template = html`
             ${styles}
-            
+
             <div class="shell-root landing-root overflow-x-hidden">
-
-                <div class="relative z-10 flex flex-col items-center w-full h-full pt-10 px-6 lg:px-8">
-                    
-                    <!-- Header moved from input-view -->
-                    <div class="absolute top-0 left-0 right-0 px-4 pt-2 sm:px-6 sm:pt-4 flex justify-between items-center z-50 pointer-events-none">
-                        <div class="pointer-events-auto flex items-center gap-2 sm:gap-3">
-                            <div class="w-8 h-8 sm:w-10 sm:h-10 bg-blue-500 drop-shadow-[0_0_15px_#3b82f6]" style="mask-image: url(/icon.png); mask-size: contain; mask-position: center; mask-repeat: no-repeat; -webkit-mask-image: url(/icon.png); -webkit-mask-size: contain; -webkit-mask-position: center; -webkit-mask-repeat: no-repeat;"></div>
-                            <span class="font-bold text-xl sm:text-2xl text-transparent bg-clip-text bg-gradient-to-r from-slate-200 to-slate-300 tracking-tight">Stream Analyzer</span>
-                        </div>
-                        
-                        <div class="flex gap-3 pointer-events-auto">
-                            <!-- About -->
-                            <button 
-                                @click=${(e) => {
-                e.preventDefault();
-                openModalWithContent({
-                    title: '',
-                    url: '',
-                    content: { type: 'about', data: {} },
-                });
-            }}
-                                class="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-2xl text-[10px] sm:text-xs font-bold text-white transition-all hover:scale-105 hover:shadow-[0_0_15px_#3b82f6] group"
+                <div
+                    class="mx-auto w-full max-w-6xl px-5 sm:px-8 pb-10 pt-4 sm:pt-6 mount-fade"
+                >
+                    <!-- Status bar -->
+                    <div
+                        class="flex justify-between items-center py-2"
+                    >
+                        <div class="flex items-center gap-2.5">
+                            <div
+                                class="w-7 h-7 bg-emerald-400"
+                                style="mask-image: url(/icon.png); mask-size: contain; mask-position: center; mask-repeat: no-repeat; -webkit-mask-image: url(/icon.png); -webkit-mask-size: contain; -webkit-mask-position: center; -webkit-mask-repeat: no-repeat;"
+                            ></div>
+                            <span
+                                class="font-bold text-lg text-slate-100 tracking-tight"
+                                >Stream Analyzer</span
                             >
-                                <div class="text-blue-400 group-hover:text-white transition-colors">${icons.info}</div>
-                                <span class="hidden sm:inline">About</span>
+                            <span
+                                class="mono hidden sm:inline text-[11px] text-slate-500"
+                                >ott debugger</span
+                            >
+                        </div>
+
+                        <div class="flex gap-2">
+                            <button
+                                @click=${() => {
+                                    openModalWithContent({
+                                        title: '',
+                                        url: '',
+                                        content: {
+                                            type: 'about',
+                                            data: {},
+                                        },
+                                    });
+                                }}
+                                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 text-xs font-semibold text-slate-200 hover:border-white/25 hover:bg-white/10 transition-colors"
+                            >
+                                ${icons.info} About
                             </button>
-
-                            <!-- GitHub -->
-                            <a href="https://github.com/herruzo99/stream-analyzer" 
-                               target="_blank" 
-                               rel="noopener noreferrer" 
-                               class="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-2xl text-[10px] sm:text-xs font-bold text-white transition-all hover:scale-105 hover:shadow-[0_0_15px_#3b82f6] group">
-                                <div class="text-purple-300 group-hover:text-white transition-colors">${icons.github}</div>
-                                <span class="hidden sm:inline">GitHub</span>
+                            <a
+                                href="https://github.com/herruzo99/stream-analyzer"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 text-xs font-semibold text-slate-200 hover:border-white/25 hover:bg-white/10 transition-colors"
+                            >
+                                ${icons.github} GitHub
                             </a>
-
                         </div>
                     </div>
-                    
-                    <!-- Hero Section -->
-                    <div class="w-full max-w-5xl text-center mb-12 animate-enter">
-                        <div class="inline-flex items-center gap-2 px-3 py-2">
-                            
-                        </div>
-                        
-                        <h1 class="hero-title font-black mb-8 tracking-tighter">
-                            Stream Analyzer
-                        </h1>
-                        
-                        <p class="text-slate-400 text-lg md:text-xl max-w-2xl mx-auto font-light leading-relaxed mb-12 text-balance">
-                             The advanced toolchain for OTT compliance. Inspect 
-                             <strong class="text-white font-bold">MPEG-DASH</strong>, and
-                             <strong class="text-white font-bold">HLS</strong> streams with surgical precision.
+
+                    <!-- Masthead -->
+                    <div class="mt-7 mb-6 max-w-2xl">
+                        <p class="mono text-xs text-emerald-300">
+                            $ inspect ./manifest.mpd
                         </p>
-                        
-                        <div class="max-w-2xl mx-auto transform hover:scale-[1.01] transition-transform duration-500 shadow-2xl rounded-full">
-                            <smart-input-component variant="hero"></smart-input-component>
-                        </div>
+                        <h1 class="console-title mt-2">
+                            Check a stream before it ships.
+                        </h1>
+                        <p
+                            class="mt-3 text-slate-400 text-[15px] leading-relaxed"
+                        >
+                            Paste a DASH or HLS manifest. The analyzer
+                            parses it locally and shows the ladder,
+                            compliance, and segments.
+                        </p>
                     </div>
 
-                    <!-- Main Dashboard Grid -->
-                    <div class="w-full max-w-6xl grid grid-cols-1 md:grid-cols-12 gap-6 mb-20">
-                        
-                        <!-- Primary Action (Resume/New) -->
-                        <div class="md:col-span-8 h-[22rem] animate-enter delay-100">
-                            ${resumeContent}
-                        </div>
+                    <!-- Deck -->
+                    <div class="grid gap-4 lg:grid-cols-12">
+                        <!-- Input panel -->
+                        <section
+                            class="panel p-5 lg:col-span-7"
+                            aria-label="Analyze a stream"
+                        >
+                            <div
+                                class="flex items-baseline justify-between mb-3"
+                            >
+                                <h2
+                                    class="text-sm font-semibold text-slate-200"
+                                >
+                                    Manifest URL
+                                </h2>
+                                <span
+                                    class="mono text-[11px] text-slate-500"
+                                    >https .mpd or .m3u8</span
+                                >
+                            </div>
 
-                        <!-- Secondary Stats -->
-                        <div class="md:col-span-4 h-[22rem] animate-enter delay-200">
-                             ${statsContent}
-                        </div>
-                        
-                        <!-- Quick History Rail -->
-                       <div class="md:col-span-12 animate-enter delay-300">
-                            <div class="flex items-center justify-between mb-4 px-2">
-                                <h3 class="text-sm font-bold text-white/50 uppercase tracking-widest flex items-center gap-2">
-                                    ${icons.history} Recent Activity
-                                </h3>
-                                <button 
-                                    @click=${() => { uiActions.setStreamLibraryTab('history'); uiActions.setLibraryModalOpen(true); }}
-                                    class="text-xs font-bold text-blue-400 hover:text-white transition-colors"
-                                >View All</button>
+                            <smart-input-component
+                                variant="hero"
+                            ></smart-input-component>
+
+                            <div class="mt-4">
+                                <p
+                                    class="text-xs text-slate-500 mb-2"
+                                >
+                                    No URL handy? Try one of these:
+                                </p>
+                                <div
+                                    class="flex flex-col gap-2"
+                                >
+                                    ${featured.map(
+                                        (ex) => html`
+                                            <button
+                                                @click=${() =>
+                                                    this._loadStream(ex)}
+                                                class="group flex items-center gap-3 px-3 py-2.5 rounded-lg border border-white/5 bg-white/[0.02] hover:border-white/15 hover:bg-white/[0.05] transition-colors text-left"
+                                            >
+                                                <span
+                                                    class="${protocolBadge(
+                                                        ex.protocol === 'dash'
+                                                            ? 'DASH'
+                                                            : ex.protocol ===
+                                                                'hls'
+                                                              ? 'HLS'
+                                                              : 'STREAM'
+                                                    )}"
+                                                    >${ex.protocol === 'dash'
+                                                        ? 'DASH'
+                                                        : ex.protocol === 'hls'
+                                                          ? 'HLS'
+                                                          : 'STREAM'}</span
+                                                >
+                                                <span
+                                                    class="min-w-0 grow"
+                                                >
+                                                    <span
+                                                        class="block text-sm font-semibold text-slate-200 truncate"
+                                                        >${ex.name}</span
+                                                    >
+                                                    <span
+                                                        class="mono block text-[11px] text-slate-500 truncate"
+                                                        >${safeHostname(
+                                                            ex.url
+                                                        )}
+                                                        ·
+                                                        ${ex.type}</span
+                                                    >
+                                                </span>
+                                                <span
+                                                    class="shrink-0 text-xs font-bold text-emerald-300 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity"
+                                                    >Analyze</span
+                                                >
+                                            </button>
+                                        `
+                                    )}
+                                </div>
                             </div>
-                            
-                            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                                ${history.length > 0 ? history.slice(0, 4).map(h => this._renderQuickCard(h)) : html`
-                                    <div class="col-span-full py-8 text-center text-white/30 italic text-sm rounded-2xl">
-                                        No recent streams found.
-                                    </div>
-                                `}
-                            </div>
-                       </div>
+                        </section>
+
+                        <!-- Session panel -->
+                        <section
+                            class="panel p-5 lg:col-span-5"
+                            aria-label="Previous session"
+                        >
+                            ${latest
+                                ? html`
+                                      <h2
+                                          class="flex items-center gap-2 text-sm font-semibold text-slate-200 mb-3"
+                                      >
+                                          ${icons.history} Last session
+                                      </h2>
+
+                                      <div
+                                          class="rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2.5 mb-3"
+                                      >
+                                          <div
+                                              class="flex items-center gap-2"
+                                          >
+                                              <span
+                                                  class="${protocolBadge(
+                                                      detectProtocol(
+                                                          latest.url
+                                                      )
+                                                  )}"
+                                                  >${detectProtocol(
+                                                      latest.url
+                                                  )}</span
+                                              >
+                                              <span
+                                                  class="text-sm font-semibold text-slate-100 truncate"
+                                                  >${latest.name ||
+                                                  safeHostname(
+                                                      latest.url
+                                                  )}</span
+                                              >
+                                          </div>
+                                          <p
+                                              class="mono text-[11px] text-slate-500 truncate mt-1"
+                                          >
+                                              ${safeHostname(latest.url)}
+                                          </p>
+                                      </div>
+
+                                      <div class="flex gap-2">
+                                          <button
+                                              @click=${() =>
+                                                  this._continueLatest(true)}
+                                              class="grow flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-400 text-slate-950 text-sm font-bold hover:bg-emerald-300 active:scale-[0.99] transition-colors"
+                                          >
+                                              ${icons.play} Analyze latest
+                                          </button>
+                                          <button
+                                              @click=${() =>
+                                                  this._continueLatest(false)}
+                                              title="Load into staging without analyzing"
+                                              class="px-4 py-2.5 rounded-lg border border-white/10 text-sm font-semibold text-slate-300 hover:border-white/25 hover:bg-white/5 transition-colors"
+                                          >
+                                              Stage
+                                          </button>
+                                          <button
+                                              @click=${(e) =>
+                                                  this._pasteFromClipboard(e)}
+                                              title="Paste a URL from the clipboard"
+                                              class="px-3 py-2.5 rounded-lg border border-white/10 text-slate-400 hover:text-slate-100 hover:border-white/25 transition-colors"
+                                          >
+                                              ${icons.clipboardCopy}
+                                          </button>
+                                      </div>
+
+                                      ${earlier.length > 0
+                                          ? html`
+                                                <div
+                                                    class="mt-4 pt-4 border-t border-white/5"
+                                                >
+                                                    <p
+                                                        class="text-xs text-slate-500 mb-2"
+                                                    >
+                                                        Earlier
+                                                    </p>
+                                                    <div
+                                                        class="flex flex-col gap-1"
+                                                    >
+                                                        ${earlier.map(
+                                                            (s) => html`
+                                                                <button
+                                                                    @click=${() =>
+                                                                        this._loadStream(
+                                                                            s
+                                                                        )}
+                                                                    class="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-white/5 transition-colors text-left"
+                                                                >
+                                                                    <span
+                                                                        class="${protocolBadge(
+                                                                            detectProtocol(
+                                                                                s.url
+                                                                            )
+                                                                        )}"
+                                                                        >${detectProtocol(
+                                                                            s.url
+                                                                        )}</span
+                                                                    >
+                                                                    <span
+                                                                        class="min-w-0 grow text-[13px] font-medium text-slate-300 truncate"
+                                                                        >${s.name ||
+                                                                        safeHostname(
+                                                                            s.url
+                                                                        )}</span
+                                                                    >
+                                                                    <span
+                                                                        class="mono shrink-0 text-[10px] text-slate-600 truncate max-w-[120px]"
+                                                                        >${safeHostname(
+                                                                            s.url
+                                                                        )}</span
+                                                                    >
+                                                                </button>
+                                                            `
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            `
+                                          : ''}
+                                  `
+                                : html`
+                                      <h2
+                                          class="text-sm font-semibold text-slate-200 mb-1"
+                                      >
+                                          No sessions yet
+                                      </h2>
+                                      <p
+                                          class="text-[13px] text-slate-500 mb-4"
+                                      >
+                                          Paste a manifest to get a full
+                                          readout:
+                                      </p>
+                                      <ul
+                                          class="flex flex-col gap-2.5 mb-5"
+                                      >
+                                          ${[
+                                              'ABR ladder with every track listed',
+                                              'Compliance checks for DASH-IF and HLS',
+                                              'Segment and bitstream inspection',
+                                          ].map(
+                                              (point) => html`
+                                                  <li
+                                                      class="flex items-baseline gap-2.5 text-[13px] text-slate-300"
+                                                  >
+                                                      <span
+                                                          aria-hidden="true"
+                                                          class="mono text-slate-600"
+                                                          >&gt;</span
+                                                      >
+                                                      ${point}
+                                                  </li>
+                                              `
+                                          )}
+                                      </ul>
+                                      <button
+                                          @click=${() =>
+                                              this._openLibrary('examples')}
+                                          class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-white/10 text-sm font-semibold text-slate-200 hover:border-white/25 hover:bg-white/5 transition-colors"
+                                      >
+                                          ${icons.library} Browse the example
+                                          library
+                                      </button>
+                                  `}
+                        </section>
+
+                        ${stagedCount > 0
+                            ? html`
+                                  <button
+                                      @click=${() => this._backToQueue()}
+                                      class="lg:col-span-12 flex items-center gap-3 px-4 py-3 rounded-lg border border-emerald-400/25 bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors text-left"
+                                  >
+                                      <span
+                                          class="mono text-[11px] font-bold text-emerald-300 shrink-0"
+                                          >queue (${stagedCount})</span
+                                      >
+                                      <span
+                                          class="min-w-0 grow truncate text-[13px] text-slate-300"
+                                          >${stagedNames}</span
+                                      >
+                                      <span
+                                          class="shrink-0 mono text-[11px] text-emerald-300"
+                                          >back to queue</span
+                                      >
+                                  </button>
+                              `
+                            : ''}
+                        <!-- Library line -->
+                        <nav
+                            class="lg:col-span-12 mono text-[11px] text-slate-500 flex flex-wrap items-center gap-x-1.5 gap-y-1"
+                            aria-label="Library"
+                        >
+                            <span class="text-slate-600">library —</span>
+                            ${[
+                                {
+                                    tab: 'workspaces',
+                                    label: 'workspaces',
+                                    count: workspaces.length,
+                                },
+                                {
+                                    tab: 'presets',
+                                    label: 'presets',
+                                    count: presets.length,
+                                },
+                                {
+                                    tab: 'history',
+                                    label: 'history',
+                                    count: history.length,
+                                },
+                                {
+                                    tab: 'examples',
+                                    label: 'examples',
+                                    count: exampleStreams.length,
+                                },
+                            ].map(
+                                (cell, i) => html`${i > 0
+                                    ? html`<span
+                                          class="text-slate-700"
+                                          >·</span
+                                      >`
+                                    : ''}<button
+                                        @click=${() =>
+                                            this._openLibrary(cell.tab)}
+                                        class="hover:text-emerald-300 transition-colors"
+                                    >
+                                        ${cell.label} (${cell.count})</button
+                                    >`
+                            )}
+                        </nav>
                     </div>
+
+                    <p class="mono mt-6 text-[11px] text-slate-600">
+                        Parses locally in your browser. Nothing uploads.
+                    </p>
                 </div>
             </div>
         `;
@@ -368,91 +594,115 @@ class LandingViewComponent extends HTMLElement {
         render(template, this);
     }
 
-    _renderStreamItem(stream, isHero = false) {
-        let urlObj;
-        try {
-            urlObj = new URL(stream.url);
-        } catch {
-            urlObj = { hostname: 'invalid-url', pathname: '' };
-        }
+    _openLibrary(tab) {
+        uiActions.loadWorkspaces();
+        uiActions.loadPresets();
+        uiActions.loadHistory();
+        uiActions.setStreamLibraryTab(tab);
+        uiActions.setLibraryModalOpen(true);
+    }
 
-        let badgeClass = 'text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider bg-white/5 text-white/50';
-        let badgeText = 'STREAM';
-        if (stream.url.includes('.m3u8')) {
-            badgeClass = 'text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider bg-purple-500/10 text-purple-300';
-            badgeText = 'HLS';
-        } else if (stream.url.includes('.mpd')) {
-            badgeClass = 'text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider bg-blue-500/10 text-blue-400';
-            badgeText = 'DASH';
-        }
-
-        return html`
-              <div
-                  class="flex items-center gap-4 p-3 rounded-xl bg-black/20 hover:bg-white/5 transition-colors cursor-pointer group"
-                  @click=${() => this._loadStream(stream)}
-              >
-                  <div
-                      class="shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-slate-800 to-black/50 flex items-center justify-center text-white/50 group-hover:text-white transition-colors ring-1 ring-white/10"
-                  >
-                      ${icons.play}
-                  </div>
-                  <div class="grow min-w-0">
-                      <div class="flex items-center gap-3">
-                          <span class="text-sm font-bold text-white truncate w-full">
-                              ${stream.name || urlObj.hostname}
-                          </span>
-                          <span class="${badgeClass}">${badgeText}</span>
-                      </div>
-                      <div class="text-[10px] font-mono text-white/40 truncate">
-                           ${urlObj.hostname}
-                      </div>
-                  </div>
-              </div>
-          `;
+    _backToQueue() {
+        inputView.showStaging();
     }
 
     _loadStream(stream) {
-        analysisActions.setStreamInputs([stream]);
+        if (!stream || typeof stream.url !== 'string') {
+            showToast({
+                message: 'That entry has no URL to analyze.',
+                type: 'fail',
+            });
+            return;
+        }
+        const url = stream.url.trim();
+        try {
+            new URL(url);
+        } catch {
+            showToast({
+                message:
+                    'That URL did not parse. Paste a full https manifest URL instead.',
+                type: 'fail',
+            });
+            return;
+        }
+        analysisActions.setStreamInputs([{ ...stream, url }]);
         const { streamInputs } = useAnalysisStore.getState();
         eventBus.dispatch(EVENTS.UI.STREAM_ANALYSIS_REQUESTED, {
             inputs: streamInputs,
         });
     }
 
-    _resumeSession(startAnalysis = false) {
-        // Load the entire history into the staging view
+    _continueLatest(analyze = false) {
         const history = getLastUsedStreams() || [];
-        if (history.length === 0) return;
-
-        analysisActions.setStreamInputs(history);
-
-        if (startAnalysis) {
-            eventBus.dispatch(EVENTS.UI.STREAM_ANALYSIS_REQUESTED, {
-                inputs: history,
+        const latest = history.find(
+            (s) => s && typeof s.url === 'string' && s.url.length > 0
+        );
+        if (!latest) {
+            showToast({
+                message: 'No previous stream yet. Paste a manifest to start.',
+                type: 'info',
             });
+            return;
         }
-        // If not starting analysis, simply populating streamInputs triggers mainRenderer
-        // to switch to Staging Mode (Input View + Shell).
+        if (analyze) {
+            this._loadStream(latest);
+            return;
+        }
+        analysisActions.setStreamInputs([{ ...latest }]);
     }
 
-    _focusInput() {
-        const input = /** @type {HTMLElement} */ (this.querySelector('smart-input-component'));
-        if (input) input.focus();
-    }
-
-    _renderQuickCard(item) {
-        return html`
-            <div 
-                class="glass-floater p-4 rounded-xl cursor-pointer bg-white/5 hover:bg-white/10 transition-colors"
-                @click=${() => this._loadStream(item)}
-            >
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-[10px] font-mono text-white/40 truncate max-w-[100px]">${new URL(item.url || '').hostname}</span>
-                    <div class="text-blue-400 scale-75">${icons.play}</div>
-                </div>
-                <div class="font-bold text-sm text-white truncate">${item.name}</div>
-            </div>
-         `;
+    async _pasteFromClipboard(e) {
+        e.stopPropagation();
+        if (!navigator.clipboard?.readText) {
+            showToast({
+                message:
+                    'The clipboard is unavailable here. Paste directly into the input.',
+                type: 'warn',
+            });
+            return;
+        }
+        let text = '';
+        try {
+            text = ((await navigator.clipboard.readText()) || '').trim();
+        } catch {
+            showToast({
+                message:
+                    'Could not read the clipboard. Paste directly into the input.',
+                type: 'warn',
+            });
+            return;
+        }
+        if (!text) {
+            showToast({
+                message: 'The clipboard is empty. Copy a manifest URL first.',
+                type: 'info',
+            });
+            return;
+        }
+        let parsed;
+        try {
+            parsed = new URL(text);
+        } catch {
+            showToast({
+                message:
+                    'That clipboard text is not a URL. Copy a full https manifest URL.',
+                type: 'fail',
+            });
+            return;
+        }
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+            showToast({
+                message:
+                    'Only http and https URLs can be staged from the clipboard.',
+                type: 'fail',
+            });
+            return;
+        }
+        analysisActions.addStreamInputFromPreset({ url: parsed.toString() });
+        showToast({
+            message: 'URL staged for review.',
+            type: 'pass',
+        });
     }
 }
 

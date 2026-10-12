@@ -1,6 +1,7 @@
 import { eventBus } from '@/application/event-bus';
 import { EVENTS } from '@/types/events';
 import { createStore } from 'zustand/vanilla';
+import { randomId } from '@/shared/utils/random.js';
 
 const DECRYPTION_RETENTION = Object.freeze({
     sessions: 50,
@@ -102,7 +103,7 @@ export const useDecryptionStore = createStore((set, get) => ({
                         {
                             ...event,
                             timestamp: Date.now(),
-                            id: crypto.randomUUID(),
+                            id: randomId(),
                         },
                     ],
                     DECRYPTION_RETENTION.eventsPerSession

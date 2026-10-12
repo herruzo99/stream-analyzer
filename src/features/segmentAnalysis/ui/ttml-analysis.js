@@ -1,25 +1,25 @@
 import { html } from 'lit-html';
 
 const cueRowTemplate = (cue, index) => html`
-    <tr class="hover:bg-slate-800/50 transition-colors">
+    <tr class="hover:bg-white/5 transition-colors">
         <td
-            class="p-3 border-b border-slate-700/50 font-mono text-slate-500 text-right w-12"
+            class="p-3 border-b border-white/10 font-mono text-slate-500 text-right w-12"
         >
             ${index + 1}
         </td>
         <td
-            class="p-3 border-b border-slate-700/50 font-mono text-purple-300 whitespace-nowrap"
+            class="p-3 border-b border-white/10 font-mono text-slate-300 whitespace-nowrap"
         >
             ${cue.startTime?.toFixed(3)}
             <span class="text-slate-600">→</span> ${cue.endTime?.toFixed(3)}
         </td>
         <td
-            class="p-3 border-b border-slate-700/50 text-slate-200 text-sm leading-relaxed break-all"
+            class="p-3 border-b border-white/10 text-slate-200 text-sm leading-relaxed break-all"
         >
             ${cue.payload ?? ''}
         </td>
         <td
-            class="p-3 border-b border-slate-700/50 font-mono text-xs text-slate-400"
+            class="p-3 border-b border-white/10 font-mono text-xs text-slate-400"
         >
             ${cue.id ? `ID: ${cue.id}` : '-'}
         </td>
@@ -34,7 +34,7 @@ export const ttmlAnalysisTemplate = (ttmlData) => {
             ${hasErrors
                 ? html`
                       <div
-                          class="bg-red-900/10 border border-red-500/30 rounded-lg p-4"
+                          class="bg-red-900/10 border border-red-500/30 rounded-md p-4"
                       >
                           <h4 class="text-xs font-bold text-red-400 mb-2">
                               Parsing Errors
@@ -48,9 +48,9 @@ export const ttmlAnalysisTemplate = (ttmlData) => {
 
             <!-- Cues Section -->
             <div
-                class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden"
+                class="bg-white/5 rounded-md border border-white/10 overflow-hidden"
             >
-                <div class="p-4 border-b border-slate-800 bg-slate-900/50">
+                <div class="p-4 border-b border-white/10 bg-white/5">
                     <h3
                         class="font-bold text-slate-200 flex items-center gap-2"
                     >
@@ -63,7 +63,7 @@ export const ttmlAnalysisTemplate = (ttmlData) => {
                 <div class="overflow-x-auto max-h-[500px] custom-scrollbar">
                     <table class="w-full text-left">
                         <thead
-                            class="bg-slate-800/50 text-xs uppercase font-bold text-slate-500 sticky top-0 z-10"
+                            class="bg-white/5 text-xs font-bold text-slate-500 sticky top-0 z-10"
                         >
                             <tr>
                                 <th class="p-3 text-right">#</th>

@@ -148,8 +148,8 @@ class SearchModal extends HTMLElement {
             <div class="flex flex-col h-full min-h-0">
                 <div class="flex flex-col h-[50vh] max-h-[500px]">
                     <!-- Search Header -->
-                    <div class="flex items-center gap-3 p-4 border-b border-slate-800 shrink-0">
-                        <div class="text-blue-400">
+                    <div class="flex items-center gap-3 p-4 border-b border-white/10 shrink-0">
+                        <div class="text-emerald-200">
                             ${icons.search}
                         </div>
                         <input
@@ -161,7 +161,7 @@ class SearchModal extends HTMLElement {
                             @keydown=${this.handleKeyDown.bind(this)}
                             autofocus
                         />
-                        <div class="text-[10px] font-bold px-2 py-1 bg-slate-800 rounded text-[#94a3b8] border border-slate-800">
+                        <div class="text-[10px] font-bold px-2 py-1 bg-white/5 rounded text-[#94a3b8] border border-white/10">
                             ESC
                         </div>
                     </div>
@@ -183,12 +183,9 @@ class SearchModal extends HTMLElement {
                         ${this.results.map((res, idx) => html`
                             <div
                                 @click=${() => this.selectResult(res)}
-                                class="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${idx === this.selectedIndex
-                ? 'bg-blue-500/10 border border-blue-500/20'
-                : 'hover:bg-slate-800 border border-transparent'
-            }"
+                                class="flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors ${idx === this.selectedIndex ? 'bg-emerald-500/10 border border-emerald-400/25' : 'hover:bg-white/5 border border-transparent' }"
                             >
-                                <div class="p-1.5 rounded bg-slate-800 text-[#94a3b8] border border-slate-800">
+                                <div class="p-1.5 rounded bg-white/5 text-[#94a3b8] border border-white/10">
                                     ${icons.fileText}
                                 </div>
                                 <div class="min-w-0">
@@ -200,7 +197,7 @@ class SearchModal extends HTMLElement {
                                     </div>
                                 </div>
                                 ${idx === this.selectedIndex ? html`
-                                    <div class="ml-auto text-blue-400">
+                                    <div class="ml-auto text-emerald-200">
                                         ${icons.arrowRight}
                                     </div>
                                 ` : ''}
@@ -209,7 +206,7 @@ class SearchModal extends HTMLElement {
                     </div>
                     
                     <!-- Footer Helper -->
-                    <div class="p-2 border-t border-slate-800 bg-slate-800 text-[10px] text-[#94a3b8] flex justify-between px-4">
+                    <div class="p-2 border-t border-white/10 bg-white/5 text-[10px] text-[#94a3b8] flex justify-between px-4">
                         <span><strong class="text-[#f1f5f9]">↑↓</strong> to navigate</span>
                         <span><strong class="text-[#f1f5f9]">Enter</strong> to select</span>
                     </div>

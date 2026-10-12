@@ -1,3 +1,5 @@
+import { eventBus } from '@/application/event-bus';
+import { EVENTS } from '@/types/events';
 import { uiActions, useUiStore } from '@/state/uiStore';
 import * as icons from '@/ui/icons';
 import { highlightHls } from '@/ui/shared/syntax-highlighter';
@@ -21,7 +23,7 @@ export class ComplianceIssueList extends HTMLElement {
 
     connectedCallback() {
         // Add component-level classes for layout
-        this.className = "block h-full flex flex-col min-h-0 relative";
+        this.className = 'block h-full flex flex-col min-h-0 relative';
 
         this._unsubscribe = useUiStore.subscribe(() => this.render());
         this.render();
@@ -59,6 +61,11 @@ export class ComplianceIssueList extends HTMLElement {
 
     setFilter(f) {
         this._filter = f;
+        this._expandedId = null;
+        // Publish so the Source view highlights match the sidebar filter.
+        eventBus.dispatch(EVENTS.UI.COMPLIANCE_FILTER_CHANGED, {
+            filter: f,
+        });
         this.render();
     }
 
@@ -78,10 +85,13 @@ export class ComplianceIssueList extends HTMLElement {
 
         if (!raw) return 'No manifest content available';
 
-        if (isHls && issue.location && issue.location.startLine) {
+        if (isHls && issue.location?.startLine) {
             const lines = raw.split('\n');
             const start = Math.max(0, issue.location.startLine - 2);
-            const end = Math.min(lines.length, (issue.location.endLine || issue.location.startLine) + 2);
+            const end = Math.min(
+                lines.length,
+                (issue.location.endLine || issue.location.startLine) + 2
+            );
 
             if (start >= lines.length) return 'Line number out of bounds';
 
@@ -89,11 +99,13 @@ export class ComplianceIssueList extends HTMLElement {
                 const lineNum = start + idx + 1;
                 const isErrorLine =
                     lineNum >= issue.location.startLine &&
-                    lineNum <= (issue.location.endLine || issue.location.startLine);
+                    lineNum <=
+                        (issue.location.endLine || issue.location.startLine);
 
                 const lineContent = highlightHls(line || '');
-                // Using semantic error color with opacity for highlight
-                const bgStyle = isErrorLine ? 'background: color-mix(in srgb, #ef4444 15%, transparent);' : '';
+                const bgStyle = isErrorLine
+                    ? 'background: rgba(239,68,68,0.08);'
+                    : '';
 
                 return `
                     <div class="flex" style="${bgStyle}">
@@ -105,8 +117,8 @@ export class ComplianceIssueList extends HTMLElement {
             return snippetLines.join('');
         }
 
-        if (issue.location && issue.location.path) {
-            return `<div class="italic text-xs p-2 opacity-70" style="color: #94a3b8">Location: ${issue.location.path}</div>`;
+        if (issue.location?.path) {
+            return `<div class="mono text-[11px] text-slate-500">location: ${issue.location.path}</div>`;
         }
 
         return 'Context unavailable';
@@ -115,153 +127,207 @@ export class ComplianceIssueList extends HTMLElement {
     render() {
         if (!this._issues) return;
 
+        const total = this._issues.length;
         const counts = {
-            all: this._issues.length,
-            fail: this._issues.filter(i => i.status === 'fail').length,
-            warn: this._issues.filter(i => i.status === 'warn').length
+            all: total,
+            fail: this._issues.filter((i) => i.status === 'fail').length,
+            warn: this._issues.filter((i) => i.status === 'warn').length,
         };
 
         const groups = this.groupedIssues;
         const sortedCategories = Object.keys(groups).sort();
-        const hasIssues = Object.keys(groups).length > 0;
+        const hasIssues = sortedCategories.length > 0;
+        const isFiltered = this._filter !== 'all';
 
-        // Button Styles Helper
-        const getBtnClass = (type) => {
+        const filterBtn = (type, label) => {
             const isActive = this._filter === type;
-            const base = "px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all duration-200 border";
-
-            if (isActive) {
-                if (type === 'fail') return `${base} border-red-500 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.2)] bg-red-500/10`;
-                if (type === 'warn') return `${base} border-amber-500 text-amber-400 shadow-[0_0_15px_rgba(234,179,8,0.2)] bg-amber-500/10`;
-                return `${base} border-blue-500 text-blue-400 shadow-[0_0_15px_#3b82f6] bg-blue-500/10`;
-            }
-            return `${base} border-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-100`;
+            return html`
+                <button
+                    @click=${() => this.setFilter(type)}
+                    aria-pressed=${isActive}
+                    class="px-2.5 py-1.5 rounded-md mono text-[11px] border transition-colors flex items-center gap-1.5 ${isActive
+                        ? type === 'fail'
+                            ? 'bg-red-500/10 text-red-200 border-red-400/25'
+                            : type === 'warn'
+                              ? 'bg-amber-500/10 text-amber-200 border-amber-400/25'
+                              : 'bg-white/10 text-slate-100 border-white/10'
+                        : 'bg-transparent text-slate-500 border-transparent hover:text-slate-200 hover:bg-white/5'}"
+                >
+                    ${label}
+                    <span class="text-slate-600">${counts[type]}</span>
+                </button>
+            `;
         };
 
-        // Scrollbar style injection (scoped)
-        const scrollbarStyles = `
-            .custom-scroll::-webkit-scrollbar { width: 6px; }
-            .custom-scroll::-webkit-scrollbar-track { background: transparent; }
-            .custom-scroll::-webkit-scrollbar-thumb { background-color: #1e293b; border-radius: 99px; }
-            .custom-scroll::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
-        `;
+        const statusIcon = (status) =>
+            status === 'fail'
+                ? html`<span class="text-red-300 shrink-0"
+                      >${icons.xCircle}</span
+                  >`
+                : status === 'warn'
+                  ? html`<span class="text-amber-300 shrink-0"
+                        >${icons.alertTriangle}</span
+                    >`
+                  : status === 'pass'
+                    ? html`<span class="text-emerald-300 shrink-0"
+                          >${icons.checkCircle}</span
+                      >`
+                    : html`<span class="text-slate-500 shrink-0"
+                          >${icons.info}</span
+                      >`;
 
         const template = html`
-            <style>${scrollbarStyles}</style>
-
-            <!-- Filters Bar -->
-            <div class="p-3 border-b flex items-center justify-between shrink-0 glass-panel" 
-                 style="border-bottom: 1px solid #1e293b; background: #1e293b;">
-                
-                <div class="flex items-center gap-2">
-                    <button @click=${() => this.setFilter('all')} class="${getBtnClass('all')}">
-                        All <span class="opacity-60 text-[10px] ml-0.5">(${counts.all})</span>
-                    </button>
-                    <button @click=${() => this.setFilter('fail')} class="${getBtnClass('fail')}">
-                        Errors <span class="opacity-60 text-[10px] ml-0.5">(${counts.fail})</span>
-                    </button>
-                    <button @click=${() => this.setFilter('warn')} class="${getBtnClass('warn')}">
-                        Warnings <span class="opacity-60 text-[10px] ml-0.5">(${counts.warn})</span>
-                    </button>
-                </div>
+            <div
+                class="px-3 py-2 border-b border-white/5 flex items-center gap-1 shrink-0"
+                role="group"
+                aria-label="Filter by severity"
+            >
+                ${filterBtn('all', 'all')}
+                ${filterBtn('fail', 'errors')}
+                ${filterBtn('warn', 'warnings')}
             </div>
 
-            <!-- Scrollable Content -->
-            <div class="flex-1 overflow-y-auto custom-scroll p-4 space-y-8">
-                ${!hasIssues ? html`
-                    <div class="h-full flex flex-col items-center justify-center opacity-30 gap-4 min-h-[200px]">
-                        <div class="text-4xl" style="color: #94a3b8;">${icons.checkCircle}</div>
-                        <div class="text-sm font-medium">No active findings</div>
-                    </div>
-                ` : sortedCategories.map(category => {
-            const categoryIssues = groups[category];
-            return html`
-                        <div class="space-y-3">
-                            <!-- Category Header -->
-                            <div class="flex items-center gap-3 sticky top-0 z-10 py-2 backdrop-blur-xl -mx-2 px-2 rounded-lg"
-                                 style="background: linear-gradient(to right, #1e293b, transparent);">
-                                <div class="w-1 h-4 rounded-full bg-blue-500 shadow-[0_0_10px_#3b82f6]"></div>
-                                <h3 class="text-xs font-bold uppercase tracking-widest text-slate-400">
-                                    ${category}
-                                </h3>
-                                <div class="h-px bg-slate-800 flex-1 opacity-50"></div>
-                            </div>
+            <div class="flex-1 overflow-y-auto custom-scrollbar p-2 min-h-0">
+                ${!hasIssues
+                    ? html`
+                          <div class="py-10 px-4 text-center">
+                              ${isFiltered
+                                  ? html`
+                                        <p
+                                            class="text-[13px] text-slate-300 mb-1"
+                                        >
+                                            No ${this._filter === 'fail'
+                                                ? 'errors'
+                                                : 'warnings'}
+                                            in this update.
+                                        </p>
+                                        <button
+                                            @click=${() => this.setFilter('all')}
+                                            class="mono text-[11px] text-emerald-300 hover:text-emerald-200 transition-colors"
+                                        >
+                                            show all ${total}
+                                        </button>
+                                    `
+                                  : total === 0
+                                    ? html`
+                                          <p
+                                              class="text-[13px] text-slate-300 mb-1"
+                                          >
+                                              No checks ran for this update.
+                                          </p>
+                                          <p
+                                              class="mono text-[11px] text-slate-600"
+                                          >
+                                              results appear here after
+                                              analysis
+                                          </p>
+                                      `
+                                    : html`
+                                          <p
+                                              class="text-[13px] text-slate-300 mb-1"
+                                          >
+                                              All checks passed.
+                                          </p>
+                                          <p
+                                              class="mono text-[11px] text-slate-600"
+                                          >
+                                              ${total} check${total === 1
+                                                  ? ''
+                                                  : 's'} · nothing to fix
+                                          </p>
+                                      `}
+                          </div>
+                      `
+                    : sortedCategories.map(
+                          (category) => html`
+                              <div class="mb-1">
+                                  <p
+                                      class="mono sticky top-0 z-10 px-2.5 py-2 text-[10px] text-slate-600 bg-[#0b111c]"
+                                      @mouseenter=${() =>
+                                          this.handleMouseEnter(category)}
+                                      @mouseleave=${() =>
+                                          this.handleMouseLeave()}
+                                  >
+                                      ${String(category).toLowerCase()}
+                                  </p>
+                                  ${groups[category].map((issue, idx) => {
+                                      const uniqueKey = `${issue.id}-${idx}`;
+                                      const isExpanded =
+                                          this._expandedId === uniqueKey;
+                                      return html`
+                                          <div
+                                              class="rounded-md border transition-colors overflow-hidden mb-1 ${isExpanded
+                                                  ? issue.status === 'fail'
+                                                      ? 'border-red-400/40 bg-red-500/[0.04]'
+                                                      : issue.status === 'warn'
+                                                        ? 'border-amber-400/40 bg-amber-500/[0.04]'
+                                                        : 'border-white/15 bg-white/[0.03]'
+                                                  : 'border-white/5 bg-transparent hover:bg-white/[0.02]'}"
+                                          >
+                                              <button
+                                                  @click=${() =>
+                                                      this.toggleExpand(
+                                                          uniqueKey
+                                                      )}
+                                                  aria-expanded=${isExpanded}
+                                                  class="w-full px-2.5 py-2 flex items-start gap-2.5 text-left"
+                                              >
+                                                  ${statusIcon(issue.status)}
+                                                  <span
+                                                      class="grow min-w-0"
+                                                  >
+                                                      <span
+                                                          class="block text-[13px] font-medium leading-snug text-slate-100"
+                                                      >
+                                                          ${issue.text}
+                                                      </span>
+                                                      <span
+                                                          class="mono block text-[10px] text-slate-600 mt-0.5 truncate"
+                                                      >
+                                                          ${issue.id}${issue.isoRef
+                                                              ? ` · ${issue.isoRef}`
+                                                              : ''}
+                                                      </span>
+                                                  </span>
+                                                  <span
+                                                      class="text-slate-600 transition-transform shrink-0 mt-0.5 ${isExpanded
+                                                          ? 'rotate-180'
+                                                          : ''}"
+                                                  >
+                                                      ${icons.chevronDown}
+                                                  </span>
+                                              </button>
 
-                            <!-- Issues Grid -->
-                            <div class="grid grid-cols-1 gap-3">
-                                ${categoryIssues.map((issue, idx) => {
-                const uniqueKey = `${issue.id}-${idx}`;
-                const isExpanded = this._expandedId === uniqueKey;
-
-                // Status Config
-                let statusColorRef = '#94a3b8';
-                let statusIcon = icons.info;
-                let borderColor = '#1e293b';
-
-                if (issue.status === 'fail') {
-                    statusColorRef = '#ef4444';
-                    statusIcon = icons.xCircle;
-                    borderColor = isExpanded ? '#ef4444' : '#1e293b';
-                } else if (issue.status === 'warn') {
-                    statusColorRef = '#f59e0b';
-                    statusIcon = icons.alertTriangle;
-                    borderColor = isExpanded ? '#f59e0b' : '#1e293b';
-                } else if (issue.status === 'pass') {
-                    statusColorRef = '#10b981';
-                    statusIcon = icons.checkCircle;
-                }
-
-                return html`
-                                        <div class="rounded-lg border transition-all duration-300 bg-slate-800 hover:brightness-110 overflow-hidden"
-                                             style="border-color: ${borderColor}; ${isExpanded ? `box-shadow: 0 0 20px -10px ${statusColorRef};` : ''}">
-                                            
-                                            <!-- Row Header -->
-                                            <div @click=${() => this.toggleExpand(uniqueKey)}
-                                                 class="p-3 flex items-start gap-4 cursor-pointer group select-none">
-                                                
-                                                <!-- Icon -->
-                                                <div class="mt-0.5 shrink-0 transition-transform group-hover:scale-110" style="color: ${statusColorRef}">
-                                                    ${statusIcon}
-                                                </div>
-
-                                                <!-- Content -->
-                                                <div class="flex-1 min-w-0">
-                                                    <div class="text-sm font-bold leading-tight mb-1 text-slate-100 group-hover:text-blue-400 transition-colors">
-                                                        ${issue.text}
-                                                    </div>
-                                                    <div class="flex items-center gap-3 text-[10px] font-mono text-slate-400 opacity-70">
-                                                        <span>${issue.id}</span>
-                                                        ${issue.isoRef ? html`<span class="px-1.5 h-4 flex items-center rounded bg-slate-900 border border-slate-800">${issue.isoRef}</span>` : ''}
-                                                    </div>
-                                                </div>
-
-                                                <!-- Expand Chevron -->
-                                                <div class="transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''} text-slate-400 opacity-50">
-                                                    ${icons.chevronDown}
-                                                </div>
-                                            </div>
-
-                                            <!-- Expanded Details -->
-                                            ${isExpanded ? html`
-                                                <div class="border-t border-slate-800 bg-slate-900/50 animate-fadeIn">
-                                                    <div class="p-4 space-y-4">
-                                                        <div class="text-xs leading-relaxed text-slate-400">
-                                                            ${issue.details}
+                                              ${isExpanded
+                                                  ? html`
+                                                        <div
+                                                            class="border-t border-white/5 px-2.5 py-2.5"
+                                                        >
+                                                            ${issue.details
+                                                                ? html`<p
+                                                                      class="text-xs leading-relaxed text-slate-400 mb-2"
+                                                                  >
+                                                                      ${issue.details}
+                                                                  </p>`
+                                                                : ''}
+                                                            <div
+                                                                class="rounded bg-black/30 border border-white/5 p-2.5 overflow-x-auto"
+                                                            >
+                                                                ${unsafeHTML(
+                                                                    this.getSnippet(
+                                                                        issue
+                                                                    )
+                                                                )}
+                                                            </div>
                                                         </div>
-                                                        
-                                                        <div class="rounded bg-slate-900 border border-slate-800 p-3 overflow-x-auto">
-                                                            ${unsafeHTML(this.getSnippet(issue))}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ` : ''}
-                                        </div>
-                                    `;
-            })}
-                            </div>
-                        </div>
-                    `;
-        })}
+                                                    `
+                                                  : ''}
+                                          </div>
+                                      `;
+                                  })}
+                              </div>
+                          `
+                      )}
             </div>
         `;
 

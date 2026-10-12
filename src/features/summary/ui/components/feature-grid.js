@@ -1,22 +1,8 @@
 import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 
-const getTypeStyles = (type) => {
-    switch (type) {
-        case 'video':
-            return 'bg-slate-700 text-blue-400 border-blue-500/30 shadow-[0_0_10px_-3px_#3b82f6]';
-        case 'audio':
-            return 'bg-slate-800 text-purple-300 border-purple-500/30 shadow-[0_0_10px_-3px_#a855f7]/20';
-        case 'text':
-            return 'bg-slate-800 text-emerald-400 border-emerald-500/30 shadow-[0_0_10px_-3px_#10b981]/20';
-        case 'quality':
-            return 'bg-slate-800 text-amber-400 border-amber-500/30 shadow-[0_0_10px_-3px_#f59e0b]/20';
-        case 'tech':
-            return 'bg-slate-800 text-slate-400 border-slate-800';
-        default:
-            return 'bg-slate-800 text-slate-400';
-    }
-};
+const getTypeStyles = () =>
+    'bg-white/[0.02] text-slate-300 border-white/10';
 
 const getIcon = (type) => {
     switch (type) {
@@ -38,16 +24,11 @@ const getIcon = (type) => {
 const advancedSection = (title, items, renderer) => {
     if (!items || items.length === 0) return '';
     return html`
-        <div class="mt-8 pt-6 border-t border-slate-800/30">
-            <h4
-                class="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"
-            >
-                <div
-                    class="w-1 h-1 rounded-full bg-slate-400"
-                ></div>
-                ${title}
+        <div class="mt-6 pt-4 border-t border-white/5">
+            <h4 class="mono text-[11px] font-medium text-slate-500 mb-2.5">
+                ${String(title).toLowerCase()}
             </h4>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 ${items.map(renderer)}
             </div>
         </div>
@@ -55,21 +36,14 @@ const advancedSection = (title, items, renderer) => {
 };
 
 const cardBase =
-    'bg-slate-900/20 p-3 rounded-xl border border-slate-800/50 hover:bg-slate-900/40 hover:border-blue-500/30 transition-all duration-200 group';
+    'bg-white/[0.02] p-3 rounded-md border border-white/5';
 
 const variableCard = (v) => html`
-    <div
-        class="${cardBase} flex justify-between items-center font-mono text-xs"
-    >
-        <span
-            class="text-emerald-400 font-bold group-hover:text-emerald-400/80 transition-colors"
-            >{$${v.name}}</span
-        >
-        <span
-            class="text-slate-400 truncate max-w-[150px] opacity-80 group-hover:opacity-100"
-            title="${v.value}"
-            >${v.value}</span
-        >
+    <div class="${cardBase} flex justify-between items-center gap-2 font-mono text-xs">
+        <span class="text-emerald-300 shrink-0">{$${v.name}}</span>
+        <span class="text-slate-500 truncate" title="${v.value}">
+            ${v.value}
+        </span>
     </div>
 `;
 
@@ -85,29 +59,28 @@ const serviceDescCard = (sd) => {
 
     return html`
         <div class="${cardBase} text-xs">
-            <div
-                class="font-bold text-blue-400 mb-1 flex items-center gap-2"
-            >
-                Service Description ${sd.id ? `(${sd.id})` : ''}
+            <div class="font-medium text-slate-200 mb-1">
+                Service description ${sd.id ? `(${sd.id})` : ''}
             </div>
-            <div
-                class="text-slate-400 text-[10px] opacity-80 group-hover:opacity-100"
-            >
-                ${items.join(' • ') || 'No constraints'}
+            <div class="mono text-[10px] text-slate-500">
+                ${items.join(' · ') || 'No constraints'}
             </div>
         </div>
     `;
 };
 
+const safeSchemeTail = (uri) => {
+    if (typeof uri !== 'string' || !uri) return 'descriptor';
+    return uri.split(/[:/]/).filter(Boolean).pop() || 'descriptor';
+};
+
 const genericDescriptorCard = (d) => html`
-    <div class="${cardBase} text-xs flex justify-between items-center">
-        <span
-            class="text-slate-400 truncate mr-2 font-medium"
-            title="${d.schemeIdUri}"
-            >${d.schemeIdUri.split(/[:/]/).pop()}</span
+    <div class="${cardBase} text-xs flex justify-between items-center gap-2">
+        <span class="text-slate-400 truncate" title="${d.schemeIdUri}"
+            >${safeSchemeTail(d.schemeIdUri)}</span
         >
         <span
-            class="text-slate-200 font-mono truncate bg-slate-800 px-2 py-0.5 rounded text-[10px]"
+            class="text-slate-200 font-mono truncate bg-black/30 px-2 py-0.5 rounded text-[10px]"
             title="${d.value}"
             >${d.value || '-'}</span
         >
@@ -116,12 +89,9 @@ const genericDescriptorCard = (d) => html`
 
 const subsetCard = (s) => html`
     <div class="${cardBase} text-xs">
-        <span
-            class="text-slate-400 font-bold mr-2 uppercase tracking-wider text-[10px]"
-            >Subset:</span
-        >
+        <span class="mono text-[10px] text-slate-500 mr-2">subset:</span>
         <span class="text-slate-100 font-medium"
-            >${s.contains.join(', ')}</span
+            >${(s.contains || []).join(', ')}</span
         >
     </div>
 `;
@@ -134,27 +104,26 @@ export const featureGridTemplate = (vm) => {
         Object.values(advanced).some((arr) => arr && arr.length > 0);
 
     if (!hasFeatures && !hasAdvanced) {
-        return html`<div
-            class="text-slate-400 italic text-sm p-4 text-center opacity-50"
+        return html`<p
+            class="mono text-slate-600 text-[11px] p-3 text-center"
         >
             No special features detected.
-        </div>`;
+        </p>`;
     }
 
     return html`
         <div>
-            <div class="flex flex-wrap gap-3">
+            <div class="flex flex-wrap gap-1.5">
                 ${features.map(
-        (feature) => html`
-                        <div
-                            class="flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold transition-all hover:scale-105 cursor-default shadow-sm ${getTypeStyles(
-            feature.type
-        )}"
+                    (feature) => html`
+                        <span
+                            class="mono inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-[11px] cursor-default ${getTypeStyles()}"
                         >
-                            ${getIcon(feature.type)} ${feature.label}
-                        </div>
+                            ${getIcon(feature.type)}
+                            ${String(feature.label).toLowerCase()}
+                        </span>
                     `
-    )}
+                )}
             </div>
 
             ${advanced
@@ -167,66 +136,31 @@ export const featureGridTemplate = (vm) => {
                       ${advancedSection(
                 'Reporting & Metrics',
                 advanced.metrics,
-                (m) => html`
-                  <div class="grid grid-cols-2 lg:grid-cols-2 gap-4">
-                      ${features.map((feature) => {
-                    const isActive = feature.status === 'active';
-                    const isWarn = feature.status === 'warn';
-
-
+                (m) => {
+                    const ranges = (m.ranges || [])
+                        .map((r) => `${r.starttime ?? '?'} +${r.duration ?? '?'}`)
+                        .join(', ');
+                    const reporting = (m.reporting || [])
+                        .map((r) => r.schemeIdUri?.split(/[:/]/).pop() || r.value || 'report')
+                        .join(', ');
                     return html`
-                              <div
-                                  class="relative p-4 rounded-xl border transition-all duration-300 group
-                        ${isActive
-                            ? 'bg-blue-500/5 border-blue-500/20 shadow-[0_4px_20px_-10px_#3b82f6]'
-                            : isWarn
-                                ? 'bg-amber-500/5 border-amber-500/20'
-                                : 'bg-slate-900/20 border-slate-800 opacity-60 hover:opacity-100 hover:bg-slate-800'}"
-                              >
-                                  <div
-                                      class="flex items-start justify-between mb-2"
-                                  >
-                                      <div
-                                          class="p-2 rounded-lg ${isActive
-                            ? 'bg-blue-500 text-slate-100 shadow-lg shadow-blue-500/20'
-                            : isWarn
-                                ? 'bg-amber-500 text-slate-100'
-                                : 'bg-slate-900 text-slate-400 border border-slate-800'}"
-                                      >
-                                          ${feature.icon}
-                                      </div>
-                                      <div
-                                          class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${isActive
-                            ? 'text-blue-400 border-blue-500/30 bg-blue-500/10'
-                            : isWarn
-                                ? 'text-amber-400 border-amber-500/30 bg-amber-500/10'
-                                : 'text-slate-400 border-slate-800 bg-slate-900/30'}"
-                                      >
-                                          ${isActive
-                            ? 'Active'
-                            : isWarn
-                                ? 'Check'
-                                : 'N/A'}
-                                      </div>
+                              <div class="rounded-md border border-white/5 bg-white/[0.02] p-3 text-xs">
+                                  <div class="font-medium text-slate-100 mb-1">
+                                      ${m.metrics || 'Metrics'}
                                   </div>
-
-                                  <h4
-                                      class="text-sm font-bold ${isActive
-                            ? 'text-slate-100'
-                            : 'text-slate-400'}"
-                                  >
-                                      ${feature.label}
-                                  </h4>
-                                  <p
-                                      class="text-xs text-slate-400 mt-1 leading-snug"
-                                  >
-                                      ${feature.desc}
-                                  </p>
+                                  ${ranges
+                            ? html`<div class="mono text-[10px] text-slate-500">
+                                            ranges: ${ranges}
+                                        </div>`
+                            : ''}
+                                  ${reporting
+                            ? html`<div class="mono text-[10px] text-slate-500 mt-0.5">
+                                            reporting: ${reporting}
+                                        </div>`
+                            : ''}
                               </div>
                           `;
-                })}
-                  </div>
-              `
+                }
             )}
                       ${advancedSection(
                 'Service Descriptions',
@@ -253,12 +187,13 @@ export const featureGridTemplate = (vm) => {
                 advanced.popularityRates,
                 (pr) => html`
                               <div class="${cardBase} text-xs">
-                                  <span
-                                      class="text-purple-300 font-bold"
+                                  <span class="text-slate-200 font-medium"
                                       >${pr.source}:</span
-                            >
-                                  ${pr.count} rates defined.
-                            </div>
+                                  >
+                                  <span class="mono text-[10px] text-slate-500">
+                                      ${pr.count} rate${pr.count === 1 ? '' : 's'}
+                                  </span>
+                              </div>
                           `
             )}
     `

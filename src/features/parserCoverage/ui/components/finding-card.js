@@ -17,15 +17,15 @@ export const findingCardTemplate = (finding) => {
     const tone = STATUS_TONE[finding.status] || STATUS_TONE.unparsed;
     return html`
         <div
-            class="rounded-xl border border-slate-800 bg-slate-800/40 p-3 space-y-1.5"
+            class="rounded-md border border-white/10 bg-white/5 p-3 space-y-1.5"
         >
             <div class="flex items-center gap-2 flex-wrap">
                 <span
-                    class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${tone}"
+                    class="px-1.5 py-0.5 rounded text-[10px] font-bold r border ${tone}"
                     >${finding.status || 'unknown'}</span
                 >
                 <span
-                    class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-700 text-slate-300"
+                    class="px-1.5 py-0.5 rounded text-[10px] font-bold r bg-white/5 text-slate-300"
                     >${finding.type || 'item'}</span
                 >
                 <span class="font-mono text-xs font-bold text-slate-200"

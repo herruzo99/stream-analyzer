@@ -5,7 +5,7 @@ import { html, render } from 'lit-html';
 
 const statusColors = {
     running:
-        'text-blue-400 border-blue-500/30 bg-blue-500/10',
+        'text-emerald-200 border-emerald-400/25 bg-emerald-500/10',
     complete:
         'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',
     error: 'text-red-400 border-red-500/30 bg-red-500/10',
@@ -183,23 +183,23 @@ const MetricBox = (label, value, unit, history, key, color) => {
 
     return html`
         <div
-            class="relative flex flex-col bg-slate-800 hover:bg-slate-800 p-3 rounded-xl border border-slate-800/50 text-center overflow-hidden h-24 justify-between group/metric transition-all duration-200 shadow-md backdrop-blur-md"
+            class="relative flex flex-col bg-white/5 hover:bg-white/10 p-3 rounded-md border border-white/10 text-center overflow-hidden h-24 justify-between group/metric transition-all duration-200"
         >
             ${renderSparkline(history, key, color, 100, 60)}
             <div class="relative z-10 flex flex-col h-full justify-between">
                 <div class="flex items-center justify-between">
                     <span
-                        class="text-[10px] font-bold text-slate-400 uppercase tracking-wider"
+                        class="text-[10px] font-bold text-slate-400 r"
                         >${label}</span
                     >
                     <div
-                        class="w-1.5 h-1.5 rounded-full shadow-sm"
+                        class="w-1.5 h-1.5 rounded-full"
                         style="background-color: ${color}; box-shadow: 0 0 8px ${color}40;"
                     ></div>
                 </div>
                 <div class="flex items-baseline justify-start gap-1 mt-auto">
                     <span
-                        class="text-2xl font-mono font-black text-slate-100 tracking-tighter leading-none drop-shadow-sm"
+                        class="text-2xl font-mono font-bold text-slate-100 leading-none drop-"
                     >
                         ${typeof displayValue === 'number'
             ? displayValue.toFixed(1)
@@ -332,7 +332,7 @@ export class QcStreamCard extends HTMLElement {
         const videoBadge = videoLabel
             ? html`
                   <span
-                      class="flex text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold"
+                      class="flex text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-200 border border-emerald-400/25 font-bold"
                       title="Video Track"
                   >
                       ${icons.clapperboard} ${videoLabel}
@@ -343,7 +343,7 @@ export class QcStreamCard extends HTMLElement {
         const audioBadge = audioLabel
             ? html`
                   <span
-                      class="flex text-[9px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20 font-bold uppercase"
+                      class="flex text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-slate-300 border border-white/10 font-bold"
                       title="Audio Track"
                   >
                       ${icons.audioLines} ${audioLabel}
@@ -351,13 +351,12 @@ export class QcStreamCard extends HTMLElement {
               `
             : '';
 
-        // --- PRISM GLASS OVERHAUL ---
+        // --- flat stream card ---
         // Using 0.75rem, blur(12px), etc.
         const template = html`
             <div
                 @click=${this.onClick}
-                class="flex flex-col h-auto min-h-[360px] cursor-pointer group relative overflow-hidden transition-all duration-300
-                       hover:shadow-[0_0_20px_#3b82f6]"
+                class="flex flex-col h-auto min-h-[360px] cursor-pointer group relative overflow-hidden transition-all duration-300 hover:"
                 style="
                     background: #1e293b;
                     border-radius: 0.75rem;
@@ -368,13 +367,13 @@ export class QcStreamCard extends HTMLElement {
             >
                 <!-- Header Section -->
                 <div
-                    class="p-5 pb-4 border-b border-slate-800/50 bg-slate-800 relative z-20 backdrop-blur-xl"
+                    class="p-5 pb-4 border-b border-white/10 bg-white/5 relative z-20"
                 >
                     <div class="flex justify-between items-start mb-3">
                         <div class="min-w-0 mr-4">
                             <div class="flex items-center gap-2 mb-1.5">
                                 <h4
-                                    class="font-bold text-slate-100 text-base truncate tracking-tight"
+                                    class="font-bold text-slate-100 text-base truncate"
                                     title="${this.stream.name}"
                                 >
                                     ${this.stream.name}
@@ -393,7 +392,7 @@ export class QcStreamCard extends HTMLElement {
 
                             <div class="flex items-center gap-2 flex-wrap">
                                 <span
-                                    class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border bg-slate-800 text-slate-400 border-slate-800/50"
+                                    class="px-1.5 py-0.5 rounded text-[9px] font-bold border bg-white/5 text-slate-400 border-white/10"
                                 >
                                     ${this.stream.protocol}
                                 </span>
@@ -403,7 +402,7 @@ export class QcStreamCard extends HTMLElement {
 
                         <div class="flex flex-col items-end gap-2">
                             <div
-                                class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border flex items-center gap-1.5 ${statusClass} shadow-sm"
+                                class="px-2.5 py-1 rounded-full text-[10px] font-bold border flex items-center gap-1.5 ${statusClass}"
                             >
                                 ${status === 'running'
                 ? html`<span
@@ -416,7 +415,7 @@ export class QcStreamCard extends HTMLElement {
                 ? html`
                                       <button
                                           @click=${this.handleStop}
-                                          class="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-950/30 transition-all opacity-0 group-hover:opacity-100"
+                                          class="p-1.5 rounded-md text-slate-500 hover:text-red-400 hover:bg-red-950/30 transition-all opacity-0 group-hover:opacity-100"
                                           title="Stop Analysis"
                                       >
                                           ${icons.stop}
@@ -445,15 +444,15 @@ export class QcStreamCard extends HTMLElement {
                                           ${this.job.totalFrames}</span
                                       >
                                       <span
-                                          class="text-blue-400 font-bold"
+                                          class="text-emerald-200 font-bold"
                                           >${progress.toFixed(0)}%</span
                                       >
                                   </div>
                                   <div
-                                      class="w-full h-1 bg-slate-800 rounded-full overflow-hidden"
+                                      class="w-full h-1 bg-white/5 rounded-full overflow-hidden"
                                   >
                                       <div
-                                          class="h-full bg-blue-500 shadow-[0_0_10px_#3b82f6] transition-all duration-300 ease-out"
+                                          class="h-full bg-emerald-500/10 transition-all duration-300 ease-out"
                                           style="width: ${progress}%"
                                       ></div>
                                   </div>
@@ -463,10 +462,10 @@ export class QcStreamCard extends HTMLElement {
                     ${this.stream.warnings && this.stream.warnings.length > 0
                 ? html`
                               <div
-                                  class="mt-3 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2"
+                                  class="mt-3 bg-amber-500/10 border border-amber-500/20 rounded-md p-2"
                               >
                                   <div
-                                      class="flex items-center gap-2 text-amber-400 text-[10px] font-bold uppercase tracking-wide mb-1"
+                                      class="flex items-center gap-2 text-amber-400 text-[10px] font-bold mb-1"
                                   >
                                       ${icons.alertTriangle} Analysis Warnings
                                   </div>
@@ -521,7 +520,7 @@ export class QcStreamCard extends HTMLElement {
                     <div class="grow min-h-0 flex flex-col justify-end">
                         <div class="flex justify-between items-end mb-3">
                             <span
-                                class="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"
+                                class="text-[10px] font-bold text-slate-400 flex items-center gap-2"
                             >
                                 Detected Issues
                                 ${issueCount > 0
@@ -549,16 +548,16 @@ export class QcStreamCard extends HTMLElement {
                 : recentIssues.map(
                     (issue) => html`
                                           <div
-                                              class="flex items-center justify-between text-[10px] bg-slate-800 border border-slate-800/50 p-2.5 rounded-lg animate-slideInRight hover:border-red-500/30 transition-colors group/issue shadow-sm"
+                                              class="flex items-center justify-between text-[10px] bg-white/5 border border-white/10 p-2.5 rounded-md animate-slideInRight hover:border-red-500/30 transition-colors group/issue"
                                           >
                                               <div
                                                   class="flex items-center gap-2 min-w-0"
                                               >
                                                   <div
-                                                      class="w-1 h-1 rounded-full bg-red-500 shadow-[0_0_5px_#ef4444]"
+                                                      class="w-1 h-1 rounded-full bg-red-500"
                                                   ></div>
                                                   <span
-                                                      class="text-slate-100 font-medium uppercase whitespace-nowrap"
+                                                      class="text-slate-100 font-medium whitespace-nowrap"
                                                       >${issue.type}</span
                                                   >
                                                   <span
@@ -568,7 +567,7 @@ export class QcStreamCard extends HTMLElement {
                                                   >
                                               </div>
                                               <span
-                                                  class="font-mono text-slate-400 whitespace-nowrap ml-2 bg-slate-800 px-1.5 rounded border border-slate-800/30"
+                                                  class="font-mono text-slate-400 whitespace-nowrap ml-2 bg-white/5 px-1.5 rounded border border-white/10"
                                               >
                                                   ${issue.startTime.toFixed(1)}s
                                               </span>
@@ -583,20 +582,20 @@ export class QcStreamCard extends HTMLElement {
                 ${isComplete || isError
                 ? html`
                           <div
-                              class="p-1 bg-slate-800 border-t border-slate-800/50"
+                              class="p-1 bg-white/5 border-t border-white/10"
                           >
                               ${isComplete
                         ? html`
                                         <button
                                             @click=${this.handleViewReport}
-                                            class="w-full flex items-center justify-center gap-2 bg-blue-500 hover:bg-[#60a5fa] text-white font-bold text-xs uppercase tracking-wide transition-all py-3 rounded-lg shadow-lg shadow-[0_0_15px_#3b82f6] hover:scale-[1.02] active:scale-[0.98]"
+                                            class="w-full flex items-center justify-center gap-2 bg-emerald-500/10 hover:bg-[#60a5fa] text-white font-bold text-xs transition-all py-3 rounded-md hover:scale-[1.02] active:scale-[0.98]"
                                         >
                                             ${icons.fileText} View Full Report
                                         </button>
                                     `
                         : html`
                                         <div
-                                            class="w-full flex items-center justify-between px-4 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-[10px] font-bold py-2.5"
+                                            class="w-full flex items-center justify-between px-4 bg-red-500/10 border border-red-500/30 rounded-md text-red-400 text-[10px] font-bold py-2.5"
                                         >
                                             <span
                                                 class="flex items-center gap-2 truncate pr-2 min-w-0"

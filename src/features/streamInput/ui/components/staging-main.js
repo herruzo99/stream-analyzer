@@ -30,14 +30,10 @@ class StagingMain extends HTMLElement {
     }
 
     render() {
-        render(
-            html`
-                <div class="h-full min-h-0 overflow-y-auto custom-scrollbar">
-                    ${inspectorPanelTemplate()}
-                </div>
-            `,
-            this
-        );
+        // No wrapper scroll here: inspectorPanelTemplate owns the single
+        // scroll container. A second overflow-y-auto would trap the
+        // inspector's bottom padding in nested scroll whitespace.
+        render(html` ${inspectorPanelTemplate()} `, this);
     }
 }
 

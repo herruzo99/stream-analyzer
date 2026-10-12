@@ -21,16 +21,13 @@ const gridOptionsTemplate = (currentColumns) => {
 
     return html`
         <div
-            class="dropdown-panel bg-slate-800 backdrop-blur-xl border border-slate-800 rounded-xl shadow-2xl w-48 p-1 ring-1 ring-black/50"
+            class="dropdown-panel bg-white/5 border border-white/10 rounded-md w-48 p-1 ring-1"
         >
             ${options.map(
                 (opt) => html`
                     <button
                         @click=${() => handleSelect(opt.value)}
-                        class="w-full text-left px-3 py-2 rounded-lg text-xs font-bold flex items-center justify-between transition-colors ${currentColumns ===
-                        opt.value
-                            ? 'bg-blue-500 text-white'
-                            : 'text-slate-100 hover:bg-slate-800 hover:text-white'}"
+                        class="w-full text-left px-3 py-2 rounded-md text-xs font-bold flex items-center justify-between transition-colors ${currentColumns === opt.value ? 'bg-emerald-500/10 text-white' : 'text-slate-100 hover:bg-white/10 hover:text-white'}"
                     >
                         <span>${opt.label}</span>
                         ${currentColumns === opt.value
@@ -51,10 +48,10 @@ const settingsDropdownTemplate = (currentDelay) => {
 
     return html`
         <div
-            class="dropdown-panel bg-slate-800 backdrop-blur-xl border border-slate-800 rounded-xl shadow-2xl w-64 p-4 ring-1 ring-black/50"
+            class="dropdown-panel bg-white/5 border border-white/10 rounded-md w-64 p-4 ring-1"
         >
             <h4
-                class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3"
+                class="text-xs font-bold text-slate-400 r mb-3"
             >
                 Global Settings
             </h4>
@@ -66,7 +63,7 @@ const settingsDropdownTemplate = (currentDelay) => {
                         >Auto-reset on failure</label
                     >
                     <div
-                        class="flex items-center justify-between bg-slate-800 p-2 rounded border border-slate-800"
+                        class="flex items-center justify-between bg-white/5 p-2 rounded border border-white/10"
                     >
                         <span
                             class="text-[10px] text-slate-400"
@@ -80,16 +77,10 @@ const settingsDropdownTemplate = (currentDelay) => {
                             role="switch"
                             aria-checked="${useMultiPlayerStore.getState()
                                 .isAutoResetEnabled}"
-                            class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${useMultiPlayerStore.getState()
-                                .isAutoResetEnabled
-                                ? 'bg-blue-500'
-                                : 'bg-slate-800'}"
+                            class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${useMultiPlayerStore.getState() .isAutoResetEnabled ? 'bg-emerald-500/10' : 'bg-white/5'}"
                         >
                             <span
-                                class="inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${useMultiPlayerStore.getState()
-                                    .isAutoResetEnabled
-                                    ? 'translate-x-5'
-                                    : 'translate-x-1'}"
+                                class="inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${useMultiPlayerStore.getState() .isAutoResetEnabled ? 'translate-x-5' : 'translate-x-1'}"
                             ></span>
                         </button>
                     </div>
@@ -113,7 +104,7 @@ const settingsDropdownTemplate = (currentDelay) => {
                             @change=${handleDelayChange}
                             ?disabled=${!useMultiPlayerStore.getState()
                                 .isAutoResetEnabled}
-                            class="w-full bg-slate-800 text-slate-100 text-xs rounded border border-slate-800 px-2 py-1.5 outline-none focus:border-blue-500 appearance-none disabled:opacity-50"
+                            class="w-full bg-white/5 text-slate-100 text-xs rounded border border-white/10 px-2 py-1.5 outline-none focus:border-emerald-400/25 appearance-none disabled:opacity-50"
                         >
                             <option
                                 value="2000"
@@ -195,24 +186,22 @@ class GlobalCommandBar extends HTMLElement {
         ).length;
 
         const btnClass =
-            'p-2 rounded-lg bg-slate-800 border border-slate-800 text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-all active:scale-95';
+            'p-2 rounded-md bg-white/5 border border-white/10 text-slate-400 hover:text-slate-100 hover:bg-white/10 transition-all active:scale-95';
         const activeBtnClass =
-            'p-2 rounded-lg bg-blue-500 border border-blue-500 text-white shadow-lg shadow-[#3b82f6] transition-all';
+            'p-2 rounded-md bg-emerald-500/10 border border-emerald-400/25 text-white   transition-all';
 
         const separator = html`<div
-            class="w-px h-8 bg-slate-800 mx-2"
+            class="w-px h-8 bg-white/5 mx-2"
         ></div>`;
 
         const template = html`
             <div
-                class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 p-2 bg-slate-800/90 backdrop-blur-lg border border-slate-800 rounded-2xl shadow-2xl ring-1 ring-black/50 animate-slideInUp"
+                class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 p-2 bg-white/5 border border-white/10 rounded-md ring-1 animate-slideInUp"
             >
                 <!-- Layout Controls -->
                 <div class="flex gap-1">
                     <button
-                        class="${layoutMode === 'grid'
-                            ? activeBtnClass
-                            : btnClass}"
+                        class="${layoutMode === 'grid' ? activeBtnClass : btnClass}"
                         @click=${() =>
                             eventBus.dispatch('ui:multi-player:set-layout', {
                                 mode: 'grid',
@@ -225,7 +214,7 @@ class GlobalCommandBar extends HTMLElement {
                     ${layoutMode === 'grid'
                         ? html`
                               <button
-                                  class="p-2 rounded-lg bg-slate-800 border border-slate-800 text-slate-100 hover:text-white hover:bg-slate-800 transition-all flex items-center gap-1 min-w-[40px] justify-center active:scale-95"
+                                  class="p-2 rounded-md bg-white/5 border border-white/10 text-slate-100 hover:text-white hover:bg-white/10 transition-all flex items-center gap-1 min-w-[40px] justify-center active:scale-95"
                                   @click=${(e) =>
                                       toggleDropdown(
                                           e.currentTarget,
@@ -249,9 +238,7 @@ class GlobalCommandBar extends HTMLElement {
                         : ''}
 
                     <button
-                        class="${layoutMode === 'focus'
-                            ? activeBtnClass
-                            : btnClass}"
+                        class="${layoutMode === 'focus' ? activeBtnClass : btnClass}"
                         @click=${() => {
                             // Default focus to first if none
                             const firstId = players.keys().next().value;
@@ -312,7 +299,7 @@ class GlobalCommandBar extends HTMLElement {
                     ${failedCount > 0
                         ? html`
                               <button
-                                  class="p-2 rounded-lg bg-red-500/30 border border-red-500 text-red-400 hover:bg-red-500/50 hover:text-white transition-all active:scale-95 flex items-center gap-1 px-3"
+                                  class="p-2 rounded-md bg-red-500/30 border border-red-500 text-red-400 hover:bg-red-500/50 hover:text-white transition-all active:scale-95 flex items-center gap-1 px-3"
                                   @click=${() =>
                                       eventBus.dispatch(
                                           'ui:multi-player:reset-failed'
@@ -367,7 +354,7 @@ class GlobalCommandBar extends HTMLElement {
 
                 <!-- Info Badge -->
                 <div
-                    class="ml-2 px-3 py-1 bg-slate-800 rounded-full border border-slate-800 text-xs font-mono text-slate-400 select-none"
+                    class="ml-2 px-3 py-1 bg-white/5 rounded-full border border-white/10 text-xs font-mono text-slate-400 select-none"
                 >
                     ${count} Active
                 </div>

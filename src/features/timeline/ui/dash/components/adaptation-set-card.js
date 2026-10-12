@@ -19,9 +19,9 @@ const getTypeIcon = (type) => {
 const getTypeColor = (type) => {
     switch (type) {
         case 'video':
-            return 'text-blue-400 bg-blue-400/10 border-blue-400/20';
+            return 'text-emerald-200 bg-emerald-500/10 border-emerald-400/25';
         case 'audio':
-            return 'text-purple-400 bg-purple-400/10 border-purple-400/20';
+            return 'text-slate-300 bg-white/5 border-white/10';
         case 'text':
             return 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20';
         default:
@@ -33,9 +33,9 @@ const badge = (label, val) => {
     if (!val && val !== 0) return '';
     return html`
         <div
-            class="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-900 border border-slate-700 text-[10px]"
+            class="flex items-center gap-1.5 px-2 py-1 rounded bg-white/5 border border-white/10 text-[10px]"
         >
-            <span class="text-slate-500 font-semibold uppercase">${label}</span>
+            <span class="text-slate-500 font-semibold">${label}</span>
             <span class="text-slate-200 font-mono">${val}</span>
         </div>
     `;
@@ -55,11 +55,11 @@ export const adaptationSetCardTemplate = (as, stream, period) => {
 
     return html`
         <div
-            class="bg-slate-800/30 rounded-lg border border-slate-700/50 flex flex-col h-full hover:border-slate-600 transition-colors"
+            class="bg-white/5 rounded-md border border-white/10 flex flex-col h-full hover:border-slate-600 transition-colors"
         >
             <!-- Header -->
             <div
-                class="px-3 py-2 border-b border-slate-700/50 flex items-center justify-between bg-slate-800/50 rounded-t-lg"
+                class="px-3 py-2 border-b border-white/10 flex items-center justify-between bg-white/5 rounded-t-lg"
             >
                 <div class="flex items-center gap-2">
                     <div class="p-1.5 rounded-md border ${colorClass}">
@@ -72,13 +72,13 @@ export const adaptationSetCardTemplate = (as, stream, period) => {
                 <div class="flex gap-1">
                     ${as.lang
                         ? html`<span
-                              class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-700 text-slate-300 uppercase"
+                              class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-white/5 text-slate-300"
                               >${as.lang}</span
                           >`
                         : ''}
                     ${as.mimeType
                         ? html`<span
-                              class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-700 text-slate-400"
+                              class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-white/5 text-slate-400"
                               >${as.mimeType.split('/')[1]}</span
                           >`
                         : ''}
@@ -87,7 +87,7 @@ export const adaptationSetCardTemplate = (as, stream, period) => {
 
             <!-- Props -->
             <div
-                class="px-3 py-2 flex flex-wrap gap-2 border-b border-slate-700/30 bg-slate-800/20"
+                class="px-3 py-2 flex flex-wrap gap-2 border-b border-white/10 bg-white/5"
             >
                 ${badge('Role', (as.roles || []).map((r) => r.value).join(','))}
                 ${badge(

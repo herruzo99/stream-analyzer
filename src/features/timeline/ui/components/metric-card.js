@@ -63,7 +63,7 @@ export const metricCardTemplate = (metric, hoveredItem, selectedItem) => {
             }
             ${
                 metric.technical
-                    ? `<div class="text-[10px] font-mono text-blue-200 bg-blue-900/20 p-1.5 rounded border border-blue-500/20 break-all">
+                    ? `<div class="text-[10px] font-mono text-emerald-200 bg-emerald-500/10 p-1.5 rounded border border-emerald-400/25 break-all">
                        ${metric.technical}
                    </div>`
                     : `<div class="text-[10px] font-mono text-slate-500 mt-1">
@@ -75,18 +75,18 @@ export const metricCardTemplate = (metric, hoveredItem, selectedItem) => {
     const b64Tooltip = safeBtoa(tooltipHtml);
 
     const cardClasses = {
-        'bg-slate-800/50': true,
+        'bg-white/5': true,
         'p-3': true,
-        'rounded-lg': true,
+        'rounded-md': true,
         border: true,
         'transition-all': true,
         'duration-200': true,
-        'border-slate-700': !isHighlighted,
+        'border-white/10': !isHighlighted,
         'border-amber-500': isHighlighted && !selectedItem, // Hover highlight
         'ring-2': isHighlighted && !!selectedItem, // Select highlight
         'ring-amber-400': isHighlighted && !!selectedItem,
         [tooltipTriggerClasses]: true,
-        'hover:bg-slate-800': true,
+        'hover:bg-white/10': true,
     };
 
     const warningIcon = metric.warning
@@ -100,7 +100,7 @@ export const metricCardTemplate = (metric, hoveredItem, selectedItem) => {
             <div class="flex justify-between items-start gap-3 min-w-0">
                 <div class="flex flex-col min-w-0">
                     <h5
-                        class="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1 mb-0.5"
+                        class="text-[10px] font-bold r text-slate-500 flex items-center gap-1 mb-0.5"
                     >
                         <span class="truncate" title=${metric.name}
                             >${metric.name}</span

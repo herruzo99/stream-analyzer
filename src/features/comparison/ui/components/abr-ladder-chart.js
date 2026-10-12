@@ -2,42 +2,31 @@ import { disposeChart, renderChart } from '@/ui/shared/charts/chart-renderer';
 import { formatBitrate } from '@/ui/shared/format';
 import { html, render } from 'lit-html';
 
-const getCssVar = (name, fallback) => {
-    const val = getComputedStyle(document.documentElement)
-        .getPropertyValue(name)
-        .trim();
-    return val || fallback;
-};
-
 const abrLadderChartOptions = (abrData) => {
     const allHeights = [
-        ...new Set(abrData.flatMap((d) => d.tracks.map((t) => t.height))),
+        ...new Set(
+            (abrData || []).flatMap((d) => (d.tracks || []).map((t) => t.height))
+        ),
     ].sort((a, b) => a - b);
 
-    // const primary400 = getCssVar('--primary-accent', '#60a5fa');
-    // const primary500 = getCssVar('--primary-accent', '#3b82f6');
-    // const primary300 = getCssVar('--primary-accent-hover', '#93c5fd');
-    // const primaryGlow = getCssVar(
-    //     '--primary-accent-glow',
-    //     'rgba(59, 130, 246, 0.5)'
-    // );
-    const textMuted = getCssVar('--text-on-B-secondary', '#94a3b8');
-    const textMain = getCssVar('--text-on-B-primary', '#f8fafc');
-    const borderMain = getCssVar('--border-on-B', 'rgba(255,255,255,0.1)');
-    const bgPanel = getCssVar('--bg-surface-B-panel', '#1e293b');
-    const backdropFilter = getCssVar('--region-backdrop', 'blur(10px)');
+    // Workbench chart: slate for first stream, emerald for the rest.
+    // Extra streams cycle the same two — amber stays reserved for warnings.
+    const textMuted = '#64748b';
+    const textMain = '#e2e8f0';
+    const borderMain = 'rgba(255,255,255,0.08)';
+    const bgPanel = '#0b111c';
+    const STREAM_HUES = ['#94a3b8', '#34d399', '#64748b'];
 
-    const series = abrData.map((streamData, index) => {
-        const trackMap = new Map(streamData.tracks.map((t) => [t.height, t]));
-
-        // Use indexed chart colors from theme
-        const colorVar = `--chart-${(index % 10) + 1}`;
-        const seriesColor = getCssVar(colorVar, '#3b82f6'); // Fallback to blue
+    const series = (abrData || []).map((streamData, index) => {
+        const trackMap = new Map(
+            (streamData.tracks || []).map((t) => [t.height, t])
+        );
+        const seriesColor = STREAM_HUES[index % STREAM_HUES.length];
 
         return {
             name: streamData.name,
             type: 'bar',
-            barGap: '10%', // Slight gap between bars
+            barGap: '10%',
             barCategoryGap: '20%',
             emphasis: {
                 focus: 'series',
@@ -74,10 +63,9 @@ const abrLadderChartOptions = (abrData) => {
         tooltip: {
             backgroundColor: bgPanel,
             borderColor: borderMain,
-            textStyle: { color: textMain },
-            backdropFilter: backdropFilter,
-            padding: [10, 14],
-            borderRadius: 12,
+            textStyle: { color: textMain, fontSize: 12 },
+            padding: [10, 12],
+            borderRadius: 6,
         },
         grid: {
             top: '30',
@@ -92,7 +80,7 @@ const abrLadderChartOptions = (abrData) => {
             nameGap: 30,
             nameTextStyle: { color: textMuted, fontSize: 12 },
             axisLine: { lineStyle: { color: borderMain } },
-            axisLabel: { color: textMain, fontWeight: 'bold' },
+            axisLabel: { color: textMuted },
             data: allHeights.map((h) => `${h}p`),
         },
         yAxis: {
@@ -113,8 +101,6 @@ const abrLadderChartOptions = (abrData) => {
 };
 
 class AbrLadderChart extends HTMLElement {
-    // Port note: was `extends BaseChartComponent` (never committed);
-    // chart I/O already uses renderChart/disposeChart directly.
     _data = null;
     chartContainer = null;
 
@@ -149,10 +135,10 @@ class AbrLadderChart extends HTMLElement {
     render() {
         if (!this.chartContainer) return;
 
+        const rows = Array.isArray(this._data) ? this._data : [];
         if (
-            !this._data ||
-            this._data.length === 0 ||
-            this._data.every((d) => d.tracks.length === 0)
+            rows.length === 0 ||
+            rows.every((d) => (d?.tracks || []).length === 0)
         ) {
             render(
                 html`<div

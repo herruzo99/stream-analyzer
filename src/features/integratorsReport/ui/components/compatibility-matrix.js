@@ -1,137 +1,81 @@
 import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
-import { styleMap } from 'lit-html/directives/style-map.js';
 
-
-
-const getStatusColor = (status) => {
+const statusDot = (status) => {
     switch (status) {
         case 'supported':
-            return 'bg-emerald-500 shadow-[0_0_10px_#10b981]/50';
-        case 'config-required':
-            return 'bg-amber-500 shadow-[0_0_10px_#f59e0b]/50';
+            return 'bg-emerald-400';
         case 'partial':
-            return 'bg-amber-500 shadow-[0_0_10px_#f59e0b]/50';
+            return 'bg-amber-400';
         case 'unsupported':
-            return 'bg-red-500 shadow-[0_0_10px_#ef4444]/50';
+            return 'bg-red-400';
         default:
-            return 'bg-slate-800';
+            return 'bg-slate-700';
     }
 };
 
 const reqRow = (req) => {
-    let icon = icons.checkCircle;
-    let color = 'text-emerald-400';
-    let glow = 'drop-shadow-[0_0_5px_#10b981]/30';
-
-    if (req.ok === false) {
-        icon = icons.xCircle;
-        color = 'text-red-400';
-        glow = 'drop-shadow-[0_0_5px_#ef4444]/30';
-    } else if (req.ok === 'warn') {
-        icon = icons.alertTriangle;
-        color = 'text-amber-400';
-        glow = 'drop-shadow-[0_0_5px_#f59e0b]/30';
-    }
+    const ok = req.ok === true;
+    const warn = req.ok === 'warn';
+    const icon = ok ? icons.checkCircle : warn ? icons.alertTriangle : icons.xCircle;
+    const color = ok ? 'text-emerald-300' : warn ? 'text-amber-300' : 'text-red-300';
 
     return html`
-        <div
-            class="flex items-center justify-between text-xs py-2 border-b border-slate-700 last:border-0 group/req hover:bg-slate-900/50 px-2 rounded transition-colors"
-        >
-            <span
-                class="text-slate-400 font-medium group-hover/req:text-slate-100 transition-colors"
-                >${req.label}</span
-            >
-            <div class="flex items-center gap-2">
+        <div class="flex items-center justify-between gap-3 py-2 px-2 border-b border-white/5 last:border-0">
+            <span class="text-[13px] text-slate-400">${req.label}</span>
+            <span class="flex items-center gap-2 min-w-0">
                 <span
-                    class="${color} text-[10px] text-right font-bold uppercase tracking-wider opacity-80"
+                    class="mono text-[10px] text-slate-500 text-right truncate"
+                    title="${req.msg}"
                     >${req.msg}</span
                 >
-                <span class="${color} scale-90 ${glow}">${icon}</span>
-            </div>
+                <span class="${color} shrink-0">${icon}</span>
+            </span>
         </div>
     `;
 };
 
-const platformCard = (platform, isGlass) => {
-    const statusColor = getStatusColor(platform.status);
-    const isSupported =
-        platform.status === 'supported' ||
-        platform.status === 'config-required';
-    const cardRadius = isGlass ? 'rounded-xl' : 'rounded-sm';
-
+const platformCard = (platform) => {
+    const reqs = Array.isArray(platform.reqs) ? platform.reqs : [];
+    const failing = reqs.filter((r) => r.ok !== true).length;
     return html`
-        <div
-            class="bg-slate-900/30 backdrop-blur-md ${cardRadius} border border-slate-700 overflow-hidden flex flex-col hover:border-slate-700 transition-all hover:-translate-y-1 hover:shadow-xl group"
-        >
-            <div
-                class="p-4 flex items-center gap-3 bg-slate-900/50 border-b border-slate-700"
-            >
-                <div
-                    class="w-2.5 h-2.5 rounded-full ${statusColor} animate-pulse-slow"
-                ></div>
-                <div
-                    class="font-bold text-sm text-slate-100 group-hover:text-slate-100 transition-colors tracking-tight"
-                >
-                    ${platform.name}
-                </div>
-                <div
-                    class="ml-auto text-[10px] text-slate-400 font-mono bg-slate-900/50 px-2 py-1 rounded border border-slate-700 shadow-inner"
-                >
-                    ${platform.engine}
-                </div>
+        <div class="rounded-md border border-white/5 bg-[#06090f] overflow-hidden flex flex-col">
+            <div class="px-4 py-3 flex items-center gap-2.5 border-b border-white/5">
+                <span class="w-2 h-2 rounded-full ${statusDot(platform.status)} shrink-0"></span>
+                <span class="text-[13px] font-medium text-slate-100 truncate">${platform.name}</span>
+                <span class="ml-auto mono text-[10px] text-slate-600 shrink-0">${platform.engine}</span>
             </div>
-            <div class="p-4 space-y-1 bg-slate-900/10 grow">
-                ${platform.reqs.map(reqRow)}
+            <div class="p-2 grow">
+                ${reqs.length === 0
+                    ? html`<p class="mono text-[11px] text-slate-600 p-3 text-center">no checks recorded</p>`
+                    : reqs.map(reqRow)}
             </div>
-            ${!isSupported
-            ? html`
-                      <div
-                          class="px-3 py-2 bg-red-500/10 border-t border-red-500/20 text-[10px] font-bold text-red-400 text-center uppercase tracking-widest"
-                      >
-                          Issues Detected
+            ${failing > 0
+                ? html`
+                      <div class="px-3 py-1.5 border-t border-red-400/20 mono text-[10px] text-red-300 text-center">
+                          ${failing} issue${failing === 1 ? '' : 's'} detected
                       </div>
                   `
-            : ''}
+                : ''}
         </div>
     `;
 };
 
-export const compatibilityMatrixTemplate = (compatList, isGlass) => {
-    const glassStyles = {
-        borderRadius: '0.75rem',
-        backdropFilter: 'blur(12px)',
-        boxShadow: '0 8px 30px rgb(0 0 0 / 0.35)',
-        background: '#1e293b',
-    };
-
-    const containerClass = isGlass
-        ? "group h-full flex flex-col relative overflow-hidden"
-        : "group h-full flex flex-col relative overflow-hidden bg-slate-800 border border-slate-800 rounded-sm";
+export const compatibilityMatrixTemplate = (compatList) => {
+    const list = Array.isArray(compatList) ? compatList : [];
+    const blocked = list.filter((p) => p.status === 'unsupported').length;
 
     return html`
-        <div
-            class="${containerClass}"
-            style=${styleMap(isGlass ? glassStyles : {})}
-        >
-            <!-- Top Accent -->
-            <div
-                class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500/50 via-[#60a5fa]/50 to-blue-500/50 opacity-50"
-            ></div>
-
-            <div
-                class="shrink-0 p-6 border-b border-slate-800 bg-slate-800/50"
-            >
-                <h3
-                    class="font-black text-slate-400 text-xs flex items-center gap-2 uppercase tracking-[0.2em]"
-                >
-                    ${icons.users} Environment Check
-                </h3>
+        <div class="h-full flex flex-col rounded-md border border-white/5 bg-[#0b111c] overflow-hidden">
+            <div class="shrink-0 px-4 py-3 border-b border-white/5 flex items-center gap-3">
+                <p class="mono text-[10px] text-slate-500">environment check</p>
+                <span class="grow"></span>
+                <p class="mono text-[10px] text-slate-600">
+                    ${list.length - blocked}/${list.length} ready
+                </p>
             </div>
-            <div
-                class="p-6 grid grid-cols-1 sm:grid-cols-2 gap-6 overflow-y-auto custom-scrollbar grow"
-            >
-                ${compatList.map((p) => platformCard(p, isGlass))}
+            <div class="p-4 grid grid-cols-1 sm:grid-cols-2 gap-2 overflow-y-auto custom-scrollbar grow">
+                ${list.map((p) => platformCard(p))}
             </div>
         </div>
     `;

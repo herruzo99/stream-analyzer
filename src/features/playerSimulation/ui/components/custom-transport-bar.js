@@ -26,7 +26,7 @@ const renderBufferedRanges = (videoEl, duration, seekableStart = 0) => {
         if (width > 0) {
             ranges.push(html`
                 <div
-                    class="absolute top-0 bottom-0 bg-slate-700 rounded-full pointer-events-none transition-all duration-500"
+                    class="absolute top-0 bottom-0 bg-white/5 rounded-full pointer-events-none transition-all duration-500"
                     style="left: ${start}%; width: ${width}%"
                 ></div>
             `);
@@ -136,9 +136,7 @@ export const customTransportBarTemplate = (playerState) => {
                 >Latency:</span
             >
             <span
-                class="ml-1 font-bold font-mono ${latency < 3
-                    ? 'text-emerald-400'
-                    : 'text-amber-400'}"
+                class="ml-1 font-bold font-mono ${latency < 3 ? 'text-emerald-400' : 'text-amber-400'}"
             >
                 ${latency.toFixed(1)}s
             </span>
@@ -153,31 +151,23 @@ export const customTransportBarTemplate = (playerState) => {
             <!-- Floating Glass Capsule -->
             <!-- pointer-events-auto ensures interaction works despite wrapper being none -->
             <div
-                class="bg-slate-800 backdrop-blur-md border border-slate-800 rounded-2xl p-3 shadow-2xl ring-1 ring-slate-800 pointer-events-auto"
+                class="bg-white/5 border border-white/10 rounded-md p-3 ring-1 ring-slate-800 pointer-events-auto"
             >
                 <!-- Upper Row: Time & Info -->
                 <div class="flex justify-between items-end mb-3 px-1">
                     <div
-                        class="flex items-center gap-3 text-xs tracking-wide select-none"
+                        class="flex items-center gap-3 text-xs select-none"
                     >
                         ${isLive
                             ? html`
                                   <button
                                       @click=${handleGoToLive}
-                                      class="flex items-center gap-1.5 px-2 py-1 rounded-lg transition-all ${Math.abs(
-                                          seekableEnd - currentTime
-                                      ) < 2
-                                          ? 'bg-red-500/20 text-red-400 border border-red-500/30 cursor-default'
-                                          : 'bg-slate-800 text-slate-400 hover:text-slate-100 hover:bg-slate-800 cursor-pointer border border-transparent'}"
+                                      class="flex items-center gap-1.5 px-2 py-1 rounded-md transition-all ${Math.abs( seekableEnd - currentTime ) < 2 ? 'bg-red-500/20 text-red-400 border border-red-500/30 cursor-default' : 'bg-white/5 text-slate-400 hover:text-slate-100 hover:bg-white/10 cursor-pointer border border-transparent'}"
                                   >
                                       <div
-                                          class="w-1.5 h-1.5 rounded-full bg-current ${Math.abs(
-                                              seekableEnd - currentTime
-                                          ) < 2
-                                              ? 'animate-pulse'
-                                              : ''}"
+                                          class="w-1.5 h-1.5 rounded-full bg-current ${Math.abs( seekableEnd - currentTime ) < 2 ? 'animate-pulse' : ''}"
                                       ></div>
-                                      <span class="font-black">LIVE</span>
+                                      <span class="font-bold">LIVE</span>
                                   </button>
                               `
                             : ''}
@@ -187,7 +177,7 @@ export const customTransportBarTemplate = (playerState) => {
                     </div>
 
                     <div
-                        class="text-[10px] font-bold text-slate-400 bg-slate-800 px-2 py-0.5 rounded border border-slate-800 uppercase tracking-wider"
+                        class="text-[10px] font-bold text-slate-400 bg-white/5 px-2 py-0.5 rounded border border-white/10 r"
                     >
                         ${currentStats.playbackQuality.resolution || 'AUTO'}
                     </div>
@@ -205,14 +195,14 @@ export const customTransportBarTemplate = (playerState) => {
 
                     <!-- Tooltip (Floating) -->
                     <div
-                        class="seek-tooltip absolute bottom-full mb-3 -translate-x-1/2 px-2 py-1 bg-slate-800 text-slate-100 text-[10px] font-bold font-mono rounded border border-slate-800 opacity-0 transition-opacity duration-150 pointer-events-none whitespace-nowrap z-40 shadow-lg"
+                        class="seek-tooltip absolute bottom-full mb-3 -translate-x-1/2 px-2 py-1 bg-white/5 text-slate-100 text-[10px] font-bold font-mono rounded border border-white/10 opacity-0 transition-opacity duration-150 pointer-events-none whitespace-nowrap z-40"
                     >
                         00:00
                     </div>
 
                     <!-- Rail -->
                     <div
-                        class="absolute top-1/2 left-0 right-0 -translate-y-1/2 h-1 bg-slate-800 rounded-full overflow-hidden group-hover/bar:h-1.5 transition-all duration-200"
+                        class="absolute top-1/2 left-0 right-0 -translate-y-1/2 h-1 bg-white/5 rounded-full overflow-hidden group-hover/bar:h-1.5 transition-all duration-200"
                     >
                         <!-- Buffered Regions -->
                         ${renderBufferedRanges(
@@ -224,7 +214,7 @@ export const customTransportBarTemplate = (playerState) => {
 
                     <!-- Ghost Track (Hover) -->
                     <div
-                        class="seek-ghost absolute top-1/2 left-0 -translate-y-1/2 h-1 bg-slate-700 rounded-l-full group-hover/bar:h-1.5 transition-all duration-75 pointer-events-none opacity-0"
+                        class="seek-ghost absolute top-1/2 left-0 -translate-y-1/2 h-1 bg-white/5 rounded-l-full group-hover/bar:h-1.5 transition-all duration-75 pointer-events-none opacity-0"
                         style="width: 0%"
                     ></div>
 
@@ -235,7 +225,7 @@ export const customTransportBarTemplate = (playerState) => {
                     >
                         <!-- Glowing Thumb -->
                         <div
-                            class="absolute -right-1.5 w-3 h-3 bg-slate-100 rounded-full shadow-[0_0_10px_#3b82f6] scale-0 group-hover/bar:scale-100 transition-transform duration-200 z-10"
+                            class="absolute -right-1.5 w-3 h-3 bg-slate-100 rounded-full scale-0 group-hover/bar:scale-100 transition-transform duration-200 z-10"
                         ></div>
                     </div>
                 </div>

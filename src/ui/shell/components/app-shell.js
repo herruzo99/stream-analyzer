@@ -6,7 +6,6 @@ import * as icons from '@/ui/icons';
 import { html, render } from 'lit-html';
 import { renderContextSwitcher } from './context-switcher.js';
 import { globalControlsTemplate } from './global-controls.js';
-import { mainContentControlsTemplate } from './main-content-controls.js';
 import './sidebar-nav.js'; // Registers <sidebar-nav>
 
 class AppShellComponent extends HTMLElement {
@@ -46,9 +45,16 @@ class AppShellComponent extends HTMLElement {
 
     // Handles CSS class toggling for sidebar visibility
     updateLayoutState() {
-        const { activeSidebar } = useUiStore.getState();
+        const { activeSidebar, isGlobalNavCompact } = useUiStore.getState();
         const isPrimaryOpen = activeSidebar === 'primary';
         const isContextualOpen = activeSidebar === 'contextual';
+
+        const root = this.querySelector('#app-root-inner');
+        if (root) {
+            // Compact rail gets a narrow grid track instead of a 280px
+            // void with floating icons.
+            root.classList.toggle('sidebar-compact', !!isGlobalNavCompact);
+        }
 
         const sidebarContainer = this.querySelector('#sidebar-container');
         const sidebarOverlay = this.querySelector('#sidebar-overlay');
@@ -67,22 +73,36 @@ class AppShellComponent extends HTMLElement {
         if (sidebarOverlay) {
             if (isPrimaryOpen) {
                 sidebarOverlay.classList.remove('hidden');
-                sidebarOverlay.classList.add('block', 'animate-fadeIn');
+                sidebarOverlay.classList.add('block');
             } else {
                 sidebarOverlay.classList.add('hidden');
-                sidebarOverlay.classList.remove('block', 'animate-fadeIn');
+                sidebarOverlay.classList.remove('block');
             }
         }
 
         if (contextSidebar) {
+            // `hidden` collapses the grid's auto track (no 384px ghost
+            // column); translate handles the slide animation.
             if (isContextualOpen) {
-                contextSidebar.classList.remove('translate-x-full');
-                contextSidebar.classList.add('translate-x-0');
+                contextSidebar.classList.remove('hidden');
+                contextSidebar.classList.add('flex');
+                requestAnimationFrame(() => {
+                    contextSidebar.classList.remove('translate-x-full');
+                    contextSidebar.classList.add('translate-x-0');
+                });
                 document.body.classList.add('contextual-sidebar-open');
             } else {
                 contextSidebar.classList.add('translate-x-full');
                 contextSidebar.classList.remove('translate-x-0');
                 document.body.classList.remove('contextual-sidebar-open');
+                window.setTimeout(() => {
+                    if (
+                        useUiStore.getState().activeSidebar !== 'contextual'
+                    ) {
+                        contextSidebar.classList.add('hidden');
+                        contextSidebar.classList.remove('flex');
+                    }
+                }, 300);
             }
         }
     }
@@ -108,13 +128,6 @@ class AppShellComponent extends HTMLElement {
             );
         }
 
-        const contextHeader = this.querySelector('#context-header');
-        if (contextHeader) {
-            render(
-                mainContentControlsTemplate(),
-                /** @type {HTMLElement} */ (contextHeader)
-            );
-        }
     }
 
     render() {
@@ -123,56 +136,48 @@ class AppShellComponent extends HTMLElement {
         const template = html`
             <div
                 id="app-root-inner"
-                class="h-[100dvh] w-full max-w-[100vw] xl:grid xl:grid-cols-[var(--sidebar-width)_minmax(0,1fr)_auto] xl:grid-rows-[1fr] overflow-hidden bg-slate-950 fixed inset-0"
+                class="app-grid h-[100dvh] w-full max-w-[100vw] xl:grid xl:grid-cols-[var(--sidebar-width)_minmax(0,1fr)_auto] xl:grid-rows-[1fr] overflow-hidden bg-[#06090f] fixed inset-0"
             >
                 <!-- Mobile Overlay -->
                 <div
                     id="sidebar-overlay"
-                    class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] hidden xl:hidden"
+                    class="fixed inset-0 bg-black/60 z-[60] hidden xl:hidden"
                     @click=${() => uiActions.setActiveSidebar(null)}
                 ></div>
 
                 <!-- Sidebar -->
                 <aside
                     id="sidebar-container"
-                    class="glass-panel flex flex-col fixed xl:relative top-0 left-0 bottom-0 z-[70] w-[var(--sidebar-width)] -translate-x-full xl:translate-x-0 transition-transform duration-300 ease-out shadow-2xl xl:shadow-none h-full max-h-full overflow-hidden"
+                    class="sidebar-pane flex flex-col fixed xl:relative top-0 left-0 bottom-0 z-[70] w-[var(--sidebar-width)] -translate-x-full xl:translate-x-0 transition-transform duration-300 ease-out h-full max-h-full overflow-hidden bg-[#06090f] border-r border-white/5"
                 >
-                    <!-- Static Branding Header -->
                     <div
-                        class="shrink-0 p-5 flex items-center gap-3 border-b border-white/5 bg-slate-950/50 backdrop-blur-sm z-20"
+                        class="shrink-0 px-4 py-3.5 flex items-center gap-2.5 border-b border-white/5 z-20"
                     >
-                        <div
-                            class="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center shrink-0"
+                        <span
+                            class="w-6 h-6 bg-emerald-400 shrink-0"
+                            style="mask-image: url(/icon.png); mask-size: contain; mask-position: center; mask-repeat: no-repeat; -webkit-mask-image: url(/icon.png); -webkit-mask-size: contain; -webkit-mask-position: center; -webkit-mask-repeat: no-repeat;"
+                        ></span>
+                        <span
+                            class="font-medium text-slate-100 text-[15px]"
+                            >Stream Analyzer</span
                         >
-                            <img
-                                src="/icon.png"
-                                class="w-5 h-5 object-contain opacity-90"
-                                alt="Logo"
-                            />
-                        </div>
-                        <div class="flex flex-col">
-                            <span
-                                class="font-bold text-slate-200 text-sm leading-tight tracking-tight"
-                                >Stream Analyzer</span
-                            >
-                            <span class="text-[10px] text-slate-500 font-medium"
-                                >Professional Workbench</span
-                            >
-                        </div>
+                        <span class="mono text-[10px] text-slate-600"
+                            >ott debugger</span
+                        >
                     </div>
 
                     <!-- Navigation (Scrollable, Stable Top) -->
                     <div
                         id="sidebar-nav-container"
-                        class="flex flex-col grow min-h-0 overflow-y-auto scrollbar-hide pt-4 relative z-0"
+                        class="flex flex-col grow min-h-0 overflow-y-auto custom-scrollbar pt-3 relative z-0"
                     >
                         <sidebar-nav></sidebar-nav>
                     </div>
 
-                    <!-- Context Switcher (Moved to Bottom to prevent Nav Jumps) -->
+                    <!-- Context Switcher (pinned above footer) -->
                     <div
                         id="stream-context-container"
-                        class="shrink-0 z-10 relative bg-slate-900/50 border-t border-white/5"
+                        class="shrink-0 z-10 relative border-t border-white/5"
                     ></div>
 
                     <!-- Global Controls (Fixed Footer) -->
@@ -184,40 +189,30 @@ class AppShellComponent extends HTMLElement {
 
                 <!-- Main Content Area -->
                 <div
-                    class="flex flex-col min-h-0 bg-slate-900 relative w-full max-w-full h-full"
+                    class="flex flex-col min-h-0 bg-[#06090f] relative w-full max-w-full h-full"
                 >
                     <!-- Mobile Header -->
                     <header
-                        class="xl:hidden shrink-0 bg-slate-900/90 border-b border-slate-800 p-3 flex items-center justify-between gap-4 z-20"
+                        class="xl:hidden shrink-0 bg-[#06090f] border-b border-white/5 px-4 py-2.5 flex items-center justify-between gap-4 z-20"
                     >
                         <button
                             @click=${() =>
                                 uiActions.setActiveSidebar('primary')}
-                            class="text-slate-300 p-2 -ml-2 hover:bg-slate-800 rounded-lg transition-colors"
+                            class="text-slate-400 p-2 -ml-2 hover:text-slate-100 transition-colors"
+                            aria-label="Open navigation"
                         >
                             ${icons.menu}
                         </button>
                         <div class="flex items-center gap-2">
-                            <img
-                                src="/icon.png"
-                                class="w-5 h-5 object-contain"
-                                alt="Logo"
-                            />
-                            <span class="font-bold text-slate-200"
+                            <span
+                                class="w-5 h-5 bg-emerald-400"
+                                style="mask-image: url(/icon.png); mask-size: contain; mask-position: center; mask-repeat: no-repeat; -webkit-mask-image: url(/icon.png); -webkit-mask-size: contain; -webkit-mask-position: center; -webkit-mask-repeat: no-repeat;"
+                            ></span>
+                            <span class="font-medium text-slate-100 text-sm"
                                 >Stream Analyzer</span
                             >
                         </div>
                         <div class="w-8"></div>
-                    </header>
-
-                    <!-- Desktop Header -->
-                    <header
-                        class="hidden xl:flex shrink-0 h-14 items-center justify-between px-6 border-b border-slate-800 bg-slate-900"
-                    >
-                        <div
-                            id="context-header"
-                            class="w-full flex items-center"
-                        ></div>
                     </header>
 
                     <!-- View Container -->
@@ -235,7 +230,7 @@ class AppShellComponent extends HTMLElement {
                 <!-- Contextual Sidebar -->
                 <aside
                     id="contextual-sidebar"
-                    class="bg-slate-900 border-l border-slate-800 fixed xl:relative top-0 right-0 bottom-0 z-40 w-96 translate-x-full xl:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col min-h-0 shadow-2xl xl:shadow-none h-full max-h-full"
+                    class="hidden bg-[#06090f] border-l border-white/5 fixed xl:relative top-0 right-0 bottom-0 z-40 w-96 translate-x-full transition-transform duration-300 ease-in-out flex-col min-h-0 h-full max-h-full"
                 ></aside>
 
                 <!-- Library Modal -->

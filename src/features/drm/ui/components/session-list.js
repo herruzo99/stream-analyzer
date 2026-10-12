@@ -3,13 +3,13 @@ import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 
 const sessionItem = (session, isSelected) => {
-    // Prism Glass Active State:
+    // Flat active state:
     // - Background: Primary color with low opacity
     // - Border: Primary color
     // - Glow: Box shadow with primary color active glow
     const activeClass = isSelected
-        ? 'bg-blue-500/10 border-blue-500 shadow-[0_0_20px_-5px_#3b82f6]'
-        : 'bg-slate-800 border-slate-800 hover:bg-slate-800 hover:border-slate-400/30';
+        ? 'bg-emerald-500/10 border-emerald-400/25 '
+        : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-slate-400/30';
 
     const textClass = isSelected
         ? 'text-slate-100'
@@ -19,11 +19,11 @@ const sessionItem = (session, isSelected) => {
         <div
             @click=${() =>
             decryptionActions.setSelectedSessionId(session.internalId)}
-            class="p-3 rounded-xl border cursor-pointer transition-all duration-200 mb-2 last:mb-0 group ${activeClass}"
+            class="p-3 rounded-md border cursor-pointer transition-all duration-200 mb-2 last:mb-0 group ${activeClass}"
         >
             <div class="flex justify-between items-center mb-1.5">
                 <div
-                    class="font-bold text-xs ${textClass} truncate max-w-[140px] tracking-tight"
+                    class="font-bold text-xs ${textClass} truncate max-w-[140px]"
                     title="${session.sessionId}"
                 >
                     ${session.sessionId}
@@ -46,7 +46,7 @@ const sessionItem = (session, isSelected) => {
                           >`
             : ''}
                     <span
-                        class="px-2 py-0.5 rounded-lg bg-slate-900/30 border border-slate-800 text-[10px] font-bold ${textClass}"
+                        class="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[10px] font-bold ${textClass}"
                     >
                         ${session.usableKeys} / ${session.totalKeys}
                     </span>
@@ -61,12 +61,12 @@ export const sessionListTemplate = (sessions, selectedId) => {
         <div class="flex flex-col h-full w-full overflow-hidden">
             <!-- Header -->
             <div
-                class="p-4 border-b border-slate-800 bg-slate-800 backdrop-blur-md shrink-0 block"
+                class="p-4 border-b border-white/10 bg-white/5 shrink-0 block"
             >
                 <h3
-                    class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2"
+                    class="text-xs font-bold text-slate-400 r flex items-center gap-2"
                 >
-                    <span class="p-1 rounded bg-slate-900/50 text-blue-400">
+                    <span class="p-1 rounded bg-white/5 text-emerald-200">
                         ${icons.key}
                     </span>
                     EME Sessions
@@ -78,7 +78,7 @@ export const sessionListTemplate = (sessions, selectedId) => {
                 ${sessions.length === 0
             ? html`
                     <div
-                        class="mt-8 flex flex-col items-center justify-center text-center p-4 border border-dashed border-slate-800 rounded-xl"
+                        class="mt-8 flex flex-col items-center justify-center text-center p-4 border border-dashed border-white/10 rounded-md"
                     >
                         <div class="text-slate-400 opacity-50 mb-2 scale-75">
                              ${icons.key}

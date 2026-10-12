@@ -39,7 +39,21 @@
 
     /* Sidebar Specifics */
     --sidebar-width: 280px;
+    --sidebar-width-compact: 56px;
     --sidebar-bg: rgb(2, 6, 23);
+}
+
+/* Compact nav rail: narrow the grid track + pane together so icons
+   don't float in a 280px void. Desktop grid only; the mobile drawer
+   keeps full width. */
+@media (min-width: 1280px) {
+    .app-grid.sidebar-compact {
+        grid-template-columns:
+            var(--sidebar-width-compact) minmax(0, 1fr) auto;
+    }
+    .app-grid.sidebar-compact .sidebar-pane {
+        width: var(--sidebar-width-compact);
+    }
 }
 
 /* --- Global Styles --- */

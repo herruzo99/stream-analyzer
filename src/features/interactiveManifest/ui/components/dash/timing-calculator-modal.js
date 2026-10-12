@@ -44,8 +44,8 @@ const encodeTooltip = (htmlContent) => {
 
 const renderTooltipSection = (title, items) => {
     return `
-        <div class="mb-2 pb-2 border-b border-slate-700 last:border-0 last:pb-0 last:mb-0">
-            ${title ? `<div class="text-[10px] uppercase font-bold text-teal-300 tracking-wider mb-1 opacity-80">${title}</div>` : ''}
+        <div class="mb-2 pb-2 border-b border-white/10 last:border-0 last:pb-0 last:mb-0">
+            ${title ? `<div class="text-[10px] font-bold text-teal-300 r mb-1 opacity-80">${title}</div>` : ''}
             <div class="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1">
                 ${items.map(item => `
                     <div class="text-[10px] font-medium text-slate-400">${item.label}</div>
@@ -80,23 +80,23 @@ const SegmentBlock = ({ segment, nowMs, pxPerSec, isSelected, onClick }) => {
     const widthPx = duration * pxPerSec;
 
     // Styles
-    let bgClass = 'bg-slate-800';
-    let borderClass = 'border-slate-800';
+    let bgClass = 'bg-white/5';
+    let borderClass = 'border-white/10';
     let textClass = 'text-slate-400';
     let opacity = 'opacity-100';
 
     if (isAvailable) {
-        bgClass = 'bg-blue-500/20';
-        borderClass = 'border-blue-500/50';
-        textClass = 'text-blue-300';
+        bgClass = 'bg-emerald-500/10';
+        borderClass = 'border-emerald-400/25';
+        textClass = 'text-emerald-200';
     } else {
-        bgClass = 'bg-slate-800';
-        borderClass = 'border-slate-800';
+        bgClass = 'bg-white/5';
+        borderClass = 'border-white/10';
         opacity = 'opacity-50';
     }
 
     if (isSelected) {
-        bgClass = 'bg-blue-500';
+        bgClass = 'bg-emerald-500/10';
         textClass = 'text-white';
         borderClass = 'border-white';
         opacity = 'opacity-100';
@@ -112,7 +112,7 @@ const SegmentBlock = ({ segment, nowMs, pxPerSec, isSelected, onClick }) => {
         2}px; transition: none !important;"
         >
             <div
-                class="w-full h-16 rounded-md border ${bgClass} ${borderClass} ${textClass} ${opacity} flex flex-col items-center justify-center cursor-pointer pointer-events-auto transition-all duration-200 hover:scale-105 hover:z-10 hover:shadow-[0_0_20px_rgba(0,0,0,0.3)] backdrop-blur-sm"
+                class="w-full h-16 rounded-md border ${bgClass} ${borderClass} ${textClass} ${opacity} flex flex-col items-center justify-center cursor-pointer pointer-events-auto transition-all duration-200 hover:scale-105 hover:z-10 hover:"
                 @click=${onClick}
             >
                 <div class="text-xs font-bold">
@@ -120,7 +120,7 @@ const SegmentBlock = ({ segment, nowMs, pxPerSec, isSelected, onClick }) => {
                 </div>
                 ${!isAvailable
             ? html`<div
-                          class="text-[9px] uppercase tracking-wider mt-1"
+                          class="text-[9px] r mt-1"
                       >
                           Wait
                       </div>`
@@ -153,7 +153,7 @@ const PeriodBlock = ({
     // --- Generate Tooltip Content ---
     const tooltipHtml = `
         <div class="min-w-[180px]">
-             <div class="flex items-center gap-2 mb-3 pb-2 border-b border-slate-700">
+             <div class="flex items-center gap-2 mb-3 pb-2 border-b border-white/10">
                 <div class="p-1 rounded bg-teal-500/20 text-teal-300">
                    ${icons.activity || '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>'}
                 </div>
@@ -173,13 +173,11 @@ const PeriodBlock = ({
 
     return html`
         <div
-            class="absolute top-0 bottom-0 flex items-center pointer-events-none border-l-2 border-teal-500/50 ${isActive
-            ? 'bg-teal-500/5'
-            : ''}"
+            class="absolute top-0 bottom-0 flex items-center pointer-events-none border-l-2 border-teal-500/50 ${isActive ? 'bg-teal-500/5' : ''}"
             style="left: calc(50% + ${leftPx}px); width: ${widthPx}px; transition: none !important;"
         >
             <div
-                class="absolute top-2 text-[10px] font-bold uppercase text-teal-300 tracking-wider bg-slate-800/90 px-2 py-0.5 rounded backdrop-blur-sm whitespace-nowrap transition-all duration-75 border border-teal-500/30 shadow-sm z-10 pointer-events-auto cursor-help"
+                class="absolute top-2 text-[10px] font-bold text-teal-300 r bg-white/5 px-2 py-0.5 rounded whitespace-nowrap transition-all duration-75 border border-teal-500/30 z-10 pointer-events-auto cursor-help"
                 style="left: ${2 + labelOffsetPx}px"
                 data-tooltip-html-b64="${encodeTooltip(tooltipHtml)}"
             >
@@ -204,8 +202,8 @@ const STagGroupBlock = ({ group, nowMs, pxPerSec }) => {
 
     const tooltipHtml = `
         <div class="min-w-[150px]">
-            <div class="flex items-center gap-2 mb-2 pb-2 border-b border-slate-700">
-                <div class="p-1 rounded bg-purple-500/20 text-purple-300">
+            <div class="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
+                <div class="p-1 rounded bg-white/5 text-slate-300">
                     <span class="font-mono font-bold text-[10px]">S</span>
                 </div>
                  <div>
@@ -223,11 +221,11 @@ const STagGroupBlock = ({ group, nowMs, pxPerSec }) => {
 
     return html`
         <div
-            class="absolute top-[20%] bottom-[20%] border-2 border-dashed border-purple-500/30 rounded-lg pointer-events-none flex items-start justify-center overflow-hidden group hover:border-purple-500/60 transition-colors"
+            class="absolute top-[20%] bottom-[20%] border-2 border-dashed border-white/10 rounded-md pointer-events-none flex items-start justify-center overflow-hidden group hover:border-white/10 transition-colors"
             style="left: calc(50% + ${leftPx}px); width: ${widthPx}px; transition: none !important;"
         >
             <div
-                class="absolute top-0 left-0 right-0 bg-purple-500/10 text-purple-300 text-[9px] font-mono px-1 py-0.5 text-center border-b border-purple-500/20 backdrop-blur-sm"
+                class="absolute top-0 left-0 right-0 bg-white/5 text-slate-300 text-[9px] font-mono px-1 py-0.5 text-center border-b border-white/10"
             >
                 S[${sElementIndex}] (${count})
             </div>
@@ -276,9 +274,13 @@ class DashTimingCalculator extends HTMLElement {
                 border-bottom: 1px solid #1e293b;
                 z-index: 10;
             }
-                background-color: transparent;
-                margin: 0;
-            }
+            /* NOTE: .whiteboard-panel must keep display grid +
+               overflow hidden here. The injected light-DOM stylesheet is
+               the only place the panel constraint comes from, and if
+               this rule is dropped the Tailwind preflight display block
+               wins: the scroll area grows to its full content height,
+               scrollHeight == clientHeight, and the whiteboard can never
+               scroll no matter how many calculation steps render. */
             .whiteboard-panel {
                 flex: 1;
                 min-height: 0;
@@ -358,6 +360,14 @@ class DashTimingCalculator extends HTMLElement {
         this._isDragging = false;
         this._lastMouseX = 0;
         this._zoomLevel = 50; // Default zoom level
+        // Last-known-good whiteboard anchor: keeps the calculation
+        // steps visible when the playhead temporarily sits in a gap
+        // the manifest no longer covers (period rotation at section
+        // boundaries). Updated every successful render; consumed as a
+        // fallback so the panel never collapses to the empty spinner.
+        this._lastGoodCenterSegment = null;
+        this._lastGoodTrack = null;
+        this._lastGoodPeriodStart = undefined;
     }
 
     set data(val) {
@@ -390,6 +400,12 @@ class DashTimingCalculator extends HTMLElement {
                 this.refreshData();
                 this._panOffset = 0; // Pixels
                 this._inspectorData = null; // State for embedded inspector
+                // A new stream means new timelines — drop the stale
+                // last-known-good anchor so the whiteboard cannot show
+                // steps from the previous stream.
+                this._lastGoodCenterSegment = null;
+                this._lastGoodTrack = null;
+                this._lastGoodPeriodStart = undefined;
             }
         }
     }
@@ -531,9 +547,17 @@ class DashTimingCalculator extends HTMLElement {
         let effectiveBaseUrl = manifestBaseUrl;
         if (!effectiveBaseUrl) {
             effectiveBaseUrl = mpdBase;
-        } else if (!effectiveBaseUrl.startsWith('http')) {
+        } else if (
+            !effectiveBaseUrl.startsWith('http') &&
+            !effectiveBaseUrl.startsWith('//')
+        ) {
+            // Relative BaseURL (your stream uses ../../../../.. chains):
+            // resolve against the manifest directory per RFC 3986 instead
+            // of discarding it. Discarding it made every segment URL —
+            // and every extractTimingConfig baseUrl — wrong, and broke
+            // $Time$ calculations that depend on the right Period/Rep.
             try {
-                effectiveBaseUrl = mpdBase;
+                effectiveBaseUrl = new URL(effectiveBaseUrl, mpdBase).href;
             } catch {
                 effectiveBaseUrl = mpdBase;
             }
@@ -609,10 +633,13 @@ class DashTimingCalculator extends HTMLElement {
                 : this._periods[0].id;
         }
 
-        // We don't need to select a single set of tracks here anymore,
-        // as we will select them dynamically in render based on the active period.
-        // However, we should ensure we have a valid selectedRepId.
-        // Let's try to find a default one from the first period.
+        // Representation ids are only stable *within* an AdaptationSet
+        // content type — the post-update re-resolve below keeps following
+        // the same rendition (contentType, then bandwidth) instead of
+        // silently jumping tracks when a refresh reorders ids. Without
+        // this, a refresh that reorders Representation ids flips
+        // _selectedRepId to an unrelated rendition and the whiteboard
+        // recomputes against the wrong timeline (appears "stuck").
         if (
             !this._selectedRepId &&
             this._periods.length > 0 &&
@@ -628,9 +655,14 @@ class DashTimingCalculator extends HTMLElement {
                 getAttr(manifest, 'availabilityStartTime') || 0
             ).getTime(),
             periods: this._periods, // Pass the full period objects with tracks
+            // spd = EXPLICIT author intent only. minBufferTime is tracked
+            // separately so _getLiveLatencySec() can prioritize correctly
+            // (SPD → minBufferTime → one segment duration) instead of
+            // collapsing the two into one number.
             spd:
                 parseDuration(getAttr(manifest, 'suggestedPresentationDelay'))
-                    ?.total ||
+                    ?.total || 0,
+            minBufferTimeSec:
                 parseDuration(getAttr(manifest, 'minBufferTime'))?.total ||
                 0,
             timeShiftBufferDepth:
@@ -643,8 +675,48 @@ class DashTimingCalculator extends HTMLElement {
 
         // Update data directly to avoid infinite loop with setter
         const oldIsDynamic = this._isDynamicStream;
+        const prevData = this._data;
         this._data = newData;
         this._isDynamicStream = !!this._data.isDynamic;
+
+        // Re-resolve the selected Representation against the refreshed
+        // periods (see above). Representation ids are only unique per
+        // AdaptationSet, and live manifests reorder them across periods —
+        // keep following the same content type / rendition instead of
+        // silently jumping to tracks[0] of the new active period.
+        if (prevData && this._selectedRepId) {
+            const allTracks = this._data.periods.flatMap(
+                (p) => p.tracks || []
+            );
+            const stillExists = allTracks.some(
+                (t) => t.id === this._selectedRepId
+            );
+            if (!stillExists) {
+                const prevTrack = (prevData.periods || [])
+                    .flatMap((p) => p.tracks || [])
+                    .find((t) => t.id === this._selectedRepId);
+                const candidates = allTracks.filter(
+                    (t) =>
+                        !prevTrack ||
+                        t.contentType === prevTrack.contentType
+                );
+                const pool = candidates.length > 0 ? candidates : allTracks;
+                let best = null;
+                let bestScore = Infinity;
+                for (const t of pool) {
+                    const score = prevTrack
+                        ? Math.abs(
+                              (t.bandwidth || 0) - (prevTrack.bandwidth || 0)
+                          )
+                        : 0;
+                    if (score < bestScore) {
+                        bestScore = score;
+                        best = t;
+                    }
+                }
+                if (best) this._selectedRepId = best.id;
+            }
+        }
 
         // Handle dynamic stream change logic if needed (similar to setter)
         if (oldIsDynamic !== this._isDynamicStream) {
@@ -796,6 +868,12 @@ class DashTimingCalculator extends HTMLElement {
 
     _getPeriodForTime(timeSinceAstSec) {
         const periods = this._data.periods;
+        // Gap-aware: return the covering period, or null when the instant
+        // sits in a gap / outside all periods. Callers that probe across
+        // periods (section-boundary recovery) depend on null here — the
+        // old code returned the *previous* period for gaps, so recovery
+        // kept calculating against a timeline with no coverage and the
+        // whiteboard stalled with "outside available segments".
         for (let i = 0; i < periods.length; i++) {
             const p = periods[i];
             const nextP = periods[i + 1];
@@ -808,33 +886,47 @@ class DashTimingCalculator extends HTMLElement {
 
             if (timeSinceAstSec >= pStart && timeSinceAstSec < pEnd) {
                 return p;
-            } else if (timeSinceAstSec < pStart) {
-                // If before first period, return first
-                if (i === 0) return p;
-                // If gap, return previous? Or null?
-                // For now, return p (closest future?) or previous.
-                // Let's return the one that "should" cover it or the gap.
-                // Actually, if we are in a gap, we might want to return null or the previous one to show "end of period".
-                // But for simplicity, let's return the period that *would* contain it if it started earlier, or just the previous one.
-                return periods[Math.max(0, i - 1)];
+            }
+            if (timeSinceAstSec < pStart) {
+                return i === 0 ? p : null;
             }
         }
-        return periods[periods.length - 1];
+        return null;
     }
 
     _getTrackForPeriod(period, repId) {
         if (!period || !period.tracks) return null;
         // Try to find track with same ID
         let track = period.tracks.find((t) => t.id === repId);
-        // If not found, try to find one with same content type and similar bandwidth/index?
-        // For now, fallback to first track if exact ID match fails, or maybe try to match by contentType.
-        if (!track) {
-            // Try to match by contentType of the originally selected track (if we had access to it)
-            // But we only have repId.
-            // Let's just pick the first one as a fallback, or maybe we can store "selectedContentType".
-            track = period.tracks[0];
+        if (track) return track;
+        // Representation ids are only unique per AdaptationSet and live
+        // manifests reorder them across periods (your stream: video rep
+        // ids shuffle between ad and content sections). Resolve by
+        // content type, then nearest bandwidth, so cross-period recovery
+        // follows the same rendition instead of jumping to tracks[0]
+        // (e.g. 1080p -> 240p) and computing a foreign timeline.
+        const reference =
+            (this._data?.periods || [])
+                .flatMap((p) => p.tracks || [])
+                .find((t) => t.id === repId) || null;
+        const pool = reference
+            ? period.tracks.filter(
+                  (t) => t.contentType === reference.contentType
+              )
+            : [];
+        const candidates = pool.length > 0 ? pool : period.tracks;
+        let best = null;
+        let bestScore = Infinity;
+        for (const t of candidates) {
+            const score = reference
+                ? Math.abs((t.bandwidth || 0) - (reference.bandwidth || 0))
+                : 0;
+            if (score < bestScore) {
+                bestScore = score;
+                best = t;
+            }
         }
-        return track;
+        return best || period.tracks[0] || null;
     }
 
     _getStreamTimeRange() {
@@ -1039,37 +1131,78 @@ class DashTimingCalculator extends HTMLElement {
     }
 
     /**
+     * Manifest-declared live latency budget (seconds): how far behind
+     * the wall clock a compliant player positions itself. Priority per
+     * RFC 8216 / DASH-IF guidance:
+     *   1. suggestedPresentationDelay (explicit author intent — the
+     *      manifest telling you where to play), else
+     *   2. minBufferTime (the startup/buffer contract — a player MUST
+     *      hold this much, so it is the minimum sane distance), else
+     *   3. one segment duration of the current track (a player cannot
+     *      play a segment still being published).
+     * The old code applied ONLY the minBufferTime fallback as "spd",
+     * which parked the playhead at wall-now on manifests like livesim
+     * and made the newest segment flicker WAIT. The playhead now honors
+     * the full budget, so it trails the edge the way a real player does.
+     * @returns {number} seconds.
+     */
+    _getLiveLatencySec() {
+        const explicitSpd = this._data?.spd || 0;
+        if (explicitSpd > 0) return explicitSpd;
+        const mbt = this._data?.minBufferTimeSec || 0;
+        if (mbt > 0) return mbt;
+        const track = this._currentTrackForLatency();
+        const segDur = track?.duration && track?.timescale
+            ? track.duration / track.timescale
+            : 0;
+        return segDur > 0 ? segDur : 0;
+    }
+
+    /** Track used for the segment-duration latency fallback. */
+    _currentTrackForLatency() {
+        const periods = this._data?.periods || [];
+        for (const p of periods) {
+            const t = (p.tracks || []).find((t) => t.id === this._selectedRepId);
+            if (t) return t;
+        }
+        return periods[0]?.tracks?.[0] || null;
+    }
+
+    /**
      * Simulation time for the playhead. Single source of truth shared by
      * the render path and click-to-seek (they must agree, or clicks land
-     * at the wrong wall-clock position).
+     * at the wrong wall-clock position). In live mode this is wall-now
+     * minus the manifest-declared latency budget (SPD → minBufferTime →
+     * one segment duration), so the playhead sits where a compliant
+     * player would — not at wall-now staring at an unpublished segment.
      * @param {number} [fallbackNow] Wall-clock ms (defaults to Date.now()).
      * @returns {number} Simulation/wall-clock time in ms.
      */
     _getSimTime(fallbackNow) {
         const wall = fallbackNow ?? Date.now();
-        const spd = this._data?.spd || 0;
         if (this._isDynamicStream) {
-            if (this._isLive) return wall - (this._useSPD ? spd * 1000 : 0);
+            if (this._isLive) {
+                const budget = this._useSPD ? this._getLiveLatencySec() : 0;
+                return wall - budget * 1000;
+            }
             if (this._manualTime !== null && this._manualTime !== undefined) {
                 return this._manualTime;
             }
-            return wall - (this._useSPD ? spd * 1000 : 0);
+            const budget = this._useSPD ? this._getLiveLatencySec() : 0;
+            return wall - budget * 1000;
         }
         return this._manualTime ?? 0;
     }
 
     /**
      * Wall-clock time the visual "live edge" represents: the simulation
-     * time plus any SPD offset (i.e. what the server can serve).
+     * time plus the latency budget (i.e. what the server can serve).
      * @param {number} [fallbackNow]
      * @returns {number}
      */
     _getLiveEdgeMs(fallbackNow) {
-        const spd = this._data?.spd || 0;
-        return (
-            this._getSimTime(fallbackNow) +
-            (this._useSPD ? spd * 1000 : 0)
-        );
+        const budget = this._useSPD ? this._getLiveLatencySec() : 0;
+        return this._getSimTime(fallbackNow) + budget * 1000;
     }
 
     handleVizClick(e) {
@@ -1209,22 +1342,22 @@ class DashTimingCalculator extends HTMLElement {
 
         return html`
             <div
-                class="w-full h-full z-[100] bg-slate-900 flex flex-col animate-fadeIn"
+                class="w-full h-full z-[100] bg-white/5 flex flex-col"
             >
                 <!-- Header -->
                 <div
-                    class="shrink-0 h-10 flex items-center gap-3 px-4 bg-slate-800 border-b border-slate-800 shadow-sm"
+                    class="shrink-0 h-10 flex items-center gap-3 px-4 bg-white/5 border-b border-white/10"
                 >
                     <button
                         @click=${() => {
                 this._inspectorData = null;
                 this.render();
             }}
-                        class="flex items-center gap-1 text-slate-400 hover:text-slate-100 transition-colors text-xs font-bold uppercase tracking-wider"
+                        class="flex items-center gap-1 text-slate-400 hover:text-slate-100 transition-colors text-xs font-bold r"
                     >
                         ${icons.arrowLeft} Back
                     </button>
-                    <div class="h-4 w-px bg-slate-800"></div>
+                    <div class="h-4 w-px bg-white/5"></div>
                     <span
                         class="text-xs font-mono text-slate-100 truncate max-w-[400px]"
                         title="${this._inspectorData.url}"
@@ -1233,7 +1366,7 @@ class DashTimingCalculator extends HTMLElement {
                     </span>
                     <div class="ml-auto flex items-center gap-2">
                         <span
-                            class="text-[9px] font-bold uppercase text-slate-400 tracking-wider opacity-50"
+                            class="text-[9px] font-bold text-slate-400 r opacity-50"
                             >Segment Inspector</span
                         >
                     </div>
@@ -1266,7 +1399,11 @@ class DashTimingCalculator extends HTMLElement {
                 </div>`;
         }
 
-        const { ast, periods, spd, timeShiftBufferDepth } = this._data;
+        const { ast, periods, timeShiftBufferDepth } = this._data;
+        // Live latency budget for display + segment math (SPD →
+        // minBufferTime → 1 segment). Single value shared by the
+        // time-controller label, the SPD marker, and calculateDashSegment.
+        const spd = this._useSPD ? this._getLiveLatencySec() : 0;
         this._renderCount++;
         const shouldLog = isDebugMode && this._renderCount % 100 === 0;
 
@@ -1299,11 +1436,17 @@ class DashTimingCalculator extends HTMLElement {
         const virtualCenterTime =
             nowMs - (this._panOffset / this._zoomLevel) * 1000;
 
-        // 2. Determine Active Period
+        // 2. Determine Active Period. Gap-aware: when the playhead sits
+        // in a gap between sections (period rotation at ad boundaries)
+        // no period covers it — keep the nearest period as the anchor
+        // but remember the gap so recovery can probe neighbouring
+        // periods instead of calculating against uncovered timeline.
         const timeSinceAstSec = (nowMs - effectiveAst) / 1000;
         let activePeriod = periods[0];
+        let playheadInGap = false;
 
         // Find the period that covers the current simulation time
+        let covered = false;
         for (let i = 0; i < periods.length; i++) {
             const p = periods[i];
             const nextP = periods[i + 1];
@@ -1316,23 +1459,42 @@ class DashTimingCalculator extends HTMLElement {
 
             if (timeSinceAstSec >= pStart && timeSinceAstSec < pEnd) {
                 activePeriod = p;
+                covered = true;
                 break;
             } else if (timeSinceAstSec < pStart) {
-                if (i === 0) activePeriod = p;
+                if (i === 0) {
+                    activePeriod = p;
+                } else {
+                    // Gap between periods[i-1] and periods[i]: anchor
+                    // to the nearer edge so the viz stays positioned.
+                    const prevP = periods[i - 1];
+                    const prevEnd = prevP.duration
+                        ? prevP.start + prevP.duration
+                        : pStart;
+                    activePeriod =
+                        timeSinceAstSec - prevEnd < pStart - timeSinceAstSec
+                            ? prevP
+                            : p;
+                }
+                playheadInGap = true;
                 break;
             }
             activePeriod = p;
         }
+        if (!covered && !playheadInGap) {
+            // Past the end of the last period.
+            playheadInGap = true;
+        }
 
-        // 3. Select Track in Active Period
+        // 3. Select Track in Active Period (content-type aware: ids
+        // shuffle across sections, so match rendition not position).
         const tracks = activePeriod.tracks || [];
-        let currentTrack = tracks.find((t) => t.id === this._selectedRepId);
+        let currentTrack =
+            this._getTrackForPeriod(activePeriod, this._selectedRepId) ||
+            tracks[0];
 
-        if (!currentTrack) {
-            currentTrack = tracks[0];
-            if (currentTrack) {
-                this._selectedRepId = currentTrack.id;
-            }
+        if (currentTrack && this._selectedRepId !== currentTrack.id) {
+            this._selectedRepId = currentTrack.id;
         }
 
         if (!currentTrack) return;
@@ -1350,6 +1512,9 @@ class DashTimingCalculator extends HTMLElement {
         );
 
         // 5. Calculate Virtual Center Segment (for Visualization/Tunneling)
+        // _getPeriodForTime is gap-aware (null in gaps) since the
+        // section-boundary fix: a null virtual period means "panned into
+        // a gap", handled by the cross-period recovery below.
         const virtualTimeSinceAstSec = (virtualCenterTime - ast) / 1000;
         const virtualPeriod = this._getPeriodForTime(virtualTimeSinceAstSec);
         const virtualTrack = this._getTrackForPeriod(
@@ -1378,33 +1543,79 @@ class DashTimingCalculator extends HTMLElement {
                 ? virtualCenterSegment
                 : centerSegment;
 
-        // FALLBACK: If centerSegment is "after end", find the LAST available segment to anchor the timeline.
-        // This prevents the timeline from disappearing when simulation time > manifest end.
+        // FALLBACK: If the playhead sits in a gap the fresh manifest no
+        // longer covers (live period rotation, ad-section boundaries),
+        // anchor the tunnel to the nearest computable segment instead of
+        // rendering an empty grid + "Waiting for calculation data...".
+        // This keeps the whiteboard alive: it keeps showing the
+        // last-known-good calculation steps until the playhead re-enters
+        // covered content, rather than stalling after one section. Note
+        // the range is the whole timeline span, not just "after end" —
+        // \"before start\" gaps stall identically when periods rotate.
         if (
             renderCenterSegment &&
             renderCenterSegment.error &&
-            renderCenterSegment.error.includes('after end')
+            (renderCenterSegment.error.includes('after end') ||
+                renderCenterSegment.error.includes('before start') ||
+                renderCenterSegment.error.includes('outside available'))
         ) {
-            // We need to find the last segment of the active period (or the last period).
-            // Let's try to calculate the segment at the END of the active period.
-            // const pEnd = activePeriod.duration ? activePeriod.start + activePeriod.duration : (Date.now() / 1000); // Rough estimate if infinite
-            // Actually, we can just use a time slightly before "now" until we find a valid segment?
-            // Or better, use the track's timeline last entry if available.
-
-            // Try to get the last segment from the track config
-            if (currentTrack.timeline && currentTrack.timeline.length > 0) {
-                // Calculate time for the last entry
-                // We can't easily reverse-engineer the exact time without iterating,
-                // but we can try probing backwards from "now" in 2s steps?
-                // Or just use the error's context if we added it?
-                // Let's try probing backwards.
+            // Walk forward/backward across *all* periods (not just the
+            // active one): at a boundary the active period's own timeline
+            // legitimately has nothing for the playhead, while a
+            //neighbouring period does. Probe the playhead instant against
+            // every period/track combo, nearest-first.
+            const orderedPeriods = [...periods].sort((a, b) => {
+                const distToPeriod = (p) => {
+                    const pStart = p.start;
+                    const pEnd =
+                        p.duration != null ? pStart + p.duration : Infinity;
+                    if (timeSinceAstSec < pStart) return pStart - timeSinceAstSec;
+                    if (timeSinceAstSec >= pEnd) return timeSinceAstSec - pEnd;
+                    return 0;
+                };
+                return distToPeriod(a) - distToPeriod(b);
+            });
+            let recovered = null;
+            let recoveredPeriod = null;
+            for (const period of orderedPeriods) {
+                const track =
+                    this._getTrackForPeriod(period, this._selectedRepId) ||
+                    (period.tracks || [])[0];
+                if (!track) continue;
+                const probe = calculateDashSegment(
+                    track,
+                    ast,
+                    period.start,
+                    nowMs,
+                    wallClockTime,
+                    spd || 0,
+                    timeShiftBufferDepth || 0,
+                    this._manifestUrl
+                );
+                if (probe && !probe.error) {
+                    recovered = probe;
+                    recoveredPeriod = period;
+                    break;
+                }
+            }
+            if (recovered) {
+                renderCenterSegment = recovered;
+                currentTrack =
+                    this._getTrackForPeriod(
+                        recoveredPeriod,
+                        this._selectedRepId
+                    ) || currentTrack;
+            } else if (
+                currentTrack.timeline &&
+                currentTrack.timeline.length > 0
+            ) {
+                // Last resort: probe backwards inside the active period
+                // (playhead ran past a short ad section's end).
                 let probeTime = nowMs;
-
                 for (let i = 0; i < 10; i++) {
-                    // Probe back up to 20-50s
                     probeTime -= currentTrack.duration
                         ? (currentTrack.duration / currentTrack.timescale) *
-                        1000
+                          1000
                         : 2000;
                     const probeSeg = calculateDashSegment(
                         currentTrack,
@@ -1418,19 +1629,71 @@ class DashTimingCalculator extends HTMLElement {
                     );
                     if (probeSeg && !probeSeg.error) {
                         renderCenterSegment = probeSeg;
-                        // found = true;
                         break;
                     }
                 }
             }
+            // Remember the last good anchor so a *completely* uncovered
+            // playhead (manifest rotated past the DVR window) still
+            // shows the previous steps instead of the empty spinner.
+            if (renderCenterSegment && !renderCenterSegment.error) {
+                this._lastGoodCenterSegment = renderCenterSegment;
+                this._lastGoodTrack = currentTrack;
+                this._lastGoodPeriodStart = (
+                    recoveredPeriod || activePeriod
+                ).start;
+            }
+        } else if (renderCenterSegment && !renderCenterSegment.error) {
+            this._lastGoodCenterSegment = renderCenterSegment;
+            this._lastGoodTrack = currentTrack;
+            this._lastGoodPeriodStart = (
+                virtualCenterSegment && !virtualCenterSegment.error
+                    ? virtualPeriod
+                    : activePeriod
+            ).start;
+        }
+
+        if (
+            (!renderCenterSegment || renderCenterSegment.error) &&
+            this._lastGoodCenterSegment &&
+            !this._lastGoodCenterSegment.error
+        ) {
+            renderCenterSegment = this._lastGoodCenterSegment;
+            if (this._lastGoodTrack) currentTrack = this._lastGoodTrack;
         }
 
         // We need to pass the period of the renderCenterSegment to _generateTunnelSegments
         // If we switched periods during pan, we need that period.
-        const renderPeriod =
+        let renderPeriod =
             virtualCenterSegment && !virtualCenterSegment.error
                 ? virtualPeriod
                 : activePeriod;
+
+        // If recovery anchored us to a neighbouring period, tunnel from
+        // there — otherwise the tunnel generates from a period whose
+        // timeline has no coverage and the viz goes blank.
+        if (
+            this._lastGoodPeriodStart !== undefined &&
+            renderCenterSegment &&
+            !renderCenterSegment.error
+        ) {
+            const anchored = periods.find(
+                (p) => p.start === this._lastGoodPeriodStart
+            );
+            if (anchored) renderPeriod = anchored;
+        }
+
+        // The whiteboard and the selected-segment highlight must follow
+        // the *recovered* anchor, not the raw playhead calculation.
+        // centerSegment errors at section boundaries (the active period's
+        // timeline has no coverage there) while renderCenterSegment holds
+        // the nearest computable segment — driving the whiteboard from
+        // the raw value is exactly the "Waiting for calculation data..."
+        // stall: the viz recovered, the whiteboard never did.
+        const whiteboardSegment =
+            renderCenterSegment && !renderCenterSegment.error
+                ? renderCenterSegment
+                : null;
 
         // Both the S-tag band and the segment band need the same tunnel, so
         // generate it once per render instead of twice (halves the segment
@@ -1457,15 +1720,15 @@ class DashTimingCalculator extends HTMLElement {
             <div
                 class="main-layout font-sans text-slate-100"
             >
-                <div class="flex-none flex flex-col z-40 relative shadow-md">
+                <div class="flex-none flex flex-col z-40 relative">
                     <!-- Top Panel: Controls -->
                     <div
-                        class="w-full bg-slate-800 border-b border-slate-800 p-4 flex flex-wrap items-center gap-6"
+                        class="w-full bg-white/5 border-b border-white/10 p-4 flex flex-wrap items-center gap-6"
                     >
                         <!-- Group 1: Representation -->
                         <div class="flex flex-col gap-1 min-w-[200px]">
                             <label
-                                class="text-[9px] font-bold uppercase text-slate-400 tracking-wider"
+                                class="text-[9px] font-bold text-slate-400 r"
                                 >Representation</label
                             >
                             <div class="relative">
@@ -1497,11 +1760,11 @@ class DashTimingCalculator extends HTMLElement {
                         <!-- Group 3: Active Period -->
                         <div class="flex flex-col gap-1">
                             <label
-                                class="text-[9px] font-bold uppercase text-slate-400 tracking-wider"
+                                class="text-[9px] font-bold text-slate-400 r"
                                 >Active Period</label
                             >
                             <div
-                                class="px-3 py-1.5 rounded-lg bg-teal-500/10 border border-teal-500/20 text-xs font-mono text-slate-100 flex items-center gap-2"
+                                class="px-3 py-1.5 rounded-md bg-teal-500/10 border border-teal-500/20 text-xs font-mono text-slate-100 flex items-center gap-2"
                             >
                                 <span
                                     class="w-1.5 h-1.5 rounded-full bg-teal-500"
@@ -1514,7 +1777,7 @@ class DashTimingCalculator extends HTMLElement {
                         <div class="flex flex-col gap-1 ml-auto">
                             <div class="flex items-center justify-between">
                                 <label
-                                    class="text-[9px] font-bold uppercase text-slate-400 tracking-wider text-right"
+                                    class="text-[9px] font-bold text-slate-400 r text-right"
                                     >Zoom Level</label
                                 >
                                 <!-- Lock Button -->
@@ -1524,17 +1787,14 @@ class DashTimingCalculator extends HTMLElement {
                 this._panOffset = 0;
                 this.render();
             }}
-                                    class="ml-2 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border transition-all
-                            ${this._isLockedToNow
-                ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                : 'bg-slate-800 text-slate-400 border-slate-800 hover:text-slate-100'}"
+                                    class="ml-2 px-2 py-0.5 rounded text-[9px] font-bold r border transition-all ${this._isLockedToNow ? 'bg-emerald-500/10 text-emerald-200 border-emerald-400/25' : 'bg-white/5 text-slate-400 border-white/10 hover:text-slate-100'}"
                                     title="Lock to NOW"
                                 >
                                     ${this._isLockedToNow ? 'Locked' : 'Unlock'}
                                 </button>
                             </div>
                             <div
-                                class="flex items-center gap-2 bg-slate-800 px-2 py-1 rounded-lg border border-slate-800"
+                                class="flex items-center gap-2 bg-white/5 px-2 py-1 rounded-md border border-white/10"
                             >
                                 <span
                                     class="text-[9px] font-mono text-slate-400 opacity-70"
@@ -1550,7 +1810,7 @@ class DashTimingCalculator extends HTMLElement {
                 this._zoomLevel = parseInt(e.target.value);
                 this.render();
             }}
-                                    class="w-32 h-1.5 bg-slate-800 rounded-full appearance-none cursor-pointer accent-blue-500 hover:accent-blue-400 transition-all"
+                                    class="w-32 h-1.5 bg-white/5 rounded-full appearance-none cursor-pointer accent-emerald-400 hover:accent-emerald-400 transition-all"
                                     style="background-image: linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((this
                 ._zoomLevel -
                 10) /
@@ -1566,7 +1826,7 @@ class DashTimingCalculator extends HTMLElement {
                                     >Max</span
                                 >
                                 <div
-                                    class="w-8 text-right font-mono text-[10px] font-bold text-blue-400"
+                                    class="w-8 text-right font-mono text-[10px] font-bold text-emerald-200"
                                 >
                                     ${this._zoomLevel}px
                                 </div>
@@ -1608,16 +1868,16 @@ class DashTimingCalculator extends HTMLElement {
                     >
                         <!-- Ambient Background -->
                         <div
-                            class="absolute inset-0 bg-blue-500/5 blur-3xl pointer-events-none"
+                            class="absolute inset-0 bg-emerald-500/10 blur-3xl pointer-events-none"
                         ></div>
 
                         <!-- Center Line (Playhead) -->
                         <div
-                            class="absolute top-0 bottom-0 left-1/2 w-0.5 bg-blue-500 z-20 shadow-[0_0_10px_#3b82f6]"
+                            class="absolute top-0 bottom-0 left-1/2 w-0.5 bg-emerald-500/10 z-20"
                             style="transform: translateX(${this._panOffset}px)"
                         ></div>
                         <div
-                            class="absolute top-4 left-1/2 -translate-x-1/2 px-2 py-1 rounded bg-blue-500 text-white text-[10px] font-bold uppercase tracking-wider z-20 shadow-lg"
+                            class="absolute top-4 left-1/2 -translate-x-1/2 px-2 py-1 rounded bg-emerald-500/10 text-white text-[10px] font-bold r z-20"
                             style="transform: translateX(${this._panOffset}px)"
                         >
                             Playhead (Now)
@@ -1631,8 +1891,10 @@ class DashTimingCalculator extends HTMLElement {
                 const leftPx =
                     horizonOffsetSec * pxPerSec + this._panOffset;
 
-                // SPD Marker
-                const spd = this._data.spd || 0;
+                // SPD Marker — positioned by the LIVE LATENCY budget
+                // (SPD → minBufferTime → 1 segment), not raw SPD alone,
+                // so the marker matches where the playhead actually sits.
+                const spd = this._useSPD ? this._getLiveLatencySec() : 0;
                 const spdPx = leftPx - spd * pxPerSec;
 
                 // DVR Window Start (Oldest)
@@ -1648,7 +1910,7 @@ class DashTimingCalculator extends HTMLElement {
                                           style="transform: translateX(${dvrPx}px)"
                                       ></div>
                                       <div
-                                          class="absolute bottom-12 left-1/2 -translate-x-1/2 px-2 py-1 rounded bg-amber-500/20 border border-amber-500 text-amber-300 text-[10px] font-bold uppercase tracking-wider z-10 backdrop-blur-sm whitespace-nowrap"
+                                          class="absolute bottom-12 left-1/2 -translate-x-1/2 px-2 py-1 rounded bg-amber-500/20 border border-amber-500 text-amber-300 text-[10px] font-bold r z-10 whitespace-nowrap"
                                           style="transform: translateX(${dvrPx}px)"
                                       >
                                           Availability Start (AST)
@@ -1660,11 +1922,11 @@ class DashTimingCalculator extends HTMLElement {
                             ${spd > 0
                         ? html`
                                       <div
-                                          class="absolute top-0 bottom-0 left-1/2 w-0.5 border-l-2 border-dashed border-purple-500 z-10 opacity-50"
+                                          class="absolute top-0 bottom-0 left-1/2 w-0.5 border-l-2 border-dashed border-white/10 z-10 opacity-50"
                                           style="transform: translateX(${spdPx}px)"
                                       ></div>
                                       <div
-                                          class="absolute top-12 left-1/2 -translate-x-1/2 px-2 py-1 rounded bg-purple-500/20 border border-purple-500 text-purple-300 text-[10px] font-bold uppercase tracking-wider z-10 backdrop-blur-sm whitespace-nowrap"
+                                          class="absolute top-12 left-1/2 -translate-x-1/2 px-2 py-1 rounded bg-white/5 border border-white/10 text-slate-300 text-[10px] font-bold r z-10 whitespace-nowrap"
                                           style="transform: translateX(${spdPx}px)"
                                       >
                                           SPD (Suggested Delay)
@@ -1678,7 +1940,7 @@ class DashTimingCalculator extends HTMLElement {
                                 style="transform: translateX(${leftPx}px)"
                             ></div>
                             <div
-                                class="absolute bottom-4 left-1/2 -translate-x-1/2 px-2 py-1 rounded bg-emerald-500/20 border border-emerald-500 text-emerald-300 text-[10px] font-bold uppercase tracking-wider z-10 backdrop-blur-sm whitespace-nowrap"
+                                class="absolute bottom-4 left-1/2 -translate-x-1/2 px-2 py-1 rounded bg-emerald-500/20 border border-emerald-500 text-emerald-300 text-[10px] font-bold r z-10 whitespace-nowrap"
                                 style="transform: translateX(${leftPx}px)"
                             >
                                 Live Edge
@@ -1773,8 +2035,9 @@ class DashTimingCalculator extends HTMLElement {
                         nowMs: virtualCenterTime, // Pass virtual center
                         pxPerSec,
                         isSelected:
+                            !!whiteboardSegment &&
                             seg.segmentIndex ===
-                            centerSegment.segmentIndex, // Highlight the actual "Now" segment
+                                whiteboardSegment.segmentIndex, // Highlight the recovered "Now" anchor, not the raw erroring calculation
                         onClick: () => {
                             const url = this._constructSegmentUrl(
                                 seg,
@@ -1804,17 +2067,17 @@ class DashTimingCalculator extends HTMLElement {
             })()}
                     </div>
                     <div
-                        class="absolute bottom-4 right-4 bg-slate-800/90 backdrop-blur-md border border-slate-800 rounded-lg p-3 shadow-xl z-30 pointer-events-none"
+                        class="absolute bottom-4 right-4 bg-white/5 border border-white/10 rounded-md p-3 z-30 pointer-events-none"
                     >
                         <div
-                            class="text-[9px] font-bold uppercase text-slate-400 tracking-wider mb-2"
+                            class="text-[9px] font-bold text-slate-400 r mb-2"
                         >
                             Legend
                         </div>
                         <div class="grid grid-cols-2 gap-x-4 gap-y-2">
                             <div class="flex items-center gap-2">
                                 <div
-                                    class="w-3 h-0.5 bg-blue-500"
+                                    class="w-3 h-0.5 bg-emerald-500/10"
                                 ></div>
                                 <span
                                     class="text-[10px] text-slate-100"
@@ -1832,7 +2095,7 @@ class DashTimingCalculator extends HTMLElement {
                             </div>
                             <div class="flex items-center gap-2">
                                 <div
-                                    class="w-3 h-3 rounded bg-blue-500/20 border border-blue-500/50"
+                                    class="w-3 h-3 rounded bg-emerald-500/10 border border-emerald-400/25"
                                 ></div>
                                 <span
                                     class="text-[10px] text-slate-100"
@@ -1841,7 +2104,7 @@ class DashTimingCalculator extends HTMLElement {
                             </div>
                             <div class="flex items-center gap-2">
                                 <div
-                                    class="w-3 h-3 rounded bg-slate-800 border border-slate-800 opacity-50"
+                                    class="w-3 h-3 rounded bg-white/5 border border-white/10 opacity-50"
                                 ></div>
                                 <span
                                     class="text-[10px] text-slate-100"
@@ -1850,7 +2113,7 @@ class DashTimingCalculator extends HTMLElement {
                             </div>
                             <div class="flex items-center gap-2">
                                 <div
-                                    class="w-3 h-3 rounded bg-blue-500 border border-white"
+                                    class="w-3 h-3 rounded bg-emerald-500/10 border border-white"
                                 ></div>
                                 <span
                                     class="text-[10px] text-slate-100"
@@ -1859,7 +2122,7 @@ class DashTimingCalculator extends HTMLElement {
                             </div>
                             <div class="flex items-center gap-2">
                                 <div
-                                    class="w-3 h-0.5 border-t-2 border-dashed border-purple-500"
+                                    class="w-3 h-0.5 border-t-2 border-dashed border-white/10"
                                 ></div>
                                 <span
                                     class="text-[10px] text-slate-100"
@@ -1897,56 +2160,56 @@ class DashTimingCalculator extends HTMLElement {
 
                     <!-- Header -->
                     <div
-                        class="whiteboard-header p-3 border-b border-slate-800 bg-slate-800/90 backdrop-blur-md flex items-center justify-between"
+                        class="whiteboard-header p-3 border-b border-white/10 bg-white/5 flex items-center justify-between"
                     >
                         <div class="flex items-center gap-4">
                             <h4
-                                class="text-xs font-bold uppercase tracking-[0.2em] text-transparent bg-clip-text bg-gradient-to-r from-slate-100 to-slate-400 drop-shadow-sm"
+                                class="text-xs font-bold text-slate-100 drop-"
                             >
                                 Calculus Whiteboard
                             </h4>
 
                             <!-- Legend -->
                             <div
-                                class="flex items-center gap-3 text-[9px] opacity-80 bg-slate-800/50 px-2 py-0.5 rounded-full border border-slate-800/30"
+                                class="flex items-center gap-3 text-[9px] opacity-80 bg-white/5 px-2 py-0.5 rounded-full border border-white/10"
                             >
                                 <div class="flex items-center gap-1.5">
                                     <span
-                                        class="w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]"
+                                        class="w-1.5 h-1.5 rounded-full"
                                         style="background-color: #06b6d4"
                                     ></span>
                                     <span
-                                        class="font-bold tracking-wide text-slate-400"
+                                        class="font-bold text-slate-400"
                                         >Input</span
                                     >
                                 </div>
                                 <div class="flex items-center gap-1.5">
                                     <span
-                                        class="w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]"
+                                        class="w-1.5 h-1.5 rounded-full"
                                         style="background-color: #f43f5e"
                                     ></span>
                                     <span
-                                        class="font-bold tracking-wide text-slate-400"
+                                        class="font-bold text-slate-400"
                                         >Calc</span
                                     >
                                 </div>
                                 <div class="flex items-center gap-1.5">
                                     <span
-                                        class="w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]"
+                                        class="w-1.5 h-1.5 rounded-full"
                                         style="background-color: #84cc16"
                                     ></span>
                                     <span
-                                        class="font-bold tracking-wide text-slate-400"
+                                        class="font-bold text-slate-400"
                                         >Result</span
                                     >
                                 </div>
                                 <div class="flex items-center gap-1.5">
                                     <span
-                                        class="w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]"
+                                        class="w-1.5 h-1.5 rounded-full"
                                         style="background-color: #d946ef"
                                     ></span>
                                     <span
-                                        class="font-bold tracking-wide text-slate-400"
+                                        class="font-bold text-slate-400"
                                         >Check</span
                                     >
                                 </div>
@@ -1958,10 +2221,10 @@ class DashTimingCalculator extends HTMLElement {
                     <div
                         class="whiteboard-scroll-area custom-scrollbar space-y-3"
                     >
-                        ${centerSegment &&
-                centerSegment.debug &&
-                centerSegment.debug.calculationSteps
-                ? centerSegment.debug.calculationSteps.map(
+                        ${whiteboardSegment &&
+                whiteboardSegment.debug &&
+                whiteboardSegment.debug.calculationSteps
+                ? whiteboardSegment.debug.calculationSteps.map(
                     (step, index) => {
                         // Determine step style based on type
                         // Determine step style based on type
@@ -1991,30 +2254,30 @@ class DashTimingCalculator extends HTMLElement {
                             },
                             default: {
                                 hex: '#3b82f6',
-                                badge: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-                                hoverBorder: 'hover:border-blue-500/20',
+                                badge: 'bg-emerald-500/10 text-emerald-200 border-emerald-400/25',
+                                hoverBorder: 'hover:border-emerald-400/50',
                             },
                         };
                         const accent =
                             ACCENT_STYLES[step.type] || ACCENT_STYLES.default;
-                        const borderColorClass = `border-slate-800`; // Base border (mapped below)
+                        const borderColorClass = `border-white/10`; // Base border (mapped below)
 
                         return html`
-                            <div class="group relative bg-slate-800/40 backdrop-blur-sm border ${borderColorClass} rounded-lg overflow-hidden hover:bg-slate-800/60 transition-all duration-300 hover:shadow-md">
+                            <div class="group relative bg-white/5 border ${borderColorClass} rounded-md overflow-hidden hover:bg-white/5 transition-all duration-300 hover:">
                                 <!-- Left Accent Bar -->
                                 <div class="absolute left-0 top-0 bottom-0 w-1" style="background-color: ${accent.hex}; box-shadow: 0 0 8px ${accent.hex}"></div>
                                 
                                 <div class="p-3 pl-5">
                                     <!-- Step Header (Compact) -->
                                     <div class="flex items-center gap-3 mb-2">
-                                        <span class="text-lg font-black opacity-20 font-mono select-none" style="color: ${accent.hex}">${String(index + 1).padStart(2, '0')}</span>
-                                        <h5 class="text-sm font-bold text-slate-100 tracking-wide whitespace-nowrap">${step.label}</h5>
+                                        <span class="text-lg font-bold opacity-20 font-mono select-none" style="color: ${accent.hex}">${String(index + 1).padStart(2, '0')}</span>
+                                        <h5 class="text-sm font-bold text-slate-100 whitespace-nowrap">${step.label}</h5>
                                         
                                         <!-- Note moved to header -->
                                         ${step.note
                                 ? html`
                                                       <div
-                                                          class="h-4 w-[1px] bg-slate-800/50 mx-1"
+                                                          class="h-4 w-[1px] bg-white/5 mx-1"
                                                       ></div>
                                                       <span
                                                           class="text-[10px] text-slate-400 italic opacity-70 truncate cursor-help border-b border-dashed border-slate-400/30"
@@ -2026,7 +2289,7 @@ class DashTimingCalculator extends HTMLElement {
                                 : ''
                             }
                                         
-                                        <div class="ml-auto px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${accent.badge}">
+                                        <div class="ml-auto px-2 py-0.5 rounded-full text-[9px] font-bold r border ${accent.badge}">
                                             ${step.type}
                                         </div>
                                     </div>
@@ -2036,8 +2299,8 @@ class DashTimingCalculator extends HTMLElement {
                                         
                                         <!-- Formula Section -->
                                         <div class="flex flex-col gap-1">
-                                            <label class="text-[9px] font-bold uppercase tracking-widest text-slate-400 opacity-50 ml-1">Formula</label>
-                                            <div class="bg-slate-800/50 border border-slate-800/50 rounded p-2.5 font-mono text-xs text-slate-100 shadow-inner h-full flex items-center">
+                                            <label class="text-[9px] font-bold text-slate-400 opacity-50 ml-1">Formula</label>
+                                            <div class="bg-white/5 border border-white/10 rounded p-2.5 font-mono text-xs text-slate-100 h-full flex items-center">
                                                 ${this._renderStyledFormula(step.formula)}
                                             </div>
                                         </div>
@@ -2045,7 +2308,7 @@ class DashTimingCalculator extends HTMLElement {
                                         <!-- Calculation & Result Section -->
                                         <div class="flex flex-col gap-1 min-w-0 relative">
                                             <div class="flex justify-between items-center">
-                                                <label class="text-[9px] font-bold uppercase tracking-widest text-slate-400 opacity-50 ml-1">Result</label>
+                                                <label class="text-[9px] font-bold text-slate-400 opacity-50 ml-1">Result</label>
                                                 ${step.action
                                 ? html`
                                                               <div
@@ -2057,7 +2320,7 @@ class DashTimingCalculator extends HTMLElement {
                                             step.action.url,
                                             'Segment URL copied!'
                                         )}
-                                                                      class="bg-slate-700 hover:bg-slate-800 text-slate-300 border border-slate-800 px-2 py-1 rounded shadow-sm backdrop-blur-md mt-1 text-[10px] font-bold uppercase tracking-wider transition-colors flex items-center gap-1"
+                                                                      class="bg-white/5 hover:bg-white/5 text-slate-300 border border-white/10 px-2 py-1 rounded mt-1 text-[10px] font-bold r transition-colors flex items-center gap-1"
                                                                       title="Copy segment URL"
                                                                   >
                                                                       ${icons.clipboardCopy}
@@ -2073,7 +2336,7 @@ class DashTimingCalculator extends HTMLElement {
                                                 .action
                                                 .repId
                                         )}
-                                                                      class="bg-slate-700 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2.5 py-1 rounded shadow-sm backdrop-blur-md mt-1 mr-1 text-[10px] font-bold uppercase tracking-wider transition-colors flex items-center gap-1"
+                                                                      class="bg-white/5 hover:bg-emerald-500/10 text-emerald-200 border border-emerald-400/25 px-2.5 py-1 rounded mt-1 mr-1 text-[10px] font-bold r transition-colors flex items-center gap-1"
                                                                   >
                                                                       ${icons.search}
                                                                       ${step
@@ -2085,7 +2348,7 @@ class DashTimingCalculator extends HTMLElement {
                                 : ''
                             }
                                             </div>
-                                            <div class="bg-slate-800 border border-slate-800 rounded p-2.5 font-mono text-xs text-slate-400 shadow-sm transition-colors h-full flex items-center overflow-x-auto custom-scrollbar mt-1 ${accent.hoverBorder}">
+                                            <div class="bg-white/5 border border-white/10 rounded p-2.5 font-mono text-xs text-slate-400 transition-colors h-full flex items-center overflow-x-auto custom-scrollbar mt-1 ${accent.hoverBorder}">
                                                 ${this._renderStyledValue(step.value)}
                                             </div>
                                             </div>
@@ -2130,29 +2393,23 @@ class DashTimingCalculator extends HTMLElement {
                 this._isRepPanelOpen = !this._isRepPanelOpen;
                 this.render();
             }}
-                    class="w-full bg-slate-800 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-slate-100 hover:border-blue-500 transition-all flex items-center justify-between shadow-sm min-w-[240px]"
+                    class="w-full bg-white/5 border border-white/10 rounded-md px-3 py-2 text-xs font-mono text-slate-100 hover:border-emerald-400/50 transition-all flex items-center justify-between min-w-[240px]"
                 >
                     <div class="flex items-center gap-2">
                         <span
-                            class="w-1.5 h-1.5 rounded-full ${currentTrack.contentType ===
-                'video'
-                ? 'bg-blue-500'
-                : 'bg-purple-500'}"
+                            class="w-1.5 h-1.5 rounded-full ${currentTrack.contentType === 'video' ? 'bg-emerald-500/10' : 'bg-white/5'}"
                         ></span>
                         <span class="font-bold"
                             >[${currentTrack.contentType}]</span
                         >
                         <span class="opacity-80">${currentTrack.id}</span>
                         <span
-                            class="opacity-50 text-[10px] border-l border-slate-800 pl-2 ml-1"
+                            class="opacity-50 text-[10px] border-l border-white/10 pl-2 ml-1"
                             >${formatBitrate(currentTrack.bandwidth)}</span
                         >
                     </div>
                     <div
-                        class="text-slate-400 transition-transform ${this
-                ._isRepPanelOpen
-                ? 'rotate-180'
-                : ''}"
+                        class="text-slate-400 transition-transform ${this ._isRepPanelOpen ? 'rotate-180' : ''}"
                     >
                         ${icons.chevronDown}
                     </div>
@@ -2161,10 +2418,10 @@ class DashTimingCalculator extends HTMLElement {
                 ${this._isRepPanelOpen
                 ? html`
                           <div
-                              class="absolute top-full left-0 mt-2 w-[320px] max-h-[400px] overflow-y-auto bg-slate-800/95 backdrop-blur-xl border border-slate-800 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] z-[100] custom-scrollbar p-2 animate-scaleIn origin-top-left"
+                              class="absolute top-full left-0 mt-2 w-[320px] max-h-[400px] overflow-y-auto bg-white/5 border border-white/10 rounded-md z-[100] custom-scrollbar p-2 animate-scaleIn origin-top-left"
                           >
                               <div
-                                  class="sticky top-0 bg-slate-800/95 backdrop-blur z-10 px-2 py-1 mb-2 border-b border-slate-800 text-[9px] font-bold uppercase text-slate-400 tracking-widest"
+                                  class="sticky top-0 bg-white/5 z-10 px-2 py-1 mb-2 border-b border-white/10 text-[9px] font-bold text-slate-400"
                               >
                                   Select Representation
                               </div>
@@ -2190,8 +2447,8 @@ class DashTimingCalculator extends HTMLElement {
                         }}
                                               data-tooltip-html-b64="${encodeTooltip(`
                                                   <div class="min-w-[180px]">
-                                                      <div class="flex items-center gap-2 mb-2 pb-2 border-b border-slate-700">
-                                                          <div class="p-1 rounded bg-slate-800 text-slate-200">
+                                                      <div class="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
+                                                          <div class="p-1 rounded bg-white/5 text-slate-200">
                                                               ${t.contentType === 'video' ? (icons.film || 'VID') : (icons.audioLines || 'AUD')}
                                                           </div>
                                                           <div>
@@ -2207,10 +2464,7 @@ class DashTimingCalculator extends HTMLElement {
                         ])}
                                                   </div>
                                               `)}"
-                                              class="w-full text-left p-2 rounded-lg border transition-all group/item relative overflow-hidden
-                                        ${isSelected
-                            ? 'bg-blue-500/10 border-blue-500/30 shadow-sm'
-                            : 'bg-transparent border-transparent hover:bg-slate-800 hover:border-slate-800'}"
+                                              class="w-full text-left p-2 rounded-md border transition-all group/item relative overflow-hidden ${isSelected ? 'bg-emerald-500/10 border-emerald-400/25 ' : 'bg-transparent border-transparent hover:bg-white/5 hover:border-white/10'}"
                                           >
                                               <div
                                                   class="relative z-10 flex items-center justify-between mb-1"
@@ -2219,16 +2473,11 @@ class DashTimingCalculator extends HTMLElement {
                                                       class="flex items-center gap-2"
                                                   >
                                                       <span
-                                                          class="text-xs font-bold ${isSelected
-                            ? 'text-blue-400'
-                            : 'text-slate-100'}"
+                                                          class="text-xs font-bold ${isSelected ? 'text-emerald-200' : 'text-slate-100'}"
                                                           >${t.id}</span
                                                       >
                                                       <span
-                                                          class="text-[9px] uppercase px-1 rounded ${t.contentType ===
-                            'video'
-                            ? 'bg-blue-500/20 text-blue-400'
-                            : 'bg-purple-500/20 text-purple-400'}"
+                                                          class="text-[9px] px-1 rounded ${t.contentType === 'video' ? 'bg-emerald-500/10 text-emerald-200' : 'bg-white/5 text-slate-300'}"
                                                           >${t.contentType}</span
                                                       >
                                                   </div>
@@ -2242,12 +2491,10 @@ class DashTimingCalculator extends HTMLElement {
 
                                               <!-- Bandwidth Bar -->
                                               <div
-                                                  class="w-full h-1 bg-slate-900 rounded-full overflow-hidden mb-1"
+                                                  class="w-full h-1 bg-white/5 rounded-full overflow-hidden mb-1"
                                               >
                                                   <div
-                                                      class="h-full rounded-full ${isSelected
-                            ? 'bg-blue-500'
-                            : 'bg-slate-400'} opacity-50"
+                                                      class="h-full rounded-full ${isSelected ? 'bg-emerald-500/10' : 'bg-slate-400'} opacity-50"
                                                       style="width: ${percent}%"
                                                   ></div>
                                               </div>

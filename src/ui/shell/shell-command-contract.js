@@ -1,8 +1,6 @@
 import { eventBus } from '@/application/event-bus';
 import { resetApplicationState } from '@/application/use_cases/resetApplicationState';
 import { playerService } from '@/features/playerSimulation/application/playerService';
-import { getLastUsedStreams } from '@/infrastructure/persistence/streamStorage';
-import { analysisActions } from '@/state/analysisStore';
 import { EVENTS } from '@/types/events';
 import { uiActions } from '@/state/uiStore';
 import { isShellRouteAvailable } from './navigation-contract.js';
@@ -12,17 +10,10 @@ import { copyShareUrlToClipboard } from '@/ui/services/shareService';
 import { toggleAllPolling } from '@/ui/services/streamActionsService';
 
 function newSession() {
-    if (
-        !confirm('Start a new analysis session? Current state will be cleared.')
-    ) {
-        return false;
-    }
-
+    // No native confirm(): callers that need confirmation use the
+    // two-tap footer button. Programmatic callers reset directly.
     resetApplicationState();
-    const lastUsed = getLastUsedStreams();
-    if (lastUsed?.length > 0) {
-        analysisActions.setStreamInputs(lastUsed);
-    }
+    uiActions.setActiveTab('summary');
     return true;
 }
 

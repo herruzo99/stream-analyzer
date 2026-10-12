@@ -77,10 +77,10 @@ class DrmView {
             if (!isEncrypted) {
                 mainContent = html`
                     <div
-                        class="flex flex-col items-center justify-center h-full w-full text-slate-400 animate-fadeIn"
+                        class="flex flex-col items-center justify-center h-full w-full text-slate-400"
                     >
                         <div
-                            class="p-6 rounded-full bg-slate-800 mb-4 border border-slate-800 shadow-[0_0_20px_rgba(0,0,0,0.2)] generic-monitor-icon"
+                            class="p-6 rounded-full bg-white/5 mb-4 border border-white/10 generic-monitor-icon"
                         >
                             ${icons.lockOpen}
                         </div>
@@ -99,10 +99,10 @@ class DrmView {
             } else {
                 mainContent = html`
                     <div
-                        class="flex flex-col items-center justify-center h-full w-full text-slate-400 animate-fadeIn"
+                        class="flex flex-col items-center justify-center h-full w-full text-slate-400"
                     >
                         <div
-                            class="p-6 rounded-full bg-slate-800 mb-4 border border-slate-800 shadow-[0_0_20px_rgba(0,0,0,0.2)] glass-pulse"
+                            class="p-6 rounded-full bg-white/5 mb-4 border border-white/10 glass-pulse"
                         >
                             ${icons.key}
                         </div>

@@ -56,7 +56,7 @@ function renderTimeline() {
                     </h2>
                     <button
                         @click=${toggleDrilldown}
-                        class="flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
+                        class="flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-colors"
                     >
                         ${icons.arrowLeft} Back to Timeline
                     </button>
@@ -74,7 +74,7 @@ function renderTimeline() {
             >
                 <!-- Header Controls -->
                 <div
-                    class="shrink-0 flex justify-between items-end border-b border-slate-800 pb-4"
+                    class="shrink-0 flex justify-between items-end border-b border-white/10 pb-4"
                 >
                     ${timelineControlsTemplate(stream)}
                     <div class="flex items-center gap-2">
@@ -82,7 +82,7 @@ function renderTimeline() {
                             ? html`
                                   <button
                                       @click=${toggleDrilldown}
-                                      class="flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
+                                      class="flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-colors"
                                   >
                                       ${icons.list} Structure Tree
                                   </button>
@@ -92,13 +92,13 @@ function renderTimeline() {
                 </div>
 
                 <!-- Metrics Grid -->
-                <div class="shrink-0 animate-fadeIn">
+                <div class="shrink-0">
                     ${metricPanelTemplate(viewModel.metricsGroups)}
                 </div>
 
                 <!-- Chart (Smaller Height) -->
                 <div
-                    class="shrink-0 h-64 bg-slate-900/50 rounded-xl border border-slate-800 p-1 relative overflow-hidden shadow-inner"
+                    class="shrink-0 h-64 bg-white/5 rounded-md border border-white/10 p-1 relative overflow-hidden"
                 >
                     <div
                         class="absolute inset-0 bg-[url('/assets/grid.svg')] opacity-5 pointer-events-none"
@@ -110,7 +110,7 @@ function renderTimeline() {
                 ${stream.manifest?.type === 'dynamic'
                     ? html`
                           <div
-                              class="shrink-0 h-48 bg-slate-900/50 rounded-xl border border-slate-800 p-1 relative overflow-hidden shadow-inner"
+                              class="shrink-0 h-48 bg-white/5 rounded-md border border-white/10 p-1 relative overflow-hidden"
                           >
                               <div
                                   class="absolute top-2 left-4 z-10 text-xs font-bold text-slate-400"
@@ -126,10 +126,10 @@ function renderTimeline() {
 
                 <!-- Inspector (Fills remaining space) -->
                 <div
-                    class="grow min-h-0 bg-slate-900 rounded-xl border border-slate-800 overflow-hidden flex flex-col shadow-lg"
+                    class="grow min-h-0 bg-white/5 rounded-md border border-white/10 overflow-hidden flex flex-col"
                 >
                     <div
-                        class="p-3 bg-slate-800/80 border-b border-slate-700 font-bold text-xs text-slate-400 uppercase tracking-wider"
+                        class="p-3 bg-white/5 border-b border-white/10 font-bold text-xs text-slate-400 r"
                     >
                         Selection Inspector
                     </div>

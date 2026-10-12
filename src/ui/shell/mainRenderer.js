@@ -200,14 +200,10 @@ export function renderApp() {
                     });
                 }
 
-                const contextualSidebar =
-                    document.getElementById('contextual-sidebar');
-                if (contextualSidebar) {
-                    contextualSidebar.classList.toggle(
-                        'hidden',
-                        !newView.hasContextualSidebar
-                    );
-                }
+                // Contextual sidebar visibility lives in uiStore.activeSidebar
+                // (single owner: setActiveTab in uiStore flips it per view).
+                // mainRenderer no longer toggles classes here to avoid
+                // fighting app-shell's translate logic on the same node.
             }
         }
     } else {

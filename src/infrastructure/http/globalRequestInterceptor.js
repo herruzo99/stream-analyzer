@@ -5,6 +5,7 @@ import { appLog } from '@/shared/utils/debug';
 import { secureRandom } from '@/shared/utils/random';
 import { useAnalysisStore } from '@/state/analysisStore';
 import { networkActions, useNetworkStore } from '@/state/networkStore';
+import { randomId } from '@/shared/utils/random.js';
 
 const IGNORED_HOSTS = new Set([
     'cdn.jsdelivr.net',
@@ -141,7 +142,7 @@ function logIntervention(urlString, method, rule, headers, duration = 0) {
     const statusText = rule.action === 'block' ? 'Blocked by Rule' : 'Delayed';
 
     networkActions.logEvent({
-        id: crypto.randomUUID(),
+        id: randomId(),
         url: urlString,
         resourceType,
         streamId,
@@ -293,7 +294,7 @@ export async function initializeGlobalRequestInterceptor() {
         });
 
         networkActions.logEvent({
-            id: crypto.randomUUID(),
+            id: randomId(),
             url: urlString,
             resourceType,
             streamId, // Will be null here

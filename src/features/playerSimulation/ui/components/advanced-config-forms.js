@@ -5,13 +5,13 @@ import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 
 const labelClass =
-    'text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 block';
+    'text-[10px] font-bold  r text-slate-400 mb-1 block';
 
 const presetButton = (label, onClick) => html`
     <button
         type="button"
         @click=${onClick}
-        class="px-2 py-1 text-[10px] font-bold rounded bg-slate-800 hover:bg-slate-800 text-slate-100 uppercase tracking-wider transition-colors border border-slate-800"
+        class="px-2 py-1 text-[10px] font-bold rounded bg-white/5 hover:bg-white/10 text-slate-100 r transition-colors border border-white/10"
     >
         ${label}
     </button>
@@ -24,15 +24,15 @@ const sliderControl = (name, label, value, min, max, step, unit = '') => html`
                 class="${labelClass} group-hover:text-slate-100 transition-colors"
                 >${label}</label
             >
-            <span class="font-mono text-xs text-blue-400"
+            <span class="font-mono text-xs text-emerald-200"
                 >${value}${unit}</span
             >
         </div>
         <div class="relative h-4 flex items-center">
             <div
-                class="absolute left-0 right-0 h-1 bg-slate-800 rounded-full overflow-hidden"
+                class="absolute left-0 right-0 h-1 bg-white/5 rounded-full overflow-hidden"
             >
-                <div class="h-full bg-blue-500 opacity-50"></div>
+                <div class="h-full bg-emerald-500/10 opacity-50"></div>
             </div>
             <input
                 type="range"
@@ -41,7 +41,7 @@ const sliderControl = (name, label, value, min, max, step, unit = '') => html`
                 max="${max}"
                 step="${step}"
                 .value="${value}"
-                class="relative w-full h-1 bg-transparent appearance-none cursor-pointer accent-blue-500 z-10"
+                class="relative w-full h-1 bg-transparent appearance-none cursor-pointer accent-emerald-400 z-10"
             />
         </div>
     </div>
@@ -61,7 +61,7 @@ const toggleControl = (name, label, checked) => html`
                 class="sr-only peer"
             />
             <div
-                class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"
+                class="w-9 h-5 bg-white/5 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500/10"
             ></div>
         </div>
     </label>
@@ -160,7 +160,7 @@ export const latencyFormTemplate = (config) => {
     return html`
         <form
             @change=${handleLatencySubmit}
-            class="space-y-4 p-4 bg-slate-800 rounded-xl border border-slate-800"
+            class="space-y-4 p-4 bg-white/5 rounded-md border border-white/10"
         >
             <div class="flex items-center justify-between mb-2">
                 <h4
@@ -171,16 +171,14 @@ export const latencyFormTemplate = (config) => {
                 ${toggleControl('enabled', 'Active', enabled)}
             </div>
 
-            <div class="flex gap-2 pb-2 border-b border-slate-800">
+            <div class="flex gap-2 pb-2 border-b border-white/10">
                 ${presetButton('Low Latency', () => applyPreset('low'))}
                 ${presetButton('Standard', () => applyPreset('std'))}
                 ${presetButton('Safe', () => applyPreset('safe'))}
             </div>
 
             <div
-                class="grid grid-cols-2 gap-4 opacity-${enabled
-                    ? '100'
-                    : '50 pointer-events-none'} transition-opacity"
+                class="grid grid-cols-2 gap-4 opacity-${enabled ? '100' : '50 pointer-events-none'} transition-opacity"
             >
                 ${sliderControl(
                     'targetLatency',
@@ -244,7 +242,7 @@ export const bufferFormTemplate = (config) => {
     return html`
         <form
             @change=${handleBufferSubmit}
-            class="space-y-4 p-4 bg-slate-800 rounded-xl border border-slate-800"
+            class="space-y-4 p-4 bg-white/5 rounded-md border border-white/10"
         >
             <div class="flex items-center justify-between mb-2">
                 <h4
@@ -254,7 +252,7 @@ export const bufferFormTemplate = (config) => {
                 </h4>
             </div>
 
-            <div class="flex gap-2 pb-2 border-b border-slate-800">
+            <div class="flex gap-2 pb-2 border-b border-white/10">
                 ${presetButton('Minimal', () => applyPreset('min'))}
                 ${presetButton('Standard', () => applyPreset('std'))}
                 ${presetButton('Large', () => applyPreset('huge'))}
@@ -322,7 +320,7 @@ export const abrFormTemplate = (config) => {
     return html`
         <form
             @change=${handleAbrSubmit}
-            class="space-y-4 p-4 bg-slate-800 rounded-xl border border-slate-800"
+            class="space-y-4 p-4 bg-white/5 rounded-md border border-white/10"
         >
             <div class="flex items-center justify-between mb-2">
                 <h4
@@ -332,7 +330,7 @@ export const abrFormTemplate = (config) => {
                 </h4>
             </div>
 
-            <div class="flex gap-2 pb-2 border-b border-slate-800">
+            <div class="flex gap-2 pb-2 border-b border-white/10">
                 ${presetButton('Aggressive', () => applyPreset('aggressive'))}
                 ${presetButton('Balanced', () => applyPreset('balanced'))}
                 ${presetButton('Stable', () => applyPreset('stable'))}
@@ -364,7 +362,7 @@ export const autoRestartFormTemplate = () => {
 
     return html`
         <div
-            class="space-y-4 p-4 bg-slate-800 rounded-xl border border-slate-800"
+            class="space-y-4 p-4 bg-white/5 rounded-md border border-white/10"
         >
             <div class="flex items-center justify-between mb-2">
                 <h4
@@ -386,14 +384,10 @@ export const autoRestartFormTemplate = () => {
                             @click=${() => playerActions.toggleAutoReset()}
                             role="switch"
                             aria-checked="${isAutoResetEnabled}"
-                            class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isAutoResetEnabled
-                                ? 'bg-blue-500'
-                                : 'bg-slate-800'}"
+                            class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isAutoResetEnabled ? 'bg-emerald-500/10' : 'bg-white/5'}"
                         >
                             <span
-                                class="inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${isAutoResetEnabled
-                                    ? 'translate-x-5'
-                                    : 'translate-x-1'}"
+                                class="inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${isAutoResetEnabled ? 'translate-x-5' : 'translate-x-1'}"
                             ></span>
                         </button>
                     </div>
@@ -416,7 +410,7 @@ export const autoRestartFormTemplate = () => {
                                 playerActions.setRetryDelay(val);
                             }}
                             ?disabled=${!isAutoResetEnabled}
-                            class="w-full bg-slate-800 text-slate-100 text-xs rounded border border-slate-800 px-2 py-1.5 outline-none focus:border-blue-500 appearance-none disabled:opacity-50"
+                            class="w-full bg-white/5 text-slate-100 text-xs rounded border border-white/10 px-2 py-1.5 outline-none focus:border-emerald-400/25 appearance-none disabled:opacity-50"
                         >
                             <option
                                 value="2000"

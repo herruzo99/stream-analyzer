@@ -234,6 +234,12 @@ export function initializeUiOrchestration() {
                 initialRepId = firstPeriodTracks[0]?.id;
             }
 
+            // NOTE: shared/utils/time parseDuration returns bare seconds
+            // (unlike badges/utils which returns {total}). spd keeps ONLY
+            // explicit SPD; minBufferTime rides separately so the live
+            // playhead can prioritize SPD → minBufferTime → 1 segment.
+            const spdSecs =
+                parseDuration(getAttr(manifest, 'suggestedPresentationDelay')) || 0;
             const data = {
                 isDynamic: getAttr(manifest, 'type') === 'dynamic',
                 ast: new Date(
@@ -242,9 +248,9 @@ export function initializeUiOrchestration() {
                 periods: periods, // Pass all periods
                 initialRepId: initialRepId,
                 streamId: streamId,
-                spd: parseDuration(
-                    getAttr(manifest, 'suggestedPresentationDelay')
-                ),
+                spd: spdSecs,
+                minBufferTimeSec:
+                    parseDuration(getAttr(manifest, 'minBufferTime')) || 0,
                 timeShiftBufferDepth: parseDuration(
                     getAttr(manifest, 'timeShiftBufferDepth')
                 ),

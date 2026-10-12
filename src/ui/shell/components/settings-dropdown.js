@@ -24,93 +24,68 @@ export const settingsDropdownTemplate = () => {
         }, 50);
     };
 
-    // Dynamic styling for the memory button based on health
-    let btnClass =
-        'bg-blue-600 hover:bg-blue-500 text-white border-transparent';
-    let iconClass = 'bg-white/10';
-    let warningIcon = null;
+    const healthNote =
+        systemHealth.status === 'critical'
+            ? 'storage critical'
+            : systemHealth.status === 'warning'
+              ? 'storage filling up'
+              : 'storage healthy';
+    const healthClass =
+        systemHealth.status === 'critical'
+            ? 'text-red-300'
+            : systemHealth.status === 'warning'
+              ? 'text-amber-300'
+              : 'text-slate-600';
 
-    if (systemHealth.status === 'critical') {
-        btnClass =
-            'bg-red-600 hover:bg-red-500 text-white animate-pulse border-red-400';
-        warningIcon = html`<span class="text-white ml-auto mr-2"
-            >${icons.alertTriangle}</span
-        >`;
-    } else if (systemHealth.status === 'warning') {
-        btnClass =
-            'bg-amber-600 hover:bg-amber-500 text-white border-amber-400';
-        warningIcon = html`<span class="text-white ml-auto mr-2"
-            >${icons.info}</span
-        >`;
-    }
+    const rowClass =
+        'w-full flex items-center gap-3 p-2.5 rounded-md transition-colors text-left hover:bg-white/5';
 
     return html`
         <div
-            class="dropdown-panel bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl w-80 ring-1 ring-black/50 overflow-hidden"
+            class="dropdown-panel bg-[#0b111c] border border-white/10 rounded-md w-80 overflow-hidden"
         >
-            <!-- Memory Management Link -->
             <div class="p-2 border-b border-white/5">
-                <button
-                    @click=${openMemoryModal}
-                    class="w-full flex items-center p-3 rounded-lg transition-all shadow-lg shadow-black/20 group border ${btnClass}"
-                >
-                    <div class="p-1.5 rounded-md ${iconClass} mr-3">
-                        ${icons.hardDrive}
-                    </div>
-                    <div class="text-left">
-                        <div class="text-xs font-bold uppercase tracking-wider">
-                            Memory & Storage
-                        </div>
-                        <div class="text-[10px] opacity-80">
-                            Manage cache limits
-                        </div>
-                    </div>
-                    ${warningIcon}
-                    ${!warningIcon
-                        ? html`<span
-                              class="group-hover:translate-x-1 transition-transform ml-auto"
-                              >${icons.chevronRight}</span
-                          >`
-                        : ''}
-                </button>
-            </div>
-
-            <!-- Cookie Settings Link -->
-            <div class="p-2 border-b border-white/5">
-                <button
-                    @click=${openCookiePreferences}
-                    class="w-full flex items-center p-3 rounded-lg transition-all shadow-sm group border bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700"
-                >
-                    <div
-                        class="p-1.5 rounded-md bg-slate-900 border border-slate-600 mr-3 text-blue-400"
-                    >
-                        ${icons.cookie}
-                    </div>
-                    <div class="text-left">
-                        <div class="text-xs font-bold uppercase tracking-wider">
-                            Privacy & Cookies
-                        </div>
-                        <div class="text-[10px] opacity-60 text-slate-400">
-                            Manage consent preferences
-                        </div>
-                    </div>
-                    <span
-                        class="group-hover:translate-x-1 transition-transform ml-auto text-slate-500"
+                <button @click=${openMemoryModal} class="${rowClass}">
+                    <span class="text-slate-500">${icons.hardDrive}</span>
+                    <span class="grow text-left">
+                        <span
+                            class="block text-[13px] font-medium text-slate-100"
+                            >Memory and storage</span
+                        >
+                        <span class="mono block text-[10px] ${healthClass}"
+                            >${healthNote}</span
+                        >
+                    </span>
+                    <span class="text-slate-600"
                         >${icons.chevronRight}</span
                     >
                 </button>
             </div>
 
-            <!-- Notification Settings Section -->
+            <div class="p-2 border-b border-white/5">
+                <button @click=${openCookiePreferences} class="${rowClass}">
+                    <span class="text-slate-500">${icons.cookie}</span>
+                    <span class="grow text-left">
+                        <span
+                            class="block text-[13px] font-medium text-slate-100"
+                            >Privacy and cookies</span
+                        >
+                        <span class="mono block text-[10px] text-slate-600"
+                            >consent preferences</span
+                        >
+                    </span>
+                    <span class="text-slate-600"
+                        >${icons.chevronRight}</span
+                    >
+                </button>
+            </div>
+
             <div class="p-0">${notificationSettingsPanelTemplate()}</div>
 
-            <!-- Footer -->
-            <div
-                class="p-3 bg-slate-950/50 border-t border-white/5 text-center"
-            >
-                <div class="text-[10px] text-slate-600">
-                    Stream Analyzer v1.0.0
-                </div>
+            <div class="px-4 py-2.5 border-t border-white/5 text-center">
+                <span class="mono text-[10px] text-slate-600"
+                    >Stream Analyzer v1.2.0</span
+                >
             </div>
         </div>
     `;

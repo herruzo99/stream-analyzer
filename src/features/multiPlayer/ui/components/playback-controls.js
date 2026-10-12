@@ -20,12 +20,12 @@ const playbackControlsTemplate = ({ selectedCount }) => {
     const isDisabled = selectedCount === 0;
 
     const buttonClasses = `
-        bg-slate-800 hover:bg-slate-800 text-slate-100 font-bold
+        bg-white/5 hover:bg-white/10 text-slate-100 font-bold
         p-2 rounded-md transition-colors flex-1 flex items-center
         justify-center disabled:opacity-50 disabled:cursor-not-allowed
     `;
     const smallButtonClasses = `${buttonClasses} text-sm`;
-    const primaryButtonClasses = `bg-blue-500 hover:bg-blue-500/80 text-white`;
+    const primaryButtonClasses = `bg-emerald-500/10 hover:bg-emerald-500/10 text-white`;
 
     return html`
         <div class="space-y-3">
@@ -36,7 +36,7 @@ const playbackControlsTemplate = ({ selectedCount }) => {
                 <button
                     @click=${() =>
                         applyAction('seek-frame-backward', 0, selectedCount)}
-                    class=${smallButtonClasses}
+class=${smallButtonClasses}
                     title="Previous Frame"
                     ?disabled=${isDisabled}
                 >
@@ -44,7 +44,7 @@ const playbackControlsTemplate = ({ selectedCount }) => {
                 </button>
                 <button
                     @click=${() => applyAction('seek', -10, selectedCount)}
-                    class=${smallButtonClasses}
+class=${smallButtonClasses}
                     title="Rewind 10s"
                     ?disabled=${isDisabled}
                 >
@@ -52,7 +52,7 @@ const playbackControlsTemplate = ({ selectedCount }) => {
                 </button>
                 <button
                     @click=${() => applyAction('pause', 0, selectedCount)}
-                    class=${buttonClasses}
+class=${buttonClasses}
                     title="Pause"
                     ?disabled=${isDisabled}
                 >
@@ -60,7 +60,7 @@ const playbackControlsTemplate = ({ selectedCount }) => {
                 </button>
                 <button
                     @click=${() => applyAction('play', 0, selectedCount)}
-                    class=${`${buttonClasses} ${primaryButtonClasses}`}
+class=${`${buttonClasses} ${primaryButtonClasses}`}
                     title="Play"
                     ?disabled=${isDisabled}
                 >
@@ -68,7 +68,7 @@ const playbackControlsTemplate = ({ selectedCount }) => {
                 </button>
                 <button
                     @click=${() => applyAction('seek', 10, selectedCount)}
-                    class=${smallButtonClasses}
+class=${smallButtonClasses}
                     title="Forward 10s"
                     ?disabled=${isDisabled}
                 >
@@ -77,7 +77,7 @@ const playbackControlsTemplate = ({ selectedCount }) => {
                 <button
                     @click=${() =>
                         applyAction('seek-frame-forward', 0, selectedCount)}
-                    class=${smallButtonClasses}
+class=${smallButtonClasses}
                     title="Next Frame"
                     ?disabled=${isDisabled}
                 >

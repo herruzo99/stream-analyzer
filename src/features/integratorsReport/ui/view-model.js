@@ -3,9 +3,13 @@ import { getDrmSystemName } from '@/infrastructure/parsing/utils/drm';
 // ... (generateIntegrationCode & checkCompatibility helpers remain unchanged) ...
 
 function generateIntegrationCode(stream) {
-    const url = stream.originalUrl;
+    const url = typeof stream.originalUrl === 'string' ? stream.originalUrl : '';
+    const protocol = typeof stream.protocol === 'string' ? stream.protocol : '';
     const drm = stream.drmAuth || { licenseServerUrl: {}, headers: [] };
-    const licenseServers = drm.licenseServerUrl || {};
+    const licenseServers =
+        drm.licenseServerUrl && typeof drm.licenseServerUrl === 'object'
+            ? drm.licenseServerUrl
+            : {};
     const s = (str) => JSON.stringify(str);
 
     const shakaDrmConfig = {};
@@ -22,14 +26,13 @@ player.configure({
 
 try {
   await player.load(${s(url)});
-  console.log('The video has now been loaded!');
 } catch (e) {
   console.error('Error code', e.code, 'object', e);
 }
 `.trim();
 
     const hlsCode =
-        stream.protocol === 'hls'
+        protocol === 'hls'
             ? `
 if (Hls.isSupported()) {
   const video = document.getElementById('video');
@@ -38,10 +41,10 @@ if (Hls.isSupported()) {
   hls.attachMedia(video);
 }
 `.trim()
-            : '// HLS.js is valid only for HLS streams.';
+            : '// HLS.js only works with HLS streams.';
 
     let dashDrmConfig = {};
-    if (stream.protocol === 'dash' && Object.keys(licenseServers).length > 0) {
+    if (protocol === 'dash' && Object.keys(licenseServers).length > 0) {
         dashDrmConfig = Object.entries(licenseServers).reduce(
             (acc, [sys, url]) => {
                 acc[sys] = { serverURL: url };
@@ -52,7 +55,7 @@ if (Hls.isSupported()) {
     }
 
     const dashCode =
-        stream.protocol === 'dash'
+        protocol === 'dash'
             ? `
 const url = ${s(url)};
 const player = dashjs.MediaPlayer().create();
@@ -60,11 +63,11 @@ player.initialize(document.querySelector("#video"), url, true);
 
 ${Object.keys(dashDrmConfig).length > 0 ? `player.setProtectionData(${JSON.stringify(dashDrmConfig, null, 2)});` : ''}
 `.trim()
-            : '// dash.js is valid only for MPEG-DASH streams.';
+            : '// dash.js only works with MPEG-DASH streams.';
 
     const html5Code = `
 <video id="video" controls autoplay>
-    <source src="${url}" type="${stream.protocol === 'dash' ? 'application/dash+xml' : 'application/x-mpegURL'}">
+    <source src="${url}" type="${protocol === 'dash' ? 'application/dash+xml' : 'application/x-mpegURL'}">
 </video>
 `.trim();
 
@@ -173,8 +176,13 @@ function checkCompatibility(videoCodecs, audioCodecs, drmSystems) {
 }
 
 export function createIntegratorsReportViewModel(stream) {
+    if (!stream || typeof stream !== 'object') return null;
     const summary = stream.manifest?.summary;
-    if (!summary) return null;
+    if (!summary || typeof summary !== 'object') return null;
+
+    const videoTracks = Array.isArray(summary.videoTracks) ? summary.videoTracks : [];
+    const audioTracks = Array.isArray(summary.audioTracks) ? summary.audioTracks : [];
+    const textTracks = Array.isArray(summary.textTracks) ? summary.textTracks : [];
 
     const videoCodecs = new Set();
     const audioCodecs = new Set();
@@ -183,82 +191,126 @@ export function createIntegratorsReportViewModel(stream) {
     let maxBandwidth = 0;
     let minBandwidth = Infinity;
 
-    summary.videoTracks.forEach((t) => {
-        t.codecs.forEach((c) => videoCodecs.add(c.value));
-        if (t.muxedAudio && t.muxedAudio.codecs) {
-            t.muxedAudio.codecs.forEach((c) => audioCodecs.add(c.value));
+    videoTracks.forEach((t) => {
+        if (!t || typeof t !== 'object') return;
+        const codecs = Array.isArray(t.codecs) ? t.codecs : [];
+        codecs.forEach((c) => {
+            if (c?.value) videoCodecs.add(String(c.value));
+        });
+        const muxedCodecs = t.muxedAudio?.codecs;
+        if (Array.isArray(muxedCodecs)) {
+            muxedCodecs.forEach((c) => {
+                if (c?.value) audioCodecs.add(String(c.value));
+            });
         }
-        if (t.bandwidth > maxBandwidth) maxBandwidth = t.bandwidth;
-        if (t.bandwidth < minBandwidth) minBandwidth = t.bandwidth;
-        const res = t.resolutions[0]?.value.split('x');
+        const bandwidth = Number(t.bandwidth);
+        if (Number.isFinite(bandwidth) && bandwidth >= 0) {
+            if (bandwidth > maxBandwidth) maxBandwidth = bandwidth;
+            if (bandwidth < minBandwidth) minBandwidth = bandwidth;
+        }
+        const resValue = t.resolutions?.[0]?.value;
+        const res = typeof resValue === 'string' ? resValue.split('x') : null;
         if (res?.length === 2) {
-            const w = parseInt(res[0]);
-            const h = parseInt(res[1]);
-            if (w * h > maxResolution.w * maxResolution.h)
+            const w = parseInt(res[0], 10);
+            const h = parseInt(res[1], 10);
+            if (
+                Number.isFinite(w) &&
+                Number.isFinite(h) &&
+                w * h > maxResolution.w * maxResolution.h
+            )
                 maxResolution = { w, h };
         }
     });
 
     if (minBandwidth === Infinity) minBandwidth = 0;
 
-    summary.audioTracks.forEach((t) => {
-        t.codecs.forEach((c) => audioCodecs.add(c.value));
+    audioTracks.forEach((t) => {
+        const codecs = t && Array.isArray(t.codecs) ? t.codecs : [];
+        codecs.forEach((c) => {
+            if (c?.value) audioCodecs.add(String(c.value));
+        });
     });
-    summary.textTracks.forEach((t) => {
-        t.codecsOrMimeTypes.forEach((c) => textFormats.add(c.value));
+    textTracks.forEach((t) => {
+        const formats = t && Array.isArray(t.codecsOrMimeTypes) ? t.codecsOrMimeTypes : [];
+        formats.forEach((c) => {
+            if (c?.value) textFormats.add(String(c.value));
+        });
     });
 
-    const security = summary.security || { isEncrypted: false, systems: [] };
-    const drmNames = security.systems.map((s) => getDrmSystemName(s.systemId));
+    const security =
+        summary.security && typeof summary.security === 'object'
+            ? summary.security
+            : { isEncrypted: false, systems: [] };
+    const securitySystems = Array.isArray(security.systems) ? security.systems : [];
+    const drmNames = securitySystems.map((s) => getDrmSystemName(s?.systemId));
 
     const domains = new Set();
-    try {
-        if (stream.baseUrl) domains.add(new URL(stream.baseUrl).origin);
-        if (summary.general?.locations)
-            summary.general.locations.forEach((l) =>
-                domains.add(new URL(l).origin)
-            );
-        if (stream.drmAuth?.licenseServerUrl) {
-            const urls =
-                typeof stream.drmAuth.licenseServerUrl === 'string'
-                    ? [stream.drmAuth.licenseServerUrl]
-                    : Object.values(stream.drmAuth.licenseServerUrl);
-            urls.forEach((u) => domains.add(new URL(u).origin));
+    const addOrigin = (value) => {
+        try {
+            if (typeof value === 'string' && value)
+                domains.add(new URL(value).origin);
+        } catch {
+            // Malformed URLs are skipped, not shown.
         }
-    } catch (_e) {
-        /* ignore */
+    };
+    addOrigin(stream.baseUrl);
+    const locations = Array.isArray(summary.general?.locations)
+        ? summary.general.locations
+        : [];
+    locations.forEach(addOrigin);
+    if (stream.drmAuth?.licenseServerUrl) {
+        const urls =
+            typeof stream.drmAuth.licenseServerUrl === 'string'
+                ? [stream.drmAuth.licenseServerUrl]
+                : Object.values(stream.drmAuth.licenseServerUrl);
+        urls.forEach(addOrigin);
     }
 
     const badges = [];
     if (summary.lowLatency?.isLowLatency) badges.push('Low Latency');
-    if (summary.hls?.iFramePlaylists > 0) badges.push('Trick Play');
+    if (Number(summary.hls?.iFramePlaylists) > 0) badges.push('Trick Play');
     if (textFormats.size > 0) badges.push('Subtitles');
-    if (summary.general.streamType.includes('Live')) badges.push('Live');
+    if (typeof summary.general?.streamType === 'string' && summary.general.streamType.includes('Live'))
+        badges.push('Live');
     else badges.push('VOD');
 
+    const protocol = typeof stream.protocol === 'string' ? stream.protocol : 'unknown';
     let profiles = 'N/A';
-    if (summary.dash?.profiles) {
-        profiles = summary.dash.profiles;
+    const dashProfiles = summary.dash?.profiles;
+    if (typeof dashProfiles === 'string' && dashProfiles) {
+        profiles = dashProfiles;
     } else if (summary.hls?.version) {
         profiles = `HLS v${summary.hls.version}`;
     }
 
     // --- Smart Polling Data ---
-    // If the monitor service has calculated a smart interval, it will be in stream.smartPollingInterval
-    // Otherwise fallback to null
-    const smartPollingInterval = stream.smartPollingInterval
-        ? (stream.smartPollingInterval / 1000).toFixed(1)
-        : null;
+    // Set by the monitor service on live streams; null when unknown.
+    const pollingMs = Number(stream.smartPollingInterval);
+    const smartPollingInterval =
+        Number.isFinite(pollingMs) && pollingMs > 0 ? (pollingMs / 1000).toFixed(1) : null;
+
+    const segmentDuration = () => {
+        const candidates = [
+            summary.hls?.mediaPlaylistDetails?.averageSegmentDuration,
+            summary.dash?.maxSegmentDuration,
+        ];
+        for (const candidate of candidates) {
+            const value = Number(candidate);
+            if (Number.isFinite(value) && value >= 0) return value;
+        }
+        return 0;
+    };
 
     return {
         overview: {
-            streamName: stream.name,
-            protocol: stream.protocol.toUpperCase(),
+            streamName: typeof stream.name === 'string' && stream.name ? stream.name : 'Unnamed stream',
+            protocol: protocol.toUpperCase(),
             type: stream.manifest?.type === 'dynamic' ? 'LIVE' : 'VOD',
             maxResolution: `${maxResolution.w}x${maxResolution.h}`,
             maxBandwidth,
             minBandwidth,
             badges,
+            isLive: stream.manifest?.type === 'dynamic',
         },
         specs: {
             videoCodecs: Array.from(videoCodecs),
@@ -266,13 +318,10 @@ export function createIntegratorsReportViewModel(stream) {
             textFormats: Array.from(textFormats),
             profiles: profiles,
             drmSystems: drmNames,
-            isEncrypted: security.isEncrypted,
-            avgSegmentDuration:
-                summary.hls?.mediaPlaylistDetails?.averageSegmentDuration ||
-                summary.dash?.maxSegmentDuration ||
-                0,
+            isEncrypted: security.isEncrypted === true,
+            avgSegmentDuration: segmentDuration(),
 
-            // New Property: Pass the calculated smart interval
+            // Calculated smart interval, in seconds (string) or null.
             smartPollingInterval,
         },
         compatibility: checkCompatibility(videoCodecs, audioCodecs, drmNames),

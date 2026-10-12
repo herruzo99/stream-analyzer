@@ -1,33 +1,15 @@
 import * as icons from '@/ui/icons';
 import { html } from 'lit-html';
 
-export const cmafWidgetTemplate = (cmafData) => {
+export const cmafWidgetTemplate = (cmafData, open, onToggle) => {
     if (!cmafData || cmafData.status === 'idle') return '';
 
-    const statusColors = {
-        pending:
-            'text-blue-400 border-blue-500/30 bg-slate-700',
-        complete:
-            'text-emerald-400 border-emerald-500/30 bg-slate-800',
-        error: 'text-red-400 border-red-500/30 bg-slate-800',
-    };
+    const statusMeta = {
+        pending: { label: 'validating', cls: 'text-slate-400' },
+        complete: { label: 'done', cls: 'text-emerald-300' },
+        error: { label: 'failed', cls: 'text-red-300' },
+    }[cmafData.status] || { label: cmafData.status, cls: 'text-slate-400' };
 
-    const statusIcons = {
-        pending: icons.refresh,
-        complete: icons.checkCircle,
-        error: icons.alertTriangle,
-    };
-
-    const statusLabel = {
-        pending: 'Validating...',
-        complete: 'Analysis Complete',
-        error: 'Validation Failed',
-    };
-
-    const statusClass = statusColors[cmafData.status] || statusColors.pending;
-    const Icon = statusIcons[cmafData.status] || icons.info;
-
-    // Calculate pass/fail counts
     const passedChecks = cmafData.results.filter(
         (r) => r.status === 'pass'
     ).length;
@@ -37,117 +19,85 @@ export const cmafWidgetTemplate = (cmafData) => {
     const warnChecks = cmafData.results.filter(
         (r) => r.status === 'warn'
     ).length;
+    const total = cmafData.results.length;
+
+    const summaryLine =
+        cmafData.status === 'pending'
+            ? 'validating…'
+            : total === 0
+              ? 'no checks produced output'
+              : `${passedChecks} pass · ${warnChecks} warn · ${failedChecks} fail`;
 
     return html`
-        <div
-            class="relative overflow-hidden p-5 transition-colors h-full flex flex-col"
-            style=" border-radius: 0.75rem; box-shadow: 0 8px 30px rgb(0 0 0 / 0.35); backdrop-filter: blur(12px); background: #1e293b;"
-        >
-            <div class="flex items-center justify-between mb-4">
-                <h3
-                    class="text-lg font-bold text-slate-100 flex items-center gap-2"
+        <div class="rounded-md border border-white/5 bg-[#0b111c] p-3">
+            <button
+                class="w-full flex items-center justify-between gap-2 text-left"
+                @click=${onToggle}
+                aria-expanded=${open}
+            >
+                <span class="text-sm font-medium text-slate-100"
+                    >CMAF checks</span
                 >
-                    ${icons.shieldCheck} CMAF Compliance
-                </h3>
-                <div
-                    class="flex items-center gap-2 px-2 py-1 rounded text-xs font-bold border ${statusClass}"
+                <span
+                    class="mono text-[10px] flex items-center gap-1.5 ${statusMeta.cls}"
                 >
                     ${cmafData.status === 'pending'
-            ? html`<span class="animate-spin">${Icon}</span>`
-            : Icon}
-                    ${statusLabel[cmafData.status]}
-                </div>
-            </div>
-
-            <div class="grid grid-cols-3 gap-2 mb-4">
-                <div
-                    class="bg-slate-900/20 rounded p-2 text-center border border-slate-800 backdrop-blur-sm"
-                >
-                    <div class="text-emerald-400 font-bold text-lg">
-                        ${passedChecks}
-                    </div>
-                    <div
-                        class="text-[10px] text-slate-400 uppercase font-bold"
-                    >
-                        Pass
-                    </div>
-                </div>
-                <div
-                    class="bg-slate-900/20 rounded p-2 text-center border border-slate-800 backdrop-blur-sm"
-                >
-                    <div class="text-amber-400 font-bold text-lg">
-                        ${warnChecks}
-                    </div>
-                    <div
-                        class="text-[10px] text-slate-400 uppercase font-bold"
-                    >
-                        Warn
-                    </div>
-                </div>
-                <div
-                    class="bg-slate-900/20 rounded p-2 text-center border border-slate-800 backdrop-blur-sm"
-                >
-                    <div class="text-red-400 font-bold text-lg">
-                        ${failedChecks}
-                    </div>
-                    <div
-                        class="text-[10px] text-slate-400 uppercase font-bold"
-                    >
-                        Fail
-                    </div>
-                </div>
-            </div>
-
-            <div
-                class="grow overflow-y-auto custom-scrollbar space-y-2 pr-1 max-h-[200px]"
-            >
-                ${cmafData.results.length === 0 && cmafData.status !== 'pending'
-            ? html`<div
-                          class="text-center text-slate-500 text-sm py-4 italic"
-                      >
-                          No checks run.
-                      </div>`
-            : ''}
-                ${cmafData.results.map(
-                (result) => html`
-                        <div
-                            class="flex items-start gap-3 p-2 rounded bg-slate-800 border border-slate-800 text-sm"
-                        >
-                            <div class="mt-0.5 shrink-0">
-                                ${result.status === 'pass'
-                        ? html`<span
-                                          class="text-emerald-400"
-                                          >${icons.checkCircle}</span
-                                      >`
-                        : result.status === 'fail'
-                            ? html`<span
-                                            class="text-red-400"
-                                            >${icons.xCircle}</span
-                                        >`
-                            : html`<span
-                                            class="text-amber-400"
-                                            >${icons.alertTriangle}</span
-                                        >`}
-                            </div>
-                            <div class="min-w-0">
-                                <div
-                                    class="font-medium text-slate-100 truncate"
-                                    title="${result.text}"
-                                >
-                                    ${result.text}
-                                </div>
-                                ${result.details
-                        ? html`<div
-                                          class="text-xs text-slate-400 mt-0.5 break-words"
-                                      >
-                                          ${result.details}
-                                      </div>`
+                        ? html`<span class="animate-spin inline-flex"
+                              >${icons.refresh}</span
+                          >`
                         : ''}
-                            </div>
-                        </div>
-                    `
-            )}
-            </div>
+                    ${statusMeta.label}
+                </span>
+            </button>
+            <p class="mono text-[10px] text-slate-600 mt-1">${summaryLine}</p>
+
+            ${open
+                ? html`<div
+                      class="mt-2 max-h-[160px] overflow-y-auto custom-scrollbar space-y-1"
+                  >
+                      ${total === 0 && cmafData.status !== 'pending'
+                          ? ''
+                          : cmafData.results.map(
+                                (result) => html`
+                                    <div
+                                        class="flex items-start gap-2.5 px-2.5 py-2 rounded-md bg-white/[0.02] border border-white/5 text-[13px]"
+                                    >
+                                        <span class="mt-0.5 shrink-0">
+                                            ${result.status === 'pass'
+                                                ? html`<span
+                                                      class="text-emerald-300"
+                                                      >${icons.checkCircle}</span
+                                                  >`
+                                                : result.status === 'fail'
+                                                  ? html`<span
+                                                        class="text-red-300"
+                                                        >${icons.xCircle}</span
+                                                    >`
+                                                  : html`<span
+                                                        class="text-amber-300"
+                                                        >${icons.alertTriangle}</span
+                                                    >`}
+                                        </span>
+                                        <span class="min-w-0">
+                                            <span
+                                                class="block font-medium text-slate-200 truncate"
+                                                title="${result.text}"
+                                            >
+                                                ${result.text}
+                                            </span>
+                                            ${result.details
+                                                ? html`<span
+                                                      class="block text-[11px] text-slate-500 mt-0.5 break-words"
+                                                  >
+                                                      ${result.details}
+                                                  </span>`
+                                                : ''}
+                                        </span>
+                                    </div>
+                                `
+                            )}
+                  </div>`
+                : ''}
         </div>
     `;
 };

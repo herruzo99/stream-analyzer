@@ -9,11 +9,11 @@ import { html } from 'lit-html';
 
 const stat = (label, value, tone) => html`
     <div
-        class="rounded-xl border border-slate-800 bg-slate-800/40 p-3 text-center"
+        class="rounded-md border border-white/10 bg-white/5 p-3 text-center"
     >
         <div class="font-mono font-bold text-lg ${tone}">${value}</div>
         <div
-            class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1"
+            class="text-[10px] font-bold text-slate-400 mt-1"
         >
             ${label}
         </div>
@@ -32,17 +32,13 @@ export const statsSectionTemplate = (
     return html`
         <div>
             <div
-                class="flex items-center gap-3 mb-3 p-3 rounded-xl border border-slate-800 bg-slate-800/40"
+                class="flex items-center gap-3 mb-3 p-3 rounded-md border border-white/10 bg-white/5"
             >
                 <div
-                    class="grow h-2 rounded-full bg-slate-800 overflow-hidden"
+                    class="grow h-2 rounded-full bg-white/5 overflow-hidden"
                 >
                     <div
-                        class="h-full rounded-full ${pct >= 99
-                            ? 'bg-emerald-500'
-                            : pct >= 90
-                              ? 'bg-amber-500'
-                              : 'bg-red-500'}"
+                        class="h-full rounded-full ${pct >= 99 ? 'bg-emerald-500' : pct >= 90 ? 'bg-amber-500' : 'bg-red-500'}"
                         style="width: ${Math.max(0, Math.min(100, pct))}%"
                     ></div>
                 </div>

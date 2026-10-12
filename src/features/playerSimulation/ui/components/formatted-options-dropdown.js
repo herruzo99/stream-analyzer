@@ -27,32 +27,24 @@ export const formattedOptionsDropdownTemplate = (
         return html`
                         <button
                             @click=${(e) => handleSelect(option, e)}
-                            class="group w-full text-left p-3 rounded-lg transition-all duration-200 border ${isActive
-                ? 'bg-blue-500 border-blue-500 shadow-md shadow-[#3b82f6]'
-                : 'bg-transparent border-transparent hover:bg-slate-800 hover:border-slate-800'}"
+                            class="group w-full text-left p-3 rounded-md transition-all duration-200 border ${isActive ? 'bg-emerald-500/10 border-emerald-400/25 ' : 'bg-transparent border-transparent hover:bg-white/10 hover:border-white/10'}"
                         >
                             <div class="flex items-start gap-3">
                                 <div
-                                    class="shrink-0 mt-0.5 ${isActive
-                ? 'text-slate-100'
-                : 'text-slate-400 group-hover:text-slate-400'}"
+                                    class="shrink-0 mt-0.5 ${isActive ? 'text-slate-100' : 'text-slate-400 group-hover:text-slate-400'}"
                                 >
                                     ${isActive ? icons.radio : icons.circle}
                                 </div>
                                 <div>
                                     <div
-                                        class="font-bold text-sm ${isActive
-                ? 'text-slate-100'
-                : 'text-slate-100'}"
+                                        class="font-bold text-sm ${isActive ? 'text-slate-100' : 'text-slate-100'}"
                                     >
                                         ${option.label}
                                     </div>
                                     ${option.description
                 ? html`
                                               <div
-                                                  class="text-xs mt-1 leading-relaxed ${isActive
-                        ? 'text-slate-100'
-                        : 'text-slate-400'}"
+                                                  class="text-xs mt-1 leading-relaxed ${isActive ? 'text-slate-100' : 'text-slate-400'}"
                                               >
                                                   ${option.description}
                                               </div>

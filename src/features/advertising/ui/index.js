@@ -10,8 +10,8 @@ import { inspectorTemplate } from './components/inspector.js';
 import { createAdvertisingViewModel } from './view-model.js';
 import { statCardTemplate } from '@/features/summary/ui/components/shared';
 
-// Prism Glass Layout Styles
-// We can use these in styleMap for containers that need to look like glass cards
+// Flat layout styles
+// Used in styleMap for panels that need an explicit surface
 const layoutCardStyles = {
     borderRadius: '0.75rem',
     boxShadow: '0 8px 30px rgb(0 0 0 / 0.35)',
@@ -99,8 +99,8 @@ class AdvertisingView {
         // --- EMPTY STATE ---
         if (!stream) {
             return html`
-                <div class="flex flex-col items-center justify-center h-full text-slate-400 animate-fadeIn">
-                    <div class="p-6 rounded-full bg-slate-800 mb-4">
+                <div class="flex flex-col items-center justify-center h-full text-slate-400">
+                    <div class="p-6 rounded-full bg-white/5 mb-4">
                         ${icons.search}
                     </div>
                     <p class="text-lg font-medium text-slate-200">
@@ -122,7 +122,7 @@ class AdvertisingView {
         };
 
         return html`
-            <div class="flex flex-col h-full animate-fadeIn custom-scrollbar" style="gap: 0.75rem">
+            <div class="flex flex-col h-full custom-scrollbar" style="gap: 0.75rem">
                 
                 <!-- STATS ROW -->
                 <!-- We use a grid that adapts to screen size -->
@@ -132,7 +132,7 @@ class AdvertisingView {
             value: vm.stats.totalAvails,
             icon: icons.layers,
             colorVar: '--secondary-accent',
-            customClasses: '!bg-slate-800 hover:!bg-slate-800 transition-colors duration-300'
+            customClasses: '!bg-white/5 hover:!bg-white/5 transition-colors duration-300'
         })}
                     ${statCardTemplate({
             label: 'Ad Load',
@@ -140,21 +140,21 @@ class AdvertisingView {
             icon: icons.percent,
             tooltip: 'Percentage of total duration occupied by ads.',
             colorVar: '--primary-accent',
-            customClasses: '!bg-slate-800 hover:!bg-slate-800 transition-colors duration-300'
+            customClasses: '!bg-white/5 hover:!bg-white/5 transition-colors duration-300'
         })}
                     ${statCardTemplate({
             label: 'Total Duration',
             value: `${vm.stats.totalAdDuration}s`,
             icon: icons.clock,
             colorVar: '--tertiary-accent',
-            customClasses: '!bg-slate-800 hover:!bg-slate-800 transition-colors duration-300'
+            customClasses: '!bg-white/5 hover:!bg-white/5 transition-colors duration-300'
         })}
                     ${statCardTemplate({
             label: 'SCTE-35 Signals',
             value: (vm.stats.detectionCounts['SCTE35_INBAND'] || 0) + (vm.stats.detectionCounts['SCTE35_DATERANGE'] || 0),
             icon: icons.binary,
             colorVar: '--color-info',
-            customClasses: '!bg-slate-800 hover:!bg-slate-800 transition-colors duration-300'
+            customClasses: '!bg-white/5 hover:!bg-white/5 transition-colors duration-300'
         })}
                 </div>
 
@@ -164,13 +164,13 @@ class AdvertisingView {
                     style=${styleMap({ ...layoutCardStyles, background: '#1e293b' })}
                 >
                      <div class="flex items-center justify-between mb-6">
-                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                            <span class="p-1.5 rounded-lg bg-slate-800 text-blue-400">
+                        <h3 class="text-xs font-bold text-slate-400 r flex items-center gap-2">
+                            <span class="p-1.5 rounded-md bg-white/5 text-emerald-200">
                                 ${icons.barChart}
                             </span>
                             Timeline Visualization
                         </h3>
-                        <span class="px-2 py-1 rounded-md bg-slate-800/50 border border-slate-700/30 text-[10px] font-mono text-slate-400 hover:text-slate-200 transition-colors cursor-default">
+                        <span class="px-2 py-1 rounded-md bg-white/5 border border-white/10 text-[10px] font-mono text-slate-400 hover:text-slate-200 transition-colors cursor-default">
                             ${vm.duration.toFixed(2)}s Total
                         </span>
                     </div>
@@ -182,14 +182,14 @@ class AdvertisingView {
                     class="flex flex-col grow overflow-hidden transition-all duration-300"
                     style=${styleMap({ ...layoutCardStyles, background: '#1e293b' })}
                 >
-                    <div class="p-4 border-b border-slate-800/30 backdrop-blur-md flex items-center justify-between shrink-0">
-                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                            <span class="p-1.5 rounded-lg bg-slate-800 text-purple-300">
+                    <div class="p-4 border-b border-white/10 flex items-center justify-between shrink-0">
+                        <h3 class="text-xs font-bold text-slate-400 r flex items-center gap-2">
+                            <span class="p-1.5 rounded-md bg-white/5 text-slate-300">
                                 ${icons.list}
                             </span>
                             Break Chronology
                         </h3>
-                        <span class="px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-[10px] font-bold text-blue-400">
+                        <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-400/25 text-[10px] font-bold text-emerald-200">
                             ${vm.avails.length} Events
                         </span>
                     </div>
@@ -198,7 +198,7 @@ class AdvertisingView {
                         ${vm.avails.length === 0
                 ? html`
                                 <div class="flex flex-col items-center justify-center h-full text-slate-400 opacity-60">
-                                    <div class="p-6 rounded-full bg-slate-800/50 mb-4 border border-slate-700/30">
+                                    <div class="p-6 rounded-full bg-white/5 mb-4 border border-white/10">
                                         ${icons.ghost}
                                     </div>
                                     <p class="text-sm font-bold">No Ad Breaks Detected</p>
@@ -243,18 +243,18 @@ class AdvertisingView {
             <div class="w-full h-full flex items-center justify-between">
                  <div class="relative group">
                     <div class="flex items-center gap-4 p-2">
-                        <div class="p-3 rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 text-blue-400 shadow-inner border border-blue-500/10 relative overflow-hidden">
+                        <div class="p-3 rounded-md text-emerald-200 border border-emerald-400/25 relative overflow-hidden">
                              ${icons.activity}
                         </div>
                         <div>
-                            <h1 class="text-xl font-bold text-slate-200 leading-none tracking-tight">
+                            <h1 class="text-xl font-bold text-slate-200 leading-none">
                                 Ad Verification
                             </h1>
                             <div class="flex items-center gap-2 mt-1.5">
-                                <span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/10 text-emerald-200 border border-emerald-400/25">
                                     SCTE-35
                                 </span>
-                                <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400 opacity-80">
+                                <span class="text-[10px] font-bold text-slate-400 opacity-80">
                                     & Manifest Analysis
                                 </span>
                             </div>
@@ -265,10 +265,7 @@ class AdvertisingView {
                 <!-- Settings Action -->
                 <button
                     @click=${() => this.toggleSettings()}
-                    class="flex items-center gap-2 px-4 py-2 rounded-xl border transition-all duration-300 font-bold text-sm ${isSettingsActive
-                ? 'bg-blue-500 text-slate-100 border-blue-500 shadow-[0_0_15px_#3b82f6]'
-                : 'bg-slate-800/50 text-slate-400 border-slate-700/30 hover:bg-slate-800 hover:text-slate-200'
-            }"
+                    class="flex items-center gap-2 px-4 py-2 rounded-md border transition-all duration-300 font-bold text-sm ${isSettingsActive ? 'bg-emerald-500/10 text-slate-100 border-emerald-400/25 ' : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10 hover:text-slate-200' }"
                 >
                     ${icons.settings}
                     <span>Config</span>

@@ -1,4 +1,4 @@
-import { secureRandom } from '@/shared/utils/random.js';
+import { randomId, secureRandom } from '@/shared/utils/random.js';
 import { fetchWithRetry } from '../http/fetch.js';
 
 /**
@@ -171,7 +171,7 @@ export async function fetchWithAuth(
             self.postMessage({
                 type: 'worker:network-event',
                 payload: {
-                    id: crypto.randomUUID(),
+                    id: randomId(),
                     url: url,
                     resourceType: safeLoggingContext.resourceType,
                     streamId: safeLoggingContext.streamId,
@@ -374,7 +374,7 @@ export async function fetchWithAuth(
         self.postMessage({
             type: 'worker:network-event',
             payload: {
-                id: crypto.randomUUID(),
+                id: randomId(),
                 url: response.url,
                 resourceType: safeLoggingContext.resourceType,
                 streamId: safeLoggingContext.streamId,

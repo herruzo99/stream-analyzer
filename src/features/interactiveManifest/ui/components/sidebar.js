@@ -3,48 +3,20 @@ import * as icons from '@/ui/icons';
 import { copyTextToClipboard } from '@/ui/shared/clipboard';
 import { html, render } from 'lit-html';
 import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
-import { styleMap } from 'lit-html/directives/style-map.js';
 import { getSmartTokenDetails, renderSmartToken } from './smart-tokens.js';
-
-// Semantic Layout Styles for Manual Injection (since not using LitElement styles)
-const layoutCardStyles = {
-
-    borderRadius: '0.75rem',
-    boxShadow: '0 8px 30px rgb(0 0 0 / 0.35)',
-    backdropFilter: 'blur(12px)',
-};
 
 const detailTemplate = (item, isSelected) => {
     // --- Empty State ---
     if (!item) {
         return html`
-            <div
-                class="h-full flex flex-col items-center justify-center text-slate-400 p-8 text-center relative overflow-hidden"
-            >
-                <!-- Ambient Background -->
-                <div
-                    class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-blue-500/5 rounded-full blur-[80px] pointer-events-none animate-pulse-slow"
-                ></div>
-
-                <div class="relative z-10 flex flex-col items-center">
-                    <div
-                        class="p-6 rounded-full bg-slate-800 border border-slate-800/30 mb-6 shadow-[0_0_30px_#3b82f6/10]"
-                    >
-                        <div class="text-blue-400 scale-150">
-                            ${icons.activity}
-                        </div>
-                    </div>
-                    <div
-                        class="text-lg font-bold uppercase tracking-widest text-slate-100 mb-2"
-                    >
-                        Awaiting Selection
-                    </div>
-                    <div
-                        class="text-xs opacity-60 max-w-[200px] leading-relaxed"
-                    >
-                        Hover over any element in the manifest to inspect its
-                        properties and analyze its behavior.
-                    </div>
+            <div class="h-full flex flex-col bg-[#06090f]">
+                <div class="shrink-0 px-4 py-3 border-b border-white/5">
+                    <p class="mono text-[10px] text-slate-500">inspector</p>
+                </div>
+                <div class="p-4">
+                    <p class="mono text-[11px] text-slate-600 leading-relaxed">
+                        hover or select any element in the manifest to inspect it.
+                    </p>
                 </div>
             </div>
         `;
@@ -57,7 +29,7 @@ const detailTemplate = (item, isSelected) => {
     // Raw value lives inline in the header now (space saver); click copies it.
     const handleCopyRaw = () => {
         if (attributeValue !== null && attributeValue !== undefined) {
-            copyTextToClipboard(String(attributeValue), 'Raw value copied!');
+            copyTextToClipboard(String(attributeValue), 'value copied');
         }
     };
 
@@ -76,7 +48,10 @@ const detailTemplate = (item, isSelected) => {
     /** @type {import('../../domain/smart-badge-system.js').SmartDetails | null} */
     let smartDetails = null;
 
-    if (item.type === 'attribute') {
+    // Global SMART kill-switch: when disabled, the sidebar shows raw
+    // values + static descriptions only (no Smart Analysis section).
+    const smartTagsEnabled = item.context?.smartTagsEnabled !== false;
+    if (item.type === 'attribute' && smartTagsEnabled) {
         const context = item.context || {};
         smartToken = renderSmartToken(
             item.key,
@@ -87,7 +62,9 @@ const detailTemplate = (item, isSelected) => {
             context.pto,
             context.spd,
             context.now,
-            context.isSpdActive
+            context.isSpdActive,
+            {},
+            true
         );
         // Resolve the S-aggregator parent first: when it renders alongside
         // as PARENT CONTEXT, the child d/t/r panel slims down to its own
@@ -128,11 +105,38 @@ const detailTemplate = (item, isSelected) => {
             // @ts-ignore
             smartDetails.parentSmartDetails = parentDetails;
         }
-    } else if (item.type === 'tag') {
+    } else if (item.type === 'tag' && smartTagsEnabled) {
         const context = item.context || {};
 
-        // Check if this tag has a smart badge (e.g. 'S')
-        if (item.key === 'S') {
+        // Check if this tag has a smart badge (S, SegmentTimeline, Period)
+        if (item.key === 'Period') {
+            // Tag items carry NO value (attributes live in
+            // context.allAttributes). Pass null so getDetails can't
+            // stringify an attribute map into "[object Object]".
+            smartDetails = getSmartTokenDetails(
+                'Period',
+                null,
+                context.timescale,
+                context.anchorTime,
+                context.pto,
+                context.allAttributes,
+                context.spd,
+                context.now,
+                context.isSpdActive,
+                false,
+                { periodRollup: context.periodRollup || null }
+            );
+            // A Period tag with no computable rollup (SegmentBase/List
+            // periods, or timelines the accumulator skipped) has no
+            // Smart Analysis — fall back to nothing, never [object].
+            if (
+                smartDetails &&
+                typeof smartDetails.parsedValue !== 'string' &&
+                !smartDetails.tooltipHtml
+            ) {
+                smartDetails = null;
+            }
+        } else if (item.key === 'S') {
             smartDetails = getSmartTokenDetails(
                 'S',
                 context.allAttributes,
@@ -142,68 +146,69 @@ const detailTemplate = (item, isSelected) => {
                 context.allAttributes,
                 context.spd,
                 context.now,
-                context.isSpdActive
+                context.isSpdActive,
+                false,
+                {
+                    sSiblings: context.sSiblings || null,
+                    sRunIndex: context.sRunIndex ?? 0,
+                    periodStartSec: context.periodStartSec ?? null,
+                }
+            );
+        } else if (item.key === 'SegmentTimeline') {
+            smartDetails = getSmartTokenDetails(
+                'SegmentTimeline',
+                null,
+                context.timescale,
+                context.anchorTime,
+                context.pto,
+                context.allAttributes,
+                context.spd,
+                context.now,
+                context.isSpdActive,
+                false,
+                { runs: context.runs || [] }
             );
         }
     }
 
     // --- Type Badge Logic ---
     const isTag = item.type === 'tag';
-    const typeLabel = isTag ? 'Element' : 'Attribute';
-    const typeColorClass = isTag
-        ? 'text-purple-300 bg-purple-500/10 border-purple-500/20'
-        : 'text-blue-400 bg-blue-500/10 border-blue-500/20';
+    const typeLabel = isTag ? 'element' : 'attribute';
 
     return html`
-        <div
-            class="h-full flex flex-col relative overflow-hidden"
-        >
-            <!-- Ambient Background (Local to card) -->
-            <div
-                class="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-[100px] pointer-events-none -mr-32 -mt-32"
-            ></div>
-
-            <!-- Header -->
-            <div
-                class="relative z-10 p-5 border-b border-slate-800/30 backdrop-blur-xl shrink-0"
-            >
-                <div class="flex justify-between items-start mb-3">
-                    <span
-                        class="px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest border ${typeColorClass} shadow-[0_0_15px_rgba(0,0,0,0.2)]"
-                    >
-                        ${typeLabel}
-                    </span>
+        <div class="h-full flex flex-col bg-[#06090f] min-h-0">
+            <div class="shrink-0 px-4 py-3 border-b border-white/5">
+                <div class="flex justify-between items-center">
+                    <p class="mono text-[10px] text-slate-500">${typeLabel}</p>
                     ${isSelected
             ? html`
                               <button
                                   @click=${handleClear}
-                                  class="p-1 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all duration-300"
-                                  title="Clear Selection"
+                                  class="p-1 rounded text-slate-500 hover:text-slate-100 hover:bg-white/5 transition-colors"
+                                  title="Clear selection"
+                                  aria-label="Clear selection"
                               >
-                                  ${icons.xCircle}
+                                  ${icons.x}
                               </button>
                           `
             : ''}
                 </div>
 
-                <div class="space-y-1">
-                    <div class="flex items-center gap-3">
+                <div>
+                    <div class="flex items-center gap-2.5 min-w-0">
                         <h2
-                            class="text-2xl font-black text-slate-100 tracking-tight break-all leading-none drop-shadow-sm shrink-0"
+                            class="text-[15px] font-medium text-slate-100 break-all leading-snug min-w-0"
                         >
                             ${title}
                         </h2>
                         ${smartToken
-            ? html`<div
-                                  class="scale-110 origin-left drop-shadow-lg shrink-0"
-                              >
-                                  ${smartToken}
-                              </div>`
+            ? html`<span class="shrink-0">${smartToken}</span>`
             : ''}
+                    </div>
                         ${attributeValue
             ? html`<span
                                   @click=${handleCopyRaw}
-                                  class="min-w-0 flex-1 truncate text-right font-mono text-sm text-slate-300 cursor-pointer hover:text-slate-100 transition-colors"
+                                  class="min-w-0 flex-1 truncate text-right mono text-[13px] text-slate-300 cursor-pointer hover:text-slate-100 transition-colors"
                                   >"${attributeValue}"</span
                               >`
             : ''}
@@ -211,30 +216,16 @@ const detailTemplate = (item, isSelected) => {
 
                     ${subtitle
             ? html`
-                              <div
-                                  class="flex items-center gap-2 text-sm text-slate-400 font-medium"
-                              >
-                                  <span class="opacity-50">parent</span>
-                                  <div
-                                      class="flex items-center gap-1 text-purple-300"
-                                  >
-                                      <span class="opacity-50">&lt;</span>
-                                      <span class="font-mono font-bold"
-                                          >${subtitle}</span
-                                      >
-                                      <span class="opacity-50">&gt;</span>
-                                  </div>
-                              </div>
+                              <p class="mono text-[11px] text-slate-600 mt-1">
+                                  in &lt;${subtitle}&gt;
+                              </p>
                           `
             : ''}
                     ${item.info?.text
             ? html`
-                              <p
-                                  class="text-xs text-slate-400 leading-relaxed"
-                              >
+                              <p class="text-[13px] text-slate-400 leading-relaxed mt-2">
                                   ${item.info.text}
-                                  <span
-                                      class="whitespace-nowrap font-mono text-[10px] text-blue-400/70"
+                                  <span class="whitespace-nowrap mono text-[10px] text-slate-600"
                                       >· ${item.info?.isoRef || 'ISO/IEC 23009-1'}</span
                                   >
                               </p>
@@ -243,27 +234,16 @@ const detailTemplate = (item, isSelected) => {
                 </div>
             </div>
 
-            <!-- Scrollable Content -->
-            <div
-                class="relative z-10 p-5 space-y-5 overflow-y-auto grow min-h-0 custom-scrollbar"
-            >
-                <!-- 1. Smart Analysis Section (If available) -->
+            <div class="p-4 space-y-4 overflow-y-auto grow min-h-0 custom-scrollbar">
                 ${smartDetails &&
             (smartDetails.tooltipHtml ||
                 smartDetails.parsedValue ||
                 smartDetails.parentSmartDetails)
             ? html`
-                          <div class="animate-fadeIn">
-                              <div class="flex items-center gap-2 mb-2">
-                                  <span class="text-teal-300"
-                                      >${icons.cpu}</span
-                                  >
-                                  <h3
-                                      class="text-xs font-bold text-slate-400 uppercase tracking-widest"
-                                  >
-                                      Smart Analysis
-                                  </h3>
-                              </div>
+                          <div>
+                              <h3 class="mono text-[10px] text-slate-500 mb-2">
+                                  smart analysis
+                              </h3>
 
                               <!-- Current Item Details -->
                               ${smartDetails.tooltipHtml ||
@@ -278,18 +258,18 @@ const detailTemplate = (item, isSelected) => {
                             )
                             : html`
                                                       <div
-                                                          class="bg-slate-800 rounded-xl p-3 border border-slate-800/50 shadow-sm"
+                                                          class="bg-[#0b111c] rounded-md p-3 border border-white/5"
                                                       >
-                                                          <div
-                                                              class="text-[9px] uppercase tracking-wider text-slate-400 font-bold mb-1"
+                                                          <p
+                                                              class="mono text-[10px] text-slate-600 mb-1"
                                                           >
-                                                              Parsed Value
-                                                          </div>
-                                                          <div
-                                                              class="text-blue-400 font-mono text-lg font-bold tracking-tight"
+                                                              parsed value
+                                                          </p>
+                                                          <p
+                                                              class="text-slate-100 mono text-[13px]"
                                                           >
                                                               ${smartDetails.parsedValue}
-                                                          </div>
+                                                          </p>
                                                       </div>
                                                   `}
                                         </div>
@@ -299,19 +279,12 @@ const detailTemplate = (item, isSelected) => {
                               <!-- Parent Context Details (e.g. S Tag Aggregator) -->
                               ${smartDetails.parentSmartDetails
                     ? html`
-                                        <div class="relative">
-                                            <div
-                                                class="absolute -left-3 top-0 bottom-0 w-0.5 bg-slate-800/30"
-                                            ></div>
-                                            <div
-                                                class="mb-1 text-[9px] font-bold uppercase tracking-widest text-slate-400 opacity-70 pl-2"
+                                        <div class="border-l border-white/10 pl-3">
+                                            <p
+                                                class="mono text-[10px] text-slate-600 mb-1"
                                             >
-                                                Parent Context
-                                                (${item.parentTag})
-                                            </div>
-                                            <div
-                                                class="sidebar-tooltip-content pl-2"
-                                            >
+                                                parent context (${item.parentTag})
+                                            </p>
                                                 ${smartDetails
                             .parentSmartDetails
                             .tooltipHtml
@@ -322,10 +295,10 @@ const detailTemplate = (item, isSelected) => {
                             )
                             : html`
                                                           <div
-                                                              class="bg-slate-800 rounded-xl p-3 border border-slate-800/50 shadow-sm"
+                                                              class="bg-[#0b111c] rounded-md p-3 border border-white/5"
                                                           >
-                                                              <div
-                                                                  class="text-blue-400 font-mono text-sm font-bold"
+                                                              <p
+                                                                  class="text-slate-100 mono text-[13px]"
                                                               >
                                                                   ${smartDetails
                                     .parentSmartDetails
@@ -333,7 +306,7 @@ const detailTemplate = (item, isSelected) => {
                                 smartDetails
                                     .parentSmartDetails
                                     .label}
-                                                              </div>
+                                                              </p>
                                                           </div>
                                                       `}
                                             </div>
@@ -398,16 +371,7 @@ export class InteractiveManifestSidebar extends HTMLElement {
         }
 
         const template = html`
-            <div
-                class="flex flex-col h-full overflow-hidden"
-                style=${styleMap({
-            ...layoutCardStyles,
-            // Use a slightly heavier glass for the sidebar
-            background: '#1e293b',
-            // Ensure full height
-            height: '100%',
-        })}
-            >
+            <div class="flex flex-col h-full min-h-0 overflow-hidden bg-[#06090f]">
                 ${detailTemplate(itemToDisplay, isSelected)}
             </div>
         `;

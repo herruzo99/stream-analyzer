@@ -158,18 +158,18 @@ export const hlsDeltaVisualizerTemplate = (update) => {
 
     return html`
         <div
-            class="h-full flex flex-col bg-slate-800 w-full min-w-0"
+            class="h-full flex flex-col bg-white/5 w-full min-w-0"
             style="border-radius: 0.75rem; overflow: hidden; backdrop-filter: blur(12px); box-shadow: 0 8px 30px rgb(0 0 0 / 0.35);"
         >
             <div
-                class="p-2 border-b border-slate-800 flex items-center justify-between bg-slate-800 shrink-0"
+                class="p-2 border-b border-white/10 flex items-center justify-between bg-white/5 shrink-0"
             >
                 <div class="flex items-center gap-2">
                     <span class="text-amber-400 scale-75"
                         >${icons.history}</span
                     >
                     <h4
-                        class="text-[10px] font-bold text-slate-400 uppercase tracking-wider"
+                        class="text-[10px] font-bold text-slate-400 r"
                     >
                         Sliding Window
                     </h4>

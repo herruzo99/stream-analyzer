@@ -264,7 +264,7 @@ export class VirtualTimelineGrid extends HTMLElement {
         // Corner
         const corner = html`
             <div
-                class="sticky left-0 z-50 bg-slate-800 backdrop-blur-md border-r border-slate-800 shrink-0"
+                class="sticky left-0 z-50 bg-white/5 border-r border-white/10 shrink-0"
                 style="width: ${headerWidth}px;"
             ></div>
         `;
@@ -287,9 +287,7 @@ export class VirtualTimelineGrid extends HTMLElement {
 
             ticks.push(html`
                 <div
-                    class="absolute top-0 bottom-0 border-l ${isMajor
-                    ? 'border-slate-800 h-full'
-                    : 'border-slate-800/30 h-2'}"
+                    class="absolute top-0 bottom-0 border-l ${isMajor ? 'border-white/10 h-full' : 'border-white/10 h-2'}"
                     style="left: ${left}px;"
                 >
                     ${isMajor
@@ -304,7 +302,7 @@ export class VirtualTimelineGrid extends HTMLElement {
 
         const header = html`
             <div
-                class="sticky top-0 z-40 flex bg-slate-800 backdrop-blur-md border-b border-slate-800 h-[28px] shrink-0 shadow-sm"
+                class="sticky top-0 z-40 flex bg-white/5 border-b border-white/10 h-[28px] shrink-0"
             >
                 ${corner}
                 <div class="relative h-full grow">${ticks}</div>

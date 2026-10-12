@@ -41,7 +41,8 @@ function withHeuxIcon(item) {
 export function getShellNavigationGroups() {
     const { streams, activeStreamId, segmentsForCompare } =
         useAnalysisStore.getState();
-    const { activeSegmentUrl } = useUiStore.getState();
+    const { activeSegmentUrl, adDetectionPreferences, segmentMatrixClickMode } =
+        useUiStore.getState();
     const { jobs } = useQualityStore.getState();
 
     const jobList = Array.from(jobs.values());
@@ -70,7 +71,12 @@ export function getShellNavigationGroups() {
         qcBadgeColor = 'bg-emerald-500';
     }
 
-    const activeStream = streams.find((stream) => stream.id === activeStreamId);
+    const activeStream =
+        streams.find((stream) => stream.id === activeStreamId) ?? streams[0];
+    const filteredAdAvails = (activeStream?.adAvails || []).filter((a) => {
+        if (a.id === 'unconfirmed-inband-scte35') return true;
+        return adDetectionPreferences?.[a.detectionMethod] ?? true;
+    });
     const hasComplianceIssues =
         activeStream?.manifestUpdates?.[0]?.complianceResults?.some(
             (result) => result.status === 'fail'
@@ -97,6 +103,10 @@ export function getShellNavigationGroups() {
                     visible: streams.length > 1,
                     badge: streams.length > 1 ? String(streams.length) : null,
                     badgeColor: 'bg-slate-700',
+                    unavailableReason:
+                        streams.length > 1
+                            ? null
+                            : 'Needs two or more analyzed streams',
                 },
                 {
                     key: 'compliance',
@@ -144,10 +154,21 @@ export function getShellNavigationGroups() {
                 },
                 {
                     key: 'segment-comparison',
-                    label: 'Segment Comparison',
+                    label: 'Comparisons',
                     icon: icons.comparison,
-                    visible: false,
-                    available: segmentsForCompare.length > 0,
+                    visible:
+                        segmentMatrixClickMode === 'compare' ||
+                        segmentsForCompare.length > 0,
+                    badge:
+                        segmentsForCompare.length > 0
+                            ? String(segmentsForCompare.length)
+                            : null,
+                    badgeColor: 'bg-purple-600',
+                    unavailableReason:
+                        segmentMatrixClickMode === 'compare' ||
+                        segmentsForCompare.length > 0
+                            ? null
+                            : 'Select segments to compare first',
                 },
                 {
                     key: 'interactive-segment',
@@ -156,6 +177,9 @@ export function getShellNavigationGroups() {
                     visible: !!activeSegmentUrl,
                     badge: activeSegmentUrl ? 'Active' : null,
                     badgeColor: 'bg-blue-600',
+                    unavailableReason: activeSegmentUrl
+                        ? null
+                        : 'Select a segment to inspect its bitstream',
                 },
                 {
                     key: 'timeline',
@@ -180,8 +204,15 @@ export function getShellNavigationGroups() {
                     label: 'Live Updates',
                     icon: icons.updates,
                     visible: activeStream?.manifest?.type === 'dynamic',
-                    badge: 'LIVE',
-                    badgeColor: 'bg-red-600 animate-pulse',
+                    badge:
+                        activeStream?.manifest?.type === 'dynamic'
+                            ? 'LIVE'
+                            : null,
+                    badgeColor: 'bg-red-600',
+                    unavailableReason:
+                        activeStream?.manifest?.type === 'dynamic'
+                            ? null
+                            : 'Only live (dynamic) manifests update',
                 },
             ].map(withHeuxIcon),
         },
@@ -194,6 +225,9 @@ export function getShellNavigationGroups() {
                     label: 'Player Sim',
                     icon: icons.play,
                     visible: !!activeStream?.originalUrl,
+                    unavailableReason: activeStream?.originalUrl
+                        ? null
+                        : 'Needs a stream URL (unavailable for local files)',
                 },
                 {
                     key: 'multi-player',
@@ -217,8 +251,8 @@ export function getShellNavigationGroups() {
                     icon: icons.advertising,
                     visible: true,
                     badge:
-                        (activeStream?.adAvails || []).length > 0
-                            ? String(activeStream.adAvails.length)
+                        filteredAdAvails.length > 0
+                            ? String(filteredAdAvails.length)
                             : null,
                     badgeColor: 'bg-purple-600',
                 },

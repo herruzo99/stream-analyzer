@@ -9,32 +9,32 @@ import { html } from 'lit-html';
 const dashRepresentationCardTemplate = (rep, activeRepId, compositeKey) => {
     const isActive = activeRepId === compositeKey;
     const baseClasses =
-        'p-3 rounded-lg border-2 cursor-pointer transition-colors duration-150 ease-in-out text-left w-full';
+        'p-3 rounded-md border cursor-pointer transition-colors text-left w-full';
     const activeClasses =
-        'bg-blue-500/50 border-blue-500';
+        'border-emerald-400/40 bg-emerald-500/[0.06]';
     const inactiveClasses =
-        'bg-slate-800/50 border-slate-800 hover:border-blue-500/50 hover:bg-slate-800';
+        'border-white/5 bg-white/[0.02] hover:border-white/25';
 
     let details;
     if (rep.contentType === 'video') {
         const resolution =
             rep.width?.value && rep.height?.value
                 ? `${rep.width.value}x${rep.height.value}`
-                : 'N/A';
+                : 'n/a';
         details = html`<span
-            class="text-xs text-slate-400 font-mono"
-            >${formatBitrate(rep.bandwidth)} | ${resolution}</span
+            class="mono text-[11px] text-slate-500"
+            >${formatBitrate(rep.bandwidth)} · ${resolution}</span
         >`;
     } else if (rep.contentType === 'audio') {
         details = html`<span
-            class="text-xs text-slate-400 font-mono"
-            >Lang: ${rep.lang || 'und'} |
+            class="mono text-[11px] text-slate-500"
+            >${rep.lang || 'und'} ·
             ${formatBitrate(rep.bandwidth || 0)}</span
         >`;
     } else {
         details = html`<span
-            class="text-xs text-slate-400 font-mono"
-            >Lang: ${rep.lang || 'und'}</span
+            class="mono text-[11px] text-slate-500"
+            >${rep.lang || 'und'}</span
         >`;
     }
 
@@ -48,9 +48,9 @@ const dashRepresentationCardTemplate = (rep, activeRepId, compositeKey) => {
             class="${baseClasses} ${isActive ? activeClasses : inactiveClasses}"
         >
             <p
-                class="font-semibold text-sm text-slate-200 truncate"
+                class="text-[13px] font-medium text-slate-200 truncate"
             >
-                ID: ${rep.id || 'N/A'}
+                ${rep.id || 'n/a'}
             </p>
             ${rep.label
                 ? html`<p
@@ -86,15 +86,10 @@ const dashAdaptationSetGroupTemplate = (
 
     return html`
         <div class="mt-2">
-            <div
-                class="text-xs font-semibold text-slate-400 px-2 flex items-center gap-2"
-            >
-                <span>${title}:</span>
-                <span class="font-mono text-slate-400"
-                    >${value}</span
-                >
-            </div>
-            <div class="pl-2 pt-2 space-y-2">
+            <p class="mono text-[11px] text-slate-500 px-2">
+                ${title} · ${value}
+            </p>
+            <div class="pl-2 pt-2 space-y-1.5">
                 ${sortedReps.map((rep) => {
                     const compositeKey = `${periodId}-${rep.id}`;
                     return dashRepresentationCardTemplate(
@@ -131,23 +126,23 @@ const dashPeriodGroupTemplate = (period, index, activeRepId, activeTab) => {
                     e.preventDefault();
                     uiActions.toggleSegmentExplorerGroup(groupId);
                 }}
-                class="list-none cursor-pointer flex items-center p-3 rounded-md bg-slate-800 hover:bg-slate-800"
+                class="list-none cursor-pointer flex items-center px-3 py-2.5 rounded-md hover:bg-white/[0.02] transition-colors"
             >
-                <span class="font-bold text-slate-200"
-                    >Period</span
+                <span class="text-[13px] font-medium text-slate-200"
+                    >period</span
                 >
                 <span
-                    class="font-mono text-sm text-slate-400 ml-2"
+                    class="mono text-[11px] text-slate-500 ml-2"
                     >${period.id || `(index ${index})`}</span
                 >
                 <span
-                    class="ml-auto text-slate-400 transition-transform duration-200 group-open:rotate-90"
+                    class="ml-auto text-slate-600 transition-transform duration-200 group-open:rotate-90"
                 >
                     ${icons.chevronDown}
                 </span>
             </summary>
             <div
-                class="pl-3 pt-2 space-y-2 border-l-2 border-slate-800 ml-3"
+                class="pl-3 pt-2 space-y-2 border-l border-white/10 ml-3"
             >
                 ${adaptationSetsForTab.map((as) => {
                     const sortedReps = [...as.representations].sort((a, b) => {
@@ -178,21 +173,21 @@ const dashPeriodGroupTemplate = (period, index, activeRepId, activeTab) => {
 const hlsRepresentationCardTemplate = (rep, activeRepId) => {
     const isActive = activeRepId === rep.id;
     const baseClasses =
-        'p-3 rounded-lg border-2 cursor-pointer transition-colors duration-150 ease-in-out text-left w-full';
+        'p-3 rounded-md border cursor-pointer transition-colors text-left w-full';
     const activeClasses =
-        'bg-blue-500/50 border-blue-500';
+        'border-emerald-400/40 bg-emerald-500/[0.06]';
     const inactiveClasses =
-        'bg-slate-800/50 border-slate-800 hover:border-blue-500/50 hover:bg-slate-800';
+        'border-white/5 bg-white/[0.02] hover:border-white/25';
 
-    let label = 'Unknown';
-    let details = `ID: ${rep.id}`;
+    let label = 'unknown';
+    let details = `${rep.id}`;
     if (rep.contentType === 'video') {
         label = `${rep.height?.value || '?'}p`;
         details = formatBitrate(rep.bandwidth);
     } else if (rep.contentType === 'audio' || rep.contentType === 'text') {
         label =
-            rep.serializedManifest.NAME || rep.lang || `Rendition ${rep.id}`;
-        details = `Lang: ${rep.lang || 'und'}`;
+            rep.serializedManifest.NAME || rep.lang || `rendition ${rep.id}`;
+        details = `${rep.lang || 'und'}`;
     }
 
     return html`
@@ -205,13 +200,13 @@ const hlsRepresentationCardTemplate = (rep, activeRepId) => {
             class="${baseClasses} ${isActive ? activeClasses : inactiveClasses}"
         >
             <p
-                class="font-semibold text-sm text-slate-200 truncate"
+                class="text-[13px] font-medium text-slate-200 truncate"
                 title=${label}
             >
                 ${label}
             </p>
             <p
-                class="text-xs text-slate-400 font-mono truncate"
+                class="mono text-[11px] text-slate-500 truncate"
                 title=${details}
             >
                 ${details}
@@ -233,19 +228,19 @@ const hlsGroupTemplate = (groupTitle, reps, activeRepId, groupType) => {
                     e.preventDefault();
                     uiActions.toggleSegmentExplorerGroup(groupId);
                 }}
-                class="list-none cursor-pointer flex items-center p-3 rounded-md bg-slate-800 hover:bg-slate-800"
+                class="list-none cursor-pointer flex items-center px-3 py-2.5 rounded-md hover:bg-white/[0.02] transition-colors"
             >
-                <span class="font-bold text-slate-200"
+                <span class="text-[13px] font-medium text-slate-200"
                     >${groupTitle}</span
                 >
                 <span
-                    class="ml-auto text-slate-400 transition-transform duration-200 group-open:rotate-90"
+                    class="ml-auto text-slate-600 transition-transform duration-200 group-open:rotate-90"
                 >
                     ${icons.chevronDown}
                 </span>
             </summary>
             <div
-                class="pl-3 pt-2 space-y-2 border-l-2 border-slate-800 ml-3"
+                class="pl-3 pt-2 space-y-1.5 border-l border-white/10 ml-3"
             >
                 ${reps.map((rep) =>
                     hlsRepresentationCardTemplate(rep, activeRepId)
@@ -370,13 +365,13 @@ export const representationSelectorTemplate = (stream) => {
     }
 
     return html`
-        <div class="flex flex-col h-full">
-            <header class="p-3 border-b border-slate-800 shrink-0">
-                <h3 class="font-bold text-slate-200">
-                    Representations
-                </h3>
-            </header>
-            <div class="shrink-0 px-2 pt-2">
+        <div class="flex flex-col h-full min-h-0 bg-[#06090f]">
+            <div class="shrink-0 px-4 py-3 border-b border-white/5">
+                <p class="mono text-[10px] text-slate-500">
+                    representations
+                </p>
+            </div>
+            <div class="shrink-0 px-3 pt-2">
                 ${availableTabs.length > 0
                     ? connectedTabBar(
                           availableTabs,
@@ -391,7 +386,7 @@ export const representationSelectorTemplate = (stream) => {
                       )
                     : ''}
             </div>
-            <div class="grow overflow-y-auto p-2 space-y-2">${content}</div>
+            <div class="grow min-h-0 overflow-y-auto custom-scrollbar p-3 space-y-1.5">${content}</div>
         </div>
     `;
 };

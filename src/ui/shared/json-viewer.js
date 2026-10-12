@@ -8,7 +8,7 @@ const renderValue = (value) => {
     if (value === null)
         return html`<span class="text-red-400">null</span>`;
     if (type === 'boolean')
-        return html`<span class="text-purple-400"
+        return html`<span class="text-slate-300"
             >${value ? 'true' : 'false'}</span
         >`;
     if (type === 'number')
@@ -22,7 +22,7 @@ const renderValue = (value) => {
                 <a
                     href="${value}"
                     target="_blank"
-                    class="ml-2 text-blue-400 hover:text-slate-100 text-[10px] no-underline"
+                    class="ml-2 text-emerald-200 hover:text-slate-100 text-[10px] no-underline"
                     >↗</a
                 >`;
         }
@@ -53,7 +53,7 @@ const renderNode = (key, value, depth, isLast) => {
                 style="margin-left: ${indent}px"
             >
                 ${key
-                    ? html`<span class="text-blue-300 mr-1"
+                    ? html`<span class="text-emerald-200 mr-1"
                           >"${key}":</span
                       >`
                     : ''}
@@ -78,7 +78,7 @@ const renderNode = (key, value, depth, isLast) => {
                 style="margin-left: ${indent}px"
             >
                 ${key
-                    ? html`<span class="text-blue-300"
+                    ? html`<span class="text-emerald-200"
                           >"${key}":</span
                       >`
                     : ''}
@@ -98,13 +98,13 @@ const renderNode = (key, value, depth, isLast) => {
                     >▶</span
                 >
                 ${key
-                    ? html`<span class="text-blue-300 mr-1"
+                    ? html`<span class="text-emerald-200 mr-1"
                           >"${key}":</span
                       >`
                     : ''}
                 <span class="text-slate-400">${openChar}</span>
                 <span
-                    class="ml-2 text-[10px] text-slate-400 bg-slate-800 px-1 rounded hidden group-open:none group-[&:not([open])]:inline-block"
+                    class="ml-2 text-[10px] text-slate-400 bg-white/5 px-1 rounded hidden group-open:none group-[&:not([open])]:inline-block"
                     >${itemCount} items...</span
                 >
                 <span
@@ -134,7 +134,7 @@ const renderNode = (key, value, depth, isLast) => {
 export const jsonViewerTemplate = (json) => {
     return html`
         <div
-            class="p-4 bg-slate-950 rounded-lg overflow-auto custom-scrollbar"
+            class="p-4 bg-slate-950 rounded-md overflow-auto custom-scrollbar"
         >
             ${renderNode(null, json, 0, true)}
         </div>

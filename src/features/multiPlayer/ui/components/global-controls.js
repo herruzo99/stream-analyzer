@@ -29,7 +29,7 @@ const globalControlsTemplate = ({
     isAutoResetEnabled,
 }) => {
     const selectClasses =
-        'bg-slate-800 text-slate-100 rounded-md p-1 text-sm border border-slate-800 w-full max-w-[10rem] disabled:opacity-50 disabled:cursor-not-allowed';
+        'bg-white/5 text-slate-100 rounded-md p-1 text-sm border border-white/10 w-full max-w-[10rem] disabled:opacity-50 disabled:cursor-not-allowed';
 
     const isDisabled = selectedCount === 0;
     const headerText = `Selection Settings (${selectedCount})`;
@@ -54,9 +54,7 @@ const globalControlsTemplate = ({
             </div>
 
             <div
-                class="space-y-3 p-3 bg-slate-800 rounded-md ${isDisabled
-                    ? 'opacity-50 pointer-events-none'
-                    : ''}"
+                class="space-y-3 p-3 bg-white/5 rounded-md ${isDisabled ? 'opacity-50 pointer-events-none' : ''}"
             >
                 <h5
                     class="text-sm font-semibold text-slate-400 mb-2"
@@ -73,14 +71,10 @@ const globalControlsTemplate = ({
                         class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
                     >
                         <span
-                            class="absolute inset-0 rounded-full ${state.globalAbrEnabled
-                                ? 'bg-blue-500'
-                                : 'bg-slate-800'}"
+                            class="absolute inset-0 rounded-full ${state.globalAbrEnabled ? 'bg-emerald-500/10' : 'bg-white/5'}"
                         ></span>
                         <span
-                            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${state.globalAbrEnabled
-                                ? 'translate-x-6'
-                                : 'translate-x-1'}"
+                            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${state.globalAbrEnabled ? 'translate-x-6' : 'translate-x-1'}"
                         ></span>
                     </button>
                 </labeled-control-component>
@@ -99,7 +93,7 @@ const globalControlsTemplate = ({
                                       }
                                   )}
                               .value=${String(state.globalMaxHeight)}
-                              class=${selectClasses}
+class=${selectClasses}
                               ?disabled=${isDisabled}
                           >
                               ${RESOLUTION_OPTIONS.map(
@@ -123,7 +117,7 @@ const globalControlsTemplate = ({
                                   )}
                               ?disabled=${isDisabled}
                               ?disabled=${isDisabled}
-                              class="bg-slate-800 hover:bg-slate-800 text-slate-100 rounded-md p-1 text-sm border border-slate-800 w-full max-w-[10rem] flex justify-between items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                              class="bg-white/5 hover:bg-white/10 text-slate-100 rounded-md p-1 text-sm border border-white/10 w-full max-w-[10rem] flex justify-between items-center disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                               <span>Select Quality...</span>
                               <svg
@@ -150,7 +144,7 @@ const globalControlsTemplate = ({
                                     lang: e.target.value,
                                 }
                             )}
-                        class=${selectClasses}
+class=${selectClasses}
                         ?disabled=${isDisabled}
                     >
                         <option value="">Auto (Default)</option>
@@ -163,9 +157,7 @@ const globalControlsTemplate = ({
             </div>
 
             <div
-                class="space-y-3 p-3 bg-slate-800 rounded-md ${isDisabled
-                    ? 'opacity-50 pointer-events-none'
-                    : ''}"
+                class="space-y-3 p-3 bg-white/5 rounded-md ${isDisabled ? 'opacity-50 pointer-events-none' : ''}"
             >
                 <h5
                     class="text-sm font-semibold text-slate-400 mb-2"
@@ -182,7 +174,7 @@ const globalControlsTemplate = ({
                                 }
                             )}
                         .value=${String(state.globalBandwidthCap)}
-                        class=${selectClasses}
+class=${selectClasses}
                         ?disabled=${isDisabled}
                     >
                         ${BANDWIDTH_CAP_OPTIONS.map(
@@ -195,7 +187,7 @@ const globalControlsTemplate = ({
                 </labeled-control-component>
             </div>
 
-            <div class="space-y-3 p-3 bg-slate-800 rounded-md">
+            <div class="space-y-3 p-3 bg-white/5 rounded-md">
                 <h5
                     class="text-sm font-semibold text-slate-400 mb-2"
                 >
@@ -213,14 +205,10 @@ const globalControlsTemplate = ({
                         class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
                     >
                         <span
-                            class="absolute inset-0 rounded-full ${isAutoResetEnabled
-                                ? 'bg-blue-500'
-                                : 'bg-slate-800'}"
+                            class="absolute inset-0 rounded-full ${isAutoResetEnabled ? 'bg-emerald-500/10' : 'bg-white/5'}"
                         ></span>
                         <span
-                            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isAutoResetEnabled
-                                ? 'translate-x-6'
-                                : 'translate-x-1'}"
+                            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isAutoResetEnabled ? 'translate-x-6' : 'translate-x-1'}"
                         ></span>
                     </button>
                 </labeled-control-component>

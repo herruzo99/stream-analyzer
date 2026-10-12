@@ -78,12 +78,12 @@ class DrmInspectorModal extends HTMLElement {
             <div class="p-6 space-y-6">
                  <!-- Input Section -->
                 <div class="space-y-2">
-                    <label class="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    <label class="text-xs font-bold r text-slate-400">
                         Base64 PSSH Data
                     </label>
                     <div class="relative group">
                         <textarea
-                            class="w-full h-32 bg-slate-800 text-slate-100 font-mono text-xs p-4 rounded-xl border border-slate-800 focus:border-blue-500 focus:ring-blue-500 outline-none resize-none transition-all shadow-inner placeholder-slate-400/50"
+                            class="w-full h-32 bg-white/5 text-slate-100 font-mono text-xs p-4 rounded-md border border-white/10 focus:border-emerald-400/25 focus:ring-emerald-400/25 outline-none resize-none transition-all placeholder-slate-400/50"
                             placeholder="Paste PSSH data here..."
                             .value=${this.psshData}
                             @input=${(e) => { this.psshData = e.target.value; }}
@@ -91,7 +91,7 @@ class DrmInspectorModal extends HTMLElement {
                         <div class="absolute bottom-3 right-3 flex gap-2">
                             <button 
                                 @click=${() => { this.psshData = ''; this.render(); }}
-                                class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-800 transition-colors"
+                                class="p-1.5 rounded-md text-slate-400 hover:bg-white/10 transition-colors"
                                 title="Clear"
                             >
                                 ${icons.trash}
@@ -104,7 +104,7 @@ class DrmInspectorModal extends HTMLElement {
                 <div class="flex justify-end">
                     <button
                         @click=${() => this.parsePssh()}
-                        class="px-6 py-2 bg-blue-500/10 hover:bg-blue-500 text-blue-400 hover:text-white rounded-lg font-bold text-sm transition-all border border-blue-500/20 hover:border-transparent flex items-center gap-2"
+                        class="px-6 py-2 bg-emerald-500/10 hover:bg-emerald-500/10 text-emerald-200 hover:text-white rounded-md font-bold text-sm transition-all border border-emerald-400/25 hover:border-transparent flex items-center gap-2"
                     >
                         ${icons.search} Decode PSSH
                     </button>
@@ -112,33 +112,33 @@ class DrmInspectorModal extends HTMLElement {
 
                 <!-- Results -->
                 ${this.parsedSystem ? html`
-                    <div class="animate-fadeIn space-y-4">
+                    <div class="space-y-4">
                         <div class="flex items-center gap-2 mb-2">
-                            <div class="h-px bg-slate-800 grow"></div>
-                            <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Analysis Results</span>
-                            <div class="h-px bg-slate-800 grow"></div>
+                            <div class="h-px bg-white/5 grow"></div>
+                            <span class="text-[10px] font-bold text-slate-400">Analysis Results</span>
+                            <div class="h-px bg-white/5 grow"></div>
                         </div>
 
                         <div class="grid grid-cols-2 gap-4">
-                            <div class="p-4 rounded-xl bg-slate-800 border border-slate-800">
-                                <div class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">System</div>
-                                <div class="text-lg font-black text-slate-100 flex items-center gap-2">
+                            <div class="p-4 rounded-md bg-white/5 border border-white/10">
+                                <div class="text-[10px] text-slate-400 r mb-1">System</div>
+                                <div class="text-lg font-bold text-slate-100 flex items-center gap-2">
                                     ${icons.shieldCheck} ${this.parsedSystem.systemName}
                                 </div>
                             </div>
-                            <div class="p-4 rounded-xl bg-slate-800 border border-slate-800">
-                                <div class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Data Size</div>
+                            <div class="p-4 rounded-md bg-white/5 border border-white/10">
+                                <div class="text-[10px] text-slate-400 r mb-1">Data Size</div>
                                 <div class="text-lg font-mono font-bold text-slate-100">
                                     ${this.parsedSystem.dataLength} bytes
                                 </div>
                             </div>
                         </div>
 
-                        <div class="p-4 rounded-xl bg-slate-800 border border-slate-800">
-                            <div class="text-[10px] text-slate-400 uppercase tracking-wider mb-2">Extracted Key IDs</div>
+                        <div class="p-4 rounded-md bg-white/5 border border-white/10">
+                            <div class="text-[10px] text-slate-400 r mb-2">Extracted Key IDs</div>
                             <div class="space-y-1">
                                 ${this.parsedSystem.keyIds.map(kid => html`
-                                    <div class="font-mono text-xs text-purple-300 bg-purple-500/10 px-2 py-1 rounded select-all cursor-text">
+                                    <div class="font-mono text-xs text-slate-300 bg-white/5 px-2 py-1 rounded select-all cursor-text">
                                         ${kid}
                                     </div>
                                 `)}
@@ -148,7 +148,7 @@ class DrmInspectorModal extends HTMLElement {
                 ` : ''}
 
                 ${this.error ? html`
-                    <div class="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-3 animate-shake">
+                    <div class="p-4 rounded-md bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-3 animate-shake">
                         ${icons.alertTriangle} ${this.error}
                     </div>
                 ` : ''}

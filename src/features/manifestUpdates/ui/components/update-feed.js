@@ -5,18 +5,18 @@ const updateItemTemplate = (update, isActive, onSelect) => {
     const { sequenceNumber, timestamp, changes, meta } = update;
 
     const activeClasses =
-        'border-blue-500 bg-slate-700';
-    const inactiveClasses = 'border-transparent hover:bg-slate-800';
+        'border-emerald-400/25 bg-white/5';
+    const inactiveClasses = 'border-transparent hover:bg-white/10';
 
     const containerClass = `relative pl-5 py-3 pr-3 border-l-[3px] cursor-pointer transition-all group ${isActive ? activeClasses : inactiveClasses}`;
 
-    const markerClass = `absolute left-[-4.5px] top-4 w-2 h-2 rounded-full transition-all ${isActive ? 'bg-blue-500 ring-4 ring-blue-500/20' : 'bg-slate-300 group-hover:bg-slate-200'}`;
+    const markerClass = `absolute left-[-4.5px] top-4 w-2 h-2 rounded-full transition-all ${isActive ? 'bg-emerald-500/10 ring-4 ring-emerald-400/25' : 'bg-slate-300 group-hover:bg-slate-200'}`;
 
-    const headerTextClass = `font-mono text-sm font-bold ${isActive ? 'text-blue-400' : 'text-slate-100'}`;
+    const headerTextClass = `font-mono text-sm font-bold ${isActive ? 'text-emerald-200' : 'text-slate-100'}`;
 
     // Larger badges
     const badgeClass =
-        'text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-800 font-medium';
+        'text-xs px-2 py-0.5 rounded bg-white/5 text-slate-400 border border-white/10 font-medium';
 
     return html`
         <div class="${containerClass}" @click=${() => onSelect(update.id)}>
@@ -76,11 +76,11 @@ export const updateFeedTemplate = (
     return html`
         <div class="flex flex-col h-full w-full">
             <div
-                class="px-4 py-3 border-b border-slate-800 bg-slate-800 backdrop-blur z-10 text-xs font-bold text-slate-400 uppercase tracking-wider flex justify-between items-center"
+                class="px-4 py-3 border-b border-white/10 bg-white/5 z-10 text-xs font-bold text-slate-400 r flex justify-between items-center"
             >
                 <span>Update History</span>
                 <span
-                    class="bg-slate-800 text-slate-100 px-2 py-0.5 rounded-full"
+                    class="bg-white/5 text-slate-100 px-2 py-0.5 rounded-full"
                     >${updates.length}</span
                 >
             </div>
@@ -94,7 +94,7 @@ export const updateFeedTemplate = (
                               class="flex flex-col items-center justify-center h-48 text-slate-400 italic text-sm gap-2"
                           >
                               <div
-                                  class="p-3 rounded-full bg-slate-800"
+                                  class="p-3 rounded-full bg-white/5"
                               >
                                   ${icons.history}
                               </div>

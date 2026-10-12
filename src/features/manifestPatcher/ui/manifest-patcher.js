@@ -12,6 +12,7 @@ import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { applyPatches } from '../domain/patchService';
 import { PATCH_PRESETS } from '../domain/presets.js';
 import { patchRuleCardTemplate } from './components/patch-rule-card.js';
+import { randomId } from '@/shared/utils/random.js';
 
 class ManifestPatcher extends HTMLElement {
     constructor() {
@@ -117,7 +118,7 @@ class ManifestPatcher extends HTMLElement {
         this.localRules = [
             ...this.localRules,
             {
-                id: crypto.randomUUID(),
+                id: randomId(),
                 type: 'string',
                 target: '',
                 replacement: '',
@@ -157,7 +158,7 @@ class ManifestPatcher extends HTMLElement {
     applyPreset(preset) {
         const newRules = preset.rules.map((r) => ({
             ...r,
-            id: crypto.randomUUID(),
+            id: randomId(),
         }));
         this.localRules = [...this.localRules, ...newRules];
         this.generatePreview();
@@ -176,10 +177,10 @@ class ManifestPatcher extends HTMLElement {
     renderPresetsMenu() {
         return html`
             <div
-                class="dropdown-panel bg-slate-800 backdrop-blur-[blur(12px)] border border-slate-800 rounded-xl shadow-2xl w-72 p-2 ring-1 ring-black/50 pointer-events-auto"
+                class="dropdown-panel bg-white/5 border border-white/10 rounded-md w-72 p-2 ring-1 pointer-events-auto"
             >
                 <div
-                    class="px-3 py-2 border-b border-slate-800 text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1"
+                    class="px-3 py-2 border-b border-white/10 text-[10px] font-bold text-slate-400 mb-1"
                 >
                     Quick Actions
                 </div>
@@ -193,15 +194,15 @@ class ManifestPatcher extends HTMLElement {
                     e.stopPropagation();
                     this.applyPreset(p);
                 }}
-                                class="w-full text-left p-2.5 rounded-lg hover:bg-blue-500/10 hover:border-blue-500/30 border border-transparent transition-all group"
+                                class="w-full text-left p-2.5 rounded-md hover:bg-emerald-500/10 hover:border-emerald-400/50 border border-transparent transition-all group"
                             >
                                 <div
-                                    class="text-xs font-bold text-slate-200 group-hover:text-blue-400"
+                                    class="text-xs font-bold text-slate-200 group-hover:text-emerald-200"
                                 >
                                     ${p.label}
                                 </div>
                                 <div
-                                    class="text-[10px] text-slate-400 group-hover:text-blue-400/70 leading-tight mt-0.5 line-clamp-2"
+                                    class="text-[10px] text-slate-400 group-hover:text-emerald-200/70 leading-tight mt-0.5 line-clamp-2"
                                 >
                                     ${p.description}
                                 </div>
@@ -237,17 +238,17 @@ class ManifestPatcher extends HTMLElement {
 
         const leftPane = html`
             <div
-                class="flex flex-col h-full border-r border-slate-800 bg-slate-800 w-full lg:w-[450px] shrink-0 min-h-0"
+                class="flex flex-col h-full border-r border-white/10 bg-white/5 w-full lg:w-[450px] shrink-0 min-h-0"
             >
                 <div
-                    class="p-4 border-b border-slate-800 flex items-center justify-between bg-transparent shrink-0"
+                    class="p-4 border-b border-white/10 flex items-center justify-between bg-transparent shrink-0"
                 >
                     <h3
                         class="font-bold text-slate-200 flex items-center gap-2 text-sm"
                     >
                         ${icons.slidersHorizontal} Rules
                         <span
-                            class="bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full text-xs font-mono"
+                            class="bg-white/5 text-slate-400 px-2 py-0.5 rounded-full text-xs font-mono"
                             >${this.localRules.length}</span
                         >
                     </h3>
@@ -259,14 +260,14 @@ class ManifestPatcher extends HTMLElement {
                     this.renderPresetsMenu,
                     e
                 )}
-                            class="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-purple-300 transition-colors border border-transparent hover:border-slate-800"
+                            class="p-2 hover:bg-white/5 rounded-md text-slate-400 hover:text-slate-300 transition-colors border border-transparent hover:border-white/10"
                             title="Load Preset"
                         >
                             ${icons.library}
                         </button>
                         <button
                             @click=${() => this.addRule()}
-                            class="flex items-center gap-2 bg-blue-500 hover:bg-[#60a5fa] text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-[0_0_20px_#3b82f6]"
+                            class="flex items-center gap-2 bg-emerald-500/10 hover:bg-[#60a5fa] text-white px-3 py-1.5 rounded-md text-xs font-bold transition-colors"
                         >
                             ${icons.plusCircle} Add Rule
                         </button>
@@ -278,7 +279,7 @@ class ManifestPatcher extends HTMLElement {
                     ${this.localRules.length === 0
                 ? html`
                               <div
-                                  class="flex flex-col items-center justify-center h-48 text-slate-400 border-2 border-dashed border-slate-800 rounded-xl p-6 text-center"
+                                  class="flex flex-col items-center justify-center h-48 text-slate-400 border-2 border-dashed border-white/10 rounded-md p-6 text-center"
                               >
                                   <div class="opacity-50 mb-3 scale-150">
                                       ${icons.code}
@@ -307,11 +308,11 @@ class ManifestPatcher extends HTMLElement {
                 )}
                 </div>
                 <div
-                    class="p-4 border-t border-slate-800 bg-slate-800 z-10 shrink-0"
+                    class="p-4 border-t border-white/10 bg-white/5 z-10 shrink-0"
                 >
                     <button
                         @click=${() => this.commit()}
-                        class="w-full py-3 bg-emerald-500 hover:bg-emerald-500/80 text-white font-bold rounded-xl shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
+                        class="w-full py-3 bg-emerald-500 hover:bg-emerald-500/80 text-white font-bold rounded-md transition-all flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
                     >
                         ${icons.refresh} Apply Patches
                     </button>
@@ -339,7 +340,7 @@ class ManifestPatcher extends HTMLElement {
             // Added whitespace-pre-wrap to handle long lines in raw view
             // prettier-ignore
             contentArea = html`<div
-                class="absolute inset-0 bg-slate-900 overflow-auto custom-scrollbar"
+                class="absolute inset-0 bg-white/5 overflow-auto custom-scrollbar"
             ><pre
                     class="p-6 text-xs font-mono text-slate-400 whitespace-pre-wrap break-all leading-tight w-full"
                 >${unsafeHTML(highlightedHTML)}</pre></div>`;
@@ -347,10 +348,10 @@ class ManifestPatcher extends HTMLElement {
 
         const rightPane = html`
             <div
-                class="flex flex-col h-full min-w-0 bg-slate-800 relative min-h-0 grow"
+                class="flex flex-col h-full min-w-0 bg-white/5 relative min-h-0 grow"
             >
                 <div
-                    class="h-14 flex items-center justify-between px-6 border-b border-slate-700 bg-slate-800 shrink-0 z-20"
+                    class="h-14 flex items-center justify-between px-6 border-b border-white/10 bg-white/5 shrink-0 z-20"
                 >
                     <div class="flex items-center gap-4">
                         <h3 class="font-bold text-slate-100 text-sm">
@@ -359,21 +360,21 @@ class ManifestPatcher extends HTMLElement {
                         ${hasChanges
                 ? html`
                                       <div
-                                          class="flex items-center gap-3 px-3 py-1 bg-slate-800 rounded-full border border-slate-700 text-[10px] font-mono select-none"
+                                          class="flex items-center gap-3 px-3 py-1 bg-white/5 rounded-full border border-white/10 text-[10px] font-mono select-none"
                                       >
                                           <span
                                               class="text-emerald-400 font-bold"
                                               >+${additions}</span
                                           >
                                           <span
-                                              class="w-px h-3 bg-slate-700"
+                                              class="w-px h-3 bg-white/5"
                                           ></span>
                                           <span
                                               class="text-red-400 font-bold"
                                               >-${removals}</span
                                           >
                                           <span
-                                              class="w-px h-3 bg-slate-700"
+                                              class="w-px h-3 bg-white/5"
                                           ></span>
                                           <span
                                               class="text-amber-400 font-bold"
@@ -383,7 +384,7 @@ class ManifestPatcher extends HTMLElement {
                                   `
                 : html`
                                       <span
-                                          class="text-[10px] font-bold text-slate-400 px-2 py-1 bg-slate-800 rounded border border-slate-700 uppercase tracking-wider"
+                                          class="text-[10px] font-bold text-slate-400 px-2 py-1 bg-white/5 rounded border border-white/10 r"
                                           >No changes</span
                                       >
                                   `
@@ -391,17 +392,14 @@ class ManifestPatcher extends HTMLElement {
                     </div>
                     </div>
                     <div
-                        class="flex bg-slate-800 p-1 rounded-lg border border-slate-700"
+                        class="flex bg-white/5 p-1 rounded-md border border-white/10"
                     >
                         <button
                             @click=${() => {
                 this.activeTab = 'preview';
                 this.render();
             }}
-                            class="px-4 py-1 rounded-md text-xs font-bold transition-all ${this.activeTab === 'preview'
-                ? 'bg-slate-900 text-slate-100 shadow-sm'
-                : 'text-slate-400 hover:text-slate-100'
-            }"
+                            class="px-4 py-1 rounded-md text-xs font-bold transition-all ${this.activeTab === 'preview' ? 'bg-white/5 text-slate-100 ' : 'text-slate-400 hover:text-slate-100' }"
                         >
                             Diff
                         </button>
@@ -410,10 +408,7 @@ class ManifestPatcher extends HTMLElement {
                 this.activeTab = 'raw';
                 this.render();
             }}
-                            class="px-4 py-1 rounded-md text-xs font-bold transition-all ${this.activeTab === 'raw'
-                ? 'bg-slate-900 text-slate-100 shadow-sm'
-                : 'text-slate-400 hover:text-slate-100'
-            }"
+                            class="px-4 py-1 rounded-md text-xs font-bold transition-all ${this.activeTab === 'raw' ? 'bg-white/5 text-slate-100 ' : 'text-slate-400 hover:text-slate-100' }"
                         >
                             Result
                         </button>
@@ -427,7 +422,7 @@ class ManifestPatcher extends HTMLElement {
 
         render(
             html`<div
-                class="flex flex-col lg:flex-row h-full w-full bg-slate-800 overflow-hidden rounded-b-xl"
+                class="flex flex-col lg:flex-row h-full w-full bg-white/5 overflow-hidden rounded-b-xl"
             >
                 ${leftPane}${rightPane}
             </div>`,

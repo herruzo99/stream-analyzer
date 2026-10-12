@@ -1,6 +1,20 @@
 import '@/ui/components/virtualized-list';
 import { html } from 'lit-html';
+import { buildPlaylistContext } from '../../../domain/smart-badge-system.js';
 import { renderSmartToken } from '../smart-tokens.js';
+
+// Cache: manifest string identity -> frozen playlist summary. The HLS
+// template re-renders on scroll/poll; rescanning per row would be O(n^2).
+let cachedPlaylistKey = null;
+let cachedPlaylistContext = null;
+const playlistContextFor = (manifestString) => {
+    if (manifestString === cachedPlaylistKey && cachedPlaylistContext) {
+        return cachedPlaylistContext;
+    }
+    cachedPlaylistKey = manifestString;
+    cachedPlaylistContext = buildPlaylistContext(manifestString);
+    return cachedPlaylistContext;
+};
 
 const parseHlsLine = (line) => {
     const trimmed = line.trim();
@@ -41,7 +55,10 @@ const renderLine = (
     isModified,
     activeMatchIndex,
     matchIndices,
-    uriBadgeMap // New: Map of URIs to Labels
+    uriBadgeMap, // New: Map of URIs to Labels
+    smartTagsEnabled = true,
+    playlist = null,
+    ladder = null
 ) => {
     const { type, name, value, attributes, content } = parseHlsLine(
         item.content
@@ -50,15 +67,14 @@ const renderLine = (
 
     const isSelected = selectedItem && selectedItem.path === path;
 
-    // --- Search Highlighting ---
-    let rowBgClass = 'hover:bg-slate-800/30';
+    // --- Search Highlighting: single emerald accent for both
+    // active match and selection; other matches get no wash.
+    let rowBgClass = 'hover:bg-white/[0.02]';
     if (index === activeMatchIndex) {
         rowBgClass =
-            'bg-slate-700 ring-1 ring-amber-500/40';
-    } else if (matchIndices && matchIndices.has(index)) {
-        rowBgClass = 'bg-slate-700';
+            'bg-emerald-500/[0.06] ring-1 ring-emerald-400/30';
     } else if (isModified) {
-        rowBgClass = 'bg-slate-700';
+        rowBgClass = 'bg-white/[0.02]';
     }
 
     let lineContent;
@@ -67,21 +83,23 @@ const renderLine = (
     const baseClass = `block pl-4 whitespace-pre-wrap break-all leading-tight w-full max-w-full`;
 
     const selectClass = isSelected
-        ? 'bg-slate-700 ring-1 ring-blue-500 rounded px-1 inline decoration-clone'
-        : 'hover:bg-slate-800 rounded px-1 transition-colors cursor-pointer inline decoration-clone';
+        ? 'bg-emerald-500/[0.06] ring-1 ring-emerald-400/30 rounded-md px-1 inline decoration-clone'
+        : 'hover:bg-white/[0.02] rounded-md px-1 transition-colors cursor-pointer inline decoration-clone';
 
     // prettier-ignore
     if (type === 'tag' || type === 'tag-value') {
-        const smartToken = value ? renderSmartToken(name, value) : null;
+        const smartToken = value ? renderSmartToken(name, value, null, {}, null, null, null, null, false, { playlist, ladder }, smartTagsEnabled) : null;
         lineContent = html`<div class="${baseClass}"><span
                 class="${selectClass}"
                 data-type="tag"
                 data-name=${name}
                 data-path=${path}
-                ><span class="text-slate-400 select-none">#</span
-                ><span class="text-cyan-300 font-bold">${name}</span>${value
-                ? html`<span class="text-slate-400 select-none">:</span
-                          ><span class="text-emerald-300/90">${value}</span>${smartToken}`
+                data-playlist="${JSON.stringify(playlist)}"
+                data-ladder="${ladder ? JSON.stringify(ladder) : ''}"
+                ><span class="text-slate-500 select-none">#</span
+                ><span class="text-slate-200">${name}</span>${value
+                ? html`<span class="text-slate-500 select-none">:</span
+                          ><span class="text-slate-300">${value}</span>${smartToken}`
                 : ''}</span
             ></div>`;
     } else if (type === 'tag-attrs') {
@@ -97,7 +115,14 @@ const renderLine = (
                 attr.key,
                 attr.value,
                 null,
-                attributesMap
+                attributesMap,
+                null,
+                null,
+                null,
+                null,
+                false,
+                { playlist, ladder },
+                smartTagsEnabled
             );
 
             // --- Smart Variant Badge for Attributes (e.g. URI="...") ---
@@ -107,20 +132,21 @@ const renderLine = (
                 const cleanUri = attr.value.replace(/^"|"$/g, ''); // Strip quotes
                 const badgeData = uriBadgeMap.get(cleanUri);
                 if (badgeData) {
-                    variantBadge = html`<span class="ml-1 px-1.5 py-0.5 rounded bg-slate-700 text-blue-400 border border-blue-500/30 text-[9px] font-bold uppercase tracking-wider select-none align-middle decoration-0 inline-block translate-y-[-1px]">${badgeData.label}</span>`;
+                    variantBadge = html`<span class="ml-1 px-1.5 py-0.5 rounded-md bg-white/[0.03] text-slate-400 border border-white/10 mono text-[10px] select-none align-middle inline-block translate-y-[-1px]">${String(badgeData.label).toLowerCase()}</span>`;
                 }
             }
 
             return html`<span
-                class="group relative cursor-pointer hover:bg-slate-800 rounded pl-1 transition-colors inline decoration-clone"
+                class="group relative cursor-pointer hover:bg-white/[0.02] rounded-md pl-1 transition-colors inline decoration-clone"
                 data-type="attribute"
                 data-name=${attrKey}
                 data-path=${attrPath}
                 data-value="${attr.value}"
-                ><span class="text-sky-300/90 font-semibold"
-                    >${attr.key}</span
+                data-playlist="${JSON.stringify(playlist)}"
+                data-ladder="${ladder ? JSON.stringify(ladder) : ''}"
+                ><span class="text-slate-300">${attr.key}</span
                 ><span class="text-slate-400 select-none">=</span
-                ><span class="text-amber-200/90">"${attr.value}"</span
+                ><span class="text-slate-100">"${attr.value}"</span
                 >${smartToken}${variantBadge}${i < attributes.length - 1
                     ? html`<span class="text-slate-400 select-none mr-1"
                           >,</span
@@ -134,30 +160,32 @@ const renderLine = (
                 data-type="tag"
                 data-name=${name}
                 data-path=${path}
-                ><span class="text-slate-400 select-none">#</span
-                ><span class="text-cyan-300 font-bold">${name}</span
-                ><span class="text-slate-400 select-none">:</span></span
+                data-playlist="${JSON.stringify(playlist)}"
+                data-ladder="${ladder ? JSON.stringify(ladder) : ''}"
+                ><span class="text-slate-500 select-none">#</span
+                ><span class="text-slate-200">${name}</span
+                ><span class="text-slate-500 select-none">:</span></span
             >${attrsHtml}</div>`;
     } else if (type === 'comment') {
-        lineContent = html`<div class="${baseClass} text-slate-500 italic">${content}</div>`;
+        lineContent = html`<div class="${baseClass} text-slate-500">${content}</div>`;
     } else if (type === 'uri') {
         // --- Smart Variant Badge for Standalone URIs ---
         const badgeData = uriBadgeMap?.get(content.trim());
         const badge = badgeData
-            ? html`<span class="ml-3 px-1.5 py-0.5 rounded bg-slate-700 text-purple-300 border border-purple-500/30 text-[9px] font-bold uppercase tracking-wider select-none align-middle decoration-0 inline-block translate-y-[-1px]">${badgeData.label}</span>`
+            ? html`<span class="ml-3 px-1.5 py-0.5 rounded-md bg-white/[0.03] text-slate-400 border border-white/10 mono text-[10px] select-none align-middle inline-block translate-y-[-1px]">${String(badgeData.label).toLowerCase()}</span>`
             : '';
 
-        lineContent = html`<div class="${baseClass} text-amber-200/90">${content}${badge}</div>`;
+        lineContent = html`<div class="${baseClass} text-slate-200">${content}${badge}</div>`;
     } else {
         lineContent = html`<div class="${baseClass}">&nbsp;</div>`;
     }
 
     return html`
         <div
-            class="flex w-full items-start transition-colors font-mono text-sm py-0.5 group ${rowBgClass}"
+            class="flex w-full items-start transition-colors mono text-[13px] py-0.5 group ${rowBgClass}"
         >
             <div
-                class="w-12 shrink-0 text-right pr-2 text-slate-400 select-none text-xs border-r border-slate-700/50 bg-slate-800 pt-0.5 sticky left-0 z-10 h-full"
+                class="w-12 shrink-0 text-right pr-2 text-slate-600 select-none mono text-[11px] border-r border-white/5 pt-0.5 sticky left-0 z-10 h-full"
             >
                 ${item.lineNumber}
             </div>
@@ -174,13 +202,14 @@ export const hlsManifestTemplate = (
     missingTooltips,
     diffModel,
     activeMatchIndex = -1,
-    matchIndices = new Set()
+    matchIndices = new Set(),
+    smartTagsEnabled = true
 ) => {
     if (!manifestString)
         return html`<div
-            class="p-8 text-center text-slate-400"
+            class="p-8 text-center mono text-[11px] text-slate-600"
         >
-            No content.
+            no content
         </div>`;
 
     // --- Build URI Badge Map (Context Awareness) ---
@@ -225,6 +254,32 @@ export const hlsManifestTemplate = (
         content: line,
     }));
 
+    // Playlist-level facts for cross-line badges (TARGETDURATION
+    // ceilings, hold-back multiples, cue windows...). Cached by
+    // manifest string identity inside playlistContextFor.
+    const playlist = playlistContextFor(manifestString);
+
+    // Variant ladder for rank badges (BANDWIDTH/RESOLUTION/CODECS on
+    // master playlists): sorted peer bandwidths + pixel counts derived
+    // once from the parsed variants — no rescans, and the sidebar gets
+    // the same array via data-ladder on each token.
+    let ladder = null;
+    if (stream?.manifest?.isMaster && Array.isArray(stream.manifest.variants)) {
+        const rungs = [];
+        for (const v of stream.manifest.variants) {
+            const a = v.attributes || {};
+            const bw = parseInt(a.BANDWIDTH, 10);
+            const res = String(a.RESOLUTION || '');
+            const m = res.match(/^(\d+)x(\d+)$/);
+            rungs.push({
+                bw: Number.isFinite(bw) ? bw : null,
+                px: m ? parseInt(m[1], 10) * parseInt(m[2], 10) : null,
+                codecs: String(a.CODECS || ''),
+            });
+        }
+        if (rungs.length > 1) ladder = rungs;
+    }
+
     const renderer = (item, index) => {
         const isModified = diffModel && diffModel[index] === 'modified';
         return renderLine(
@@ -236,18 +291,18 @@ export const hlsManifestTemplate = (
             isModified,
             activeMatchIndex,
             matchIndices,
-            uriBadgeMap
+            uriBadgeMap,
+            smartTagsEnabled,
+            playlist,
+            ladder
         );
     };
 
     // Force overflow-x hidden to mandate wrapping at container level
     return html`
         <div
-            class="bg-slate-900 h-full flex flex-col w-full relative"
+            class="bg-transparent h-full flex flex-col w-full relative"
         >
-            <div
-                class="absolute left-0 top-0 bottom-0 w-12 bg-slate-800 border-r border-slate-700/50 z-0 pointer-events-none"
-            ></div>
             <virtualized-list
                 id="manifest-virtual-list"
                 .items=${allLines}

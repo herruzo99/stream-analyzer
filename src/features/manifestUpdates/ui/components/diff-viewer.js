@@ -84,7 +84,7 @@ const renderDiffRow = (line, protocol, hideDeleted) => {
     // The second cell is given w-full to take available space, and min-w-0 to allow shrinking.
     return html`<tr class="${rowClass} font-mono text-xs leading-6 group">
         <td
-            class="w-8 text-right pr-3 select-none opacity-50 border-r border-slate-700 ${markerColor} align-top py-0.5 font-bold shrink-0"
+            class="w-8 text-right pr-3 select-none opacity-50 border-r border-white/10 ${markerColor} align-top py-0.5 font-bold shrink-0"
         >
             ${marker}
         </td>
@@ -106,7 +106,7 @@ export const diffViewerTemplate = (
                 class="h-full flex flex-col items-center justify-center text-slate-400"
             >
                 <div
-                    class="p-4 rounded-full bg-slate-800 mb-3"
+                    class="p-4 rounded-full bg-white/5 mb-3"
                 >
                     ${icons.code}
                 </div>
@@ -123,22 +123,22 @@ export const diffViewerTemplate = (
     const { additions, removals, modifications } = update.changes;
 
     const toggleBtnClass = manifestUpdatesHideDeleted
-        ? 'bg-slate-800 text-slate-100 border-slate-800 shadow-inner shadow-black/20'
-        : 'bg-slate-800 text-slate-400 border-slate-800 hover:border-slate-100 hover:text-slate-100';
+        ? 'bg-white/5 text-slate-100 border-white/10  shadow-black/20'
+        : 'bg-white/5 text-slate-400 border-white/10 hover:border-slate-100 hover:text-slate-100';
 
     const toggleIcon = manifestUpdatesHideDeleted ? icons.eyeOff : icons.eye;
     const toggleText = manifestUpdatesHideDeleted ? 'Hidden' : 'Show Deleted';
 
     return html`
         <div
-            class="flex flex-col h-full w-full bg-slate-800 min-w-0"
+            class="flex flex-col h-full w-full bg-white/5 min-w-0"
             style="border-radius: 0.75rem; overflow: hidden; backdrop-filter: blur(12px); box-shadow: 0 8px 30px rgb(0 0 0 / 0.35);"
         >
             <!-- Control Bar -->
             ${showControls
             ? html`
                       <div
-                          class="flex items-center justify-between px-4 py-3 bg-slate-800 border-b border-slate-800 shrink-0 z-10 shadow-sm min-w-0"
+                          class="flex items-center justify-between px-4 py-3 bg-white/5 border-b border-white/10 shrink-0 z-10 min-w-0"
                       >
                           <div
                               class="flex items-center gap-4 text-xs font-medium overflow-x-auto scrollbar-hide"
@@ -167,7 +167,7 @@ export const diffViewerTemplate = (
                                           <button
                                               @click=${() =>
                             uiActions.toggleManifestUpdatesHideDeleted()}
-                                              class="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all ${toggleBtnClass}"
+                                              class="flex items-center gap-2 px-3 py-1.5 rounded-md border text-[10px] font-bold r transition-all ${toggleBtnClass}"
                                               title="Toggle visibility of removed lines"
                                           >
                                               ${toggleIcon}
@@ -177,7 +177,7 @@ export const diffViewerTemplate = (
                                           </button>
 
                                           <div
-                                              class="w-px h-4 bg-slate-800 mx-1"
+                                              class="w-px h-4 bg-white/5 mx-1"
                                           ></div>
                                       `
                     : ''}
@@ -188,7 +188,7 @@ export const diffViewerTemplate = (
                         update.rawManifest,
                         'Copied!'
                     )}
-                                  class="text-slate-400 hover:text-slate-100 transition-colors p-1.5 hover:bg-slate-800 rounded border border-transparent hover:border-slate-800"
+                                  class="text-slate-400 hover:text-slate-100 transition-colors p-1.5 hover:bg-white/10 rounded border border-transparent hover:border-white/10"
                                   title="Copy Raw Manifest"
                               >
                                   ${icons.clipboardCopy}

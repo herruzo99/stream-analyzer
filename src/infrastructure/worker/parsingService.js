@@ -595,6 +595,11 @@ export async function handleDecryptAndParseSegment(
     );
     if (!response.ok) throw new Error(`HTTP error ${response.status}`);
     const encryptedData = await response.arrayBuffer();
+    if (!self.crypto?.subtle) {
+        throw new Error(
+            'Segment decryption requires a secure context (HTTPS or localhost). '
+        );
+    }
     const cryptoKey = await self.crypto.subtle.importKey(
         'raw',
         key,

@@ -74,20 +74,20 @@ class PlayerRosterComponent extends HTMLElement {
             'rounded-md': true,
             'cursor-pointer': true,
             'transition-colors': true,
-            'hover:bg-slate-800': true,
+            'hover:bg-white/10': true,
             'ring-2': isHovered,
-            'ring-purple-500': isHovered,
-            'bg-slate-800': true,
+            'ring-white/10': isHovered,
+            'bg-white/5': true,
         });
 
         const stateColors = {
             playing: 'bg-emerald-500',
             paused: 'bg-amber-500',
-            buffering: 'bg-blue-500 animate-pulse',
+            buffering: 'bg-emerald-500/10 animate-pulse',
             ended: 'bg-slate-400',
             error: 'bg-red-500',
             loading: 'bg-slate-400 animate-pulse',
-            idle: 'bg-slate-800',
+            idle: 'bg-white/5',
         };
 
         const progressPercent = player.normalizedPlayheadTime * 100;
@@ -104,7 +104,7 @@ class PlayerRosterComponent extends HTMLElement {
 
         return html`
             <div
-                class=${itemClasses}
+class=${itemClasses}
                 @click=${() => this._handleFocusPlayer(player.streamId)}
                 @mouseover=${() => this._handleMouseOver(player.streamId)}
                 @mouseout=${this._handleMouseOut}
@@ -116,7 +116,7 @@ class PlayerRosterComponent extends HTMLElement {
                         @click=${(e) => e.stopPropagation()}
                         @change=${() =>
                             this._handleToggleSelection(player.streamId)}
-                        class="rounded bg-slate-800 border-slate-400 text-blue-400 focus:ring-blue-500 h-5 w-5 shrink-0"
+                        class="rounded bg-white/5 border-slate-400 text-emerald-200 focus:ring-emerald-400/25 h-5 w-5 shrink-0"
                     />
                     <div
                         class="grow font-semibold text-slate-100 truncate text-sm"
@@ -124,26 +124,24 @@ class PlayerRosterComponent extends HTMLElement {
                         ${player.streamName}
                     </div>
                     <div
-                        class="w-3 h-3 rounded-full shrink-0 ${stateColors[
-                            player.state
-                        ] || 'bg-slate-800'}"
+                        class="w-3 h-3 rounded-full shrink-0 ${stateColors[ player.state ] || 'bg-white/5'}"
                         title="Status: ${player.state}"
                     ></div>
                 </div>
                 <div class="mt-2 pl-8">
                     <div
-                        class="w-full bg-slate-800 rounded-full h-2 cursor-pointer relative"
+                        class="w-full bg-white/5 rounded-full h-2 cursor-pointer relative"
                         @click=${(e) => this._handleSeek(e, player)}
                     >
                         <div
-                            class="bg-slate-800 h-2 rounded-full absolute inset-0"
+                            class="bg-white/5 h-2 rounded-full absolute inset-0"
                         ></div>
                         <div
-                            class="bg-blue-500 h-2 rounded-full absolute top-0 left-0"
+                            class="bg-emerald-500/10 h-2 rounded-full absolute top-0 left-0"
                             style="width: ${progressPercent}%"
                         ></div>
                         <div
-                            class="w-3 h-3 bg-blue-500 rounded-full absolute top-1/2 -translate-y-1/2 -translate-x-1/2 transition-transform transform"
+                            class="w-3 h-3 bg-emerald-500/10 rounded-full absolute top-1/2 -translate-y-1/2 -translate-x-1/2 transition-transform transform"
                             style="left: ${progressPercent}%"
                         ></div>
                     </div>
@@ -184,7 +182,7 @@ class PlayerRosterComponent extends HTMLElement {
                             id="select-all-toggle"
                             .checked=${isAllSelected}
                             @change=${this._handleToggleAll}
-                            class="rounded bg-slate-800 border-slate-400 text-blue-400 focus:ring-blue-500 h-5 w-5"
+                            class="rounded bg-white/5 border-slate-400 text-emerald-200 focus:ring-emerald-400/25 h-5 w-5"
                         />
                     </div>
                 </div>

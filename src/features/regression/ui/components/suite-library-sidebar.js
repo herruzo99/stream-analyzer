@@ -1,8 +1,8 @@
 /**
  * Suite library sidebar for the regression view.
- *
- * Reconstructed for the port (imported but never committed). Lists
- * persisted suites from testSuiteStore; selecting sets the active suite.
+ * Lists persisted suites from testSuiteStore; selecting sets the
+ * active suite. Includes an inline New action so the empty state and
+ * mobile (no sidebar chrome elsewhere) are never dead ends.
  */
 import { html, render } from 'lit-html';
 import { useTestSuiteStore } from '@/state/testSuiteStore';
@@ -30,50 +30,79 @@ class SuiteLibrarySidebar extends HTMLElement {
     }
 
     render() {
-        const { suites, activeSuiteId, setActiveSuiteId } =
+        const { suites, activeSuiteId, setActiveSuiteId, addSuite } =
             useTestSuiteStore.getState();
+        const list = Array.isArray(suites) ? suites : [];
         render(
             html`
                 <div class="flex flex-col h-full min-h-0">
-                    <div class="px-4 py-3 border-b border-slate-800 shrink-0">
-                        <h2
-                            class="text-xs font-bold text-slate-400 uppercase tracking-widest"
-                        >
-                            Test Suites
-                            <span class="ml-1 text-slate-500"
-                                >(${suites.length})</span
+                    <div
+                        class="px-4 pt-4 pb-3 shrink-0 border-b border-white/5 flex items-center justify-between gap-2"
+                    >
+                        <h2 class="mono text-xs font-medium text-slate-400">
+                            suites
+                            <span class="text-slate-600"
+                                >(${list.length})</span
                             >
                         </h2>
+                        <button
+                            @click=${() =>
+                                addSuite({
+                                    name: `Suite ${list.length + 1}`,
+                                    assertions: [],
+                                })}
+                            class="mono text-[11px] text-slate-500 hover:text-emerald-300 transition-colors"
+                            title="Create a new empty suite"
+                        >
+                            + new
+                        </button>
                     </div>
-                    <div
-                        class="grow min-h-0 overflow-y-auto custom-scrollbar p-2 space-y-1.5"
-                    >
-                        ${suites.length === 0
-                            ? html`<p
-                                  class="text-xs text-slate-500 text-center py-8"
-                              >
-                                  No suites yet.<br />Create one to begin.
-                              </p>`
-                            : suites.map(
+                    <div class="grow min-h-0 overflow-y-auto custom-scrollbar p-2">
+                        ${list.length === 0
+                            ? html`<div class="py-8 px-3 text-center">
+                                  <p
+                                      class="text-[13px] text-slate-300 mb-1"
+                                  >
+                                      No suites yet.
+                                  </p>
+                                  <p
+                                      class="mono text-[11px] text-slate-600 mb-3"
+                                  >
+                                      Start from a preset or build your own.
+                                  </p>
+                                  <button
+                                      @click=${() =>
+                                          addSuite({
+                                              name: 'Suite 1',
+                                              assertions: [],
+                                          })}
+                                      class="px-3 py-1.5 rounded-md border border-white/10 text-[12px] font-medium text-slate-200 hover:border-white/25 hover:bg-white/5 transition-colors"
+                                  >
+                                      New suite
+                                  </button>
+                              </div>`
+                            : list.map(
                                   (suite) => html`
                                       <button
                                           @click=${() =>
                                               setActiveSuiteId(suite.id)}
-                                          class="w-full text-left p-2.5 rounded-xl border transition-all ${suite.id ===
+                                          aria-current=${suite.id ===
+                                          activeSuiteId}
+                                          class="w-full text-left px-2.5 py-2 rounded-md border transition-colors mb-1 ${suite.id ===
                                           activeSuiteId
-                                              ? 'bg-blue-500/10 border-blue-500/30'
-                                              : 'bg-slate-800/40 border-slate-800 hover:border-slate-700'}"
+                                              ? 'bg-emerald-500/5 border-emerald-500/30'
+                                              : 'bg-transparent border-transparent hover:bg-white/5'}"
                                       >
                                           <div
-                                              class="text-xs font-bold text-slate-200 truncate"
+                                              class="text-[13px] font-medium text-slate-200 truncate"
                                           >
-                                              ${suite.name}
+                                              ${suite.name || 'Untitled suite'}
                                           </div>
                                           <div
-                                              class="text-[10px] font-mono text-slate-500 mt-0.5"
+                                              class="mono text-[10px] text-slate-600 mt-0.5"
                                           >
-                                              ${suite.assertions?.length || 0}
-                                              assertions
+                                              ${(suite.assertions || []).length}
+                                              rule${(suite.assertions || []).length === 1 ? '' : 's'}
                                           </div>
                                       </button>
                                   `

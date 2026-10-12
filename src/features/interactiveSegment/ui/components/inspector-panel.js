@@ -8,22 +8,19 @@ const allTooltips = getTooltipData();
 
 const infoCard = (label, value, icon = null, width = 'full') => html`
     <div
-        class="bg-slate-800/40 backdrop-blur-xl rounded-xl border border-slate-800 p-3 flex flex-col shadow-sm group hover:bg-slate-800/60 transition-all duration-300 hover:shadow-[0_0_20px_#3b82f6] hover:border-[#3b82f6]/50 ring-1 ring-white/5 ${width ===
-        'half'
-            ? 'col-span-1'
-            : 'col-span-2'}"
+        class="bg-white/5 rounded-md border border-white/10 p-3 flex flex-col group hover:bg-white/10 transition-all duration-300 hover:border-[#3b82f6]/50 ring-1 ring-white/5 ${width === 'half' ? 'col-span-1' : 'col-span-2'}"
     >
         <span
-            class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5"
+            class="text-[10px] font-bold text-slate-400 r mb-1.5 flex items-center gap-1.5"
         >
             <span
-                class="text-blue-400 group-hover:scale-110 transition-transform duration-300 drop-shadow-[0_0_5px_#3b82f6/50]"
+                class="text-emerald-200 group-hover:scale-110 transition-transform duration-300 drop-"
                 >${icon}</span
             >
             ${label}
         </span>
         <span
-            class="text-xs text-slate-100 font-mono truncate select-text font-black tracking-tight"
+            class="text-xs text-slate-100 font-mono truncate select-text font-bold"
             title="${String(value)}"
         >
             ${value !== null && value !== undefined ? value : '-'}
@@ -49,20 +46,20 @@ export const inspectorPanelTemplate = (parsedData) => {
             >
                 <!-- Ambient Glow -->
                 <div
-                    class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[70%] h-[70%] bg-[#3b82f6]/5 rounded-full blur-[100px] pointer-events-none animate-pulse-slow mix-blend-screen"
+                    class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[70%] h-[70%] bg-[#3b82f6]/5 rounded-full pointer-events-none animate-pulse-slow mix-blend-screen"
                 ></div>
 
                 <div
-                    class="mb-6 p-6 bg-slate-800/40 backdrop-blur-xl rounded-full border border-slate-800 shadow-[0_0_30px_#3b82f6] relative z-10 ring-1 ring-white/10 group"
+                    class="mb-6 p-6 bg-white/5 rounded-full border border-white/10 relative z-10 ring-1 ring-white/10 group"
                 >
                     <div
-                        class="text-blue-400 scale-150 group-hover:scale-[1.6] transition-transform duration-500"
+                        class="text-emerald-200 scale-150 group-hover:scale-[1.6] transition-transform duration-500"
                     >
                         ${icons.searchCode}
                     </div>
                 </div>
                 <p
-                    class="font-black text-lg text-slate-100 relative z-10 tracking-tight"
+                    class="font-bold text-lg text-slate-100 relative z-10"
                 >
                     Select an item to inspect
                 </p>
@@ -98,16 +95,16 @@ export const inspectorPanelTemplate = (parsedData) => {
             class="flex flex-col h-full overflow-hidden segment-inspector-panel bg-transparent"
         >
             <div
-                class="shrink-0 bg-slate-800/80 backdrop-blur-md border-b border-slate-800 p-4 shadow-sm z-10"
+                class="shrink-0 bg-white/5 border-b border-white/10 p-4 z-10"
             >
                 <div class="flex items-start justify-between mb-2">
                     <h2
-                        class="text-lg font-bold text-slate-100 font-mono tracking-tight flex items-center gap-2"
+                        class="text-lg font-bold text-slate-100 font-mono flex items-center gap-2"
                     >
                         ${title}
                     </h2>
                     <span
-                        class="px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-800 text-[10px] font-mono text-slate-400 font-bold shadow-sm"
+                        class="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[10px] font-mono text-slate-400 font-bold"
                     >
                         ${size}
                     </span>

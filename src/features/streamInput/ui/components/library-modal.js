@@ -5,232 +5,288 @@ import {
 } from '@/infrastructure/persistence/streamStorage';
 import { analysisActions } from '@/state/analysisStore';
 import { uiActions, useUiStore } from '@/state/uiStore';
+import { showToast } from '@/ui/components/toast';
 import * as icons from '@/ui/icons';
 import { html, render } from 'lit-html';
 
-// ... [Helper functions getBadge, streamCard, workspaceCard remain unchanged] ...
-const getBadge = (text, colorClasses) => html`
-    <span
-        class="text-[9px] font-black px-1.5 py-0.5 rounded border uppercase tracking-wider ${colorClasses}"
-    >
-        ${text}
-    </span>
-`;
+function safeHostname(url) {
+    if (typeof url !== 'string' || !url) return 'unknown host';
+    try {
+        const parsed = new URL(url);
+        if (parsed.protocol === 'blob:') return 'local file';
+        return parsed.hostname || 'unknown host';
+    } catch {
+        return 'invalid url';
+    }
+}
 
-const streamCard = (stream, context, onDelete) => {
-    const isDash = stream.protocol === 'dash';
-    const protocolColor = isDash
-        ? 'text-blue-400 bg-slate-700 border-slate-700'
-        : 'text-purple-300 bg-slate-700 border-slate-700';
+function protocolOf(stream) {
+    const proto = (stream.protocol || '').toLowerCase();
+    if (proto === 'dash' || (stream.url || '').includes('.mpd')) return 'DASH';
+    if (proto === 'hls' || (stream.url || '').includes('.m3u8')) return 'HLS';
+    if ((stream.url || '').includes('.ism')) return 'MSS';
+    return '';
+}
 
+const protoChip = (proto) =>
+    !proto
+        ? html``
+        : html`
+              <span
+                  class="mono shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded border text-emerald-200 bg-emerald-500/10 border-emerald-400/25"
+                  >${proto}</span
+              >
+          `;
+
+const liveChip = (isLive) =>
+    isLive
+        ? html`<span
+              class="mono flex items-center gap-1 text-[10px] text-red-300"
+              ><span class="w-1.5 h-1.5 rounded-full bg-red-500"></span
+              >live</span
+          >`
+        : html`<span class="mono text-[10px] text-slate-600">vod</span>`;
+
+const streamCard = (stream, context, handlers) => {
+    const proto = protocolOf(stream);
     const isLive =
         stream.type === 'live' ||
         (stream.manifest && stream.manifest.type === 'dynamic');
 
-    const handleLoad = () => {
-        analysisActions.addStreamInputFromPreset(stream);
-    };
-
     return html`
         <div
-            @click=${handleLoad}
-            class="group relative bg-slate-800 hover:bg-slate-800 border border-slate-800 hover:border-slate-400 rounded-xl p-4 cursor-pointer transition-all duration-200 flex flex-col justify-between hover:shadow-lg hover:-translate-y-0.5 h-full"
+            @click=${() => handlers.stage(stream)}
+            class="group relative bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 hover:border-white/15 rounded-lg p-4 cursor-pointer transition-colors flex flex-col"
+            title="Stage this stream"
         >
-            <div>
-                <div class="flex justify-between items-start mb-3">
-                    <div class="flex gap-2">
-                        ${getBadge(stream.protocol || 'UNK', protocolColor)}
-                        ${isLive
-            ? html`<span
-                                  class="text-[9px] font-bold text-red-400 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-800 flex items-center gap-1"
-                                  ><span
-                                      class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"
-                                  ></span
-                                  >LIVE</span
-                              >`
-            : html`<span
-                                  class="text-[9px] font-bold text-[#94a3b8] bg-slate-800 px-1.5 py-0.5 rounded border border-slate-800"
-                                  >VOD</span
-                              >`}
-                    </div>
-                    ${context !== 'examples'
-            ? html`
-                              <button
-                                  @click=${(e) => {
-                    e.stopPropagation();
-                    onDelete();
-                }}
-                                  class="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1.5 -mr-2 -mt-2 text-[#94a3b8] hover:text-red-400 hover:bg-slate-800 rounded-lg transition-all"
-                                  title="Remove"
-                              >
-                                  ${icons.xCircle}
-                              </button>
-                          `
-            : ''}
+            <div class="flex justify-between items-start gap-2 mb-2">
+                <div class="flex gap-2 items-center min-w-0">
+                    ${protoChip(proto)} ${liveChip(isLive)}
                 </div>
-
-                <h4
-                    class="font-bold text-[#f1f5f9] text-sm mb-1 line-clamp-2 group-hover:text-[#f1f5f9] transition-colors"
-                >
-                    ${stream.name}
-                </h4>
-
-                <div
-                    class="bg-slate-800 rounded border border-slate-800 p-1.5 mb-3 group-hover:border-slate-400 transition-colors"
-                >
-                    <p
-                        class="text-[10px] font-mono text-[#94a3b8] truncate select-all"
-                        title="${stream.url}"
-                    >
-                        ${stream.url}
-                    </p>
-                </div>
+                ${context !== 'examples'
+                    ? html`
+                          <button
+                              @click=${(e) => {
+                                  e.stopPropagation();
+                                  handlers.remove(stream);
+                              }}
+                              class="shrink-0 p-1 text-slate-600 hover:text-red-300 rounded transition-colors"
+                              title="Remove"
+                              aria-label="Remove ${stream.name || stream.url}"
+                          >
+                              ${icons.x}
+                          </button>
+                      `
+                    : ''}
             </div>
 
-            <div
-                class="pt-3 border-t border-slate-800 flex justify-between items-center mt-auto"
+            <h4
+                class="font-medium text-slate-100 text-sm mb-1 truncate"
+                title="${stream.name || ''}"
             >
-                <div class="flex gap-2">
+                ${stream.name || safeHostname(stream.url)}
+            </h4>
+
+            <p
+                class="mono text-[10px] text-slate-600 truncate mb-3"
+                title="${stream.url}"
+            >
+                ${safeHostname(stream.url)}
+            </p>
+
+            <div class="pt-2 border-t border-white/5 flex justify-between items-center mt-auto">
+                <span class="flex gap-2 text-slate-600">
                     ${stream.auth?.headers?.length > 0
-            ? html`<span
-                              class="text-xs text-[#94a3b8]"
-                              title="Has Auth Headers"
+                        ? html`<span title="Has auth headers"
                               >${icons.key}</span
                           >`
-            : ''}
+                        : ''}
                     ${stream.drmAuth?.licenseServerUrl
-            ? html`<span
-                              class="text-xs text-[#94a3b8]"
-                              title="DRM Configured"
+                        ? html`<span title="DRM configured"
                               >${icons.lockClosed}</span
                           >`
-            : ''}
-                </div>
+                        : ''}
+                </span>
                 <span
-                    class="text-[10px] font-bold text-blue-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center gap-1"
+                    class="mono text-[11px] font-medium text-emerald-300 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
                 >
-                    Add ${icons.plusCircle}
+                    Stage
                 </span>
             </div>
         </div>
     `;
 };
 
-const workspaceCard = (workspace, onDelete) => {
-    const count = workspace.inputs.length;
-
-    const handleLoad = () => {
-        if (
-            confirm(
-                `Load workspace "${workspace.name}"? This will replace current streams.`
-            )
-        ) {
-            analysisActions.setStreamInputs(workspace.inputs);
-            uiActions.setLoadedWorkspaceName(workspace.name);
-            uiActions.setLibraryModalOpen(false);
-        }
-    };
+const workspaceCard = (workspace, handlers, ui) => {
+    const count = workspace.inputs?.length ?? 0;
+    const confirming = ui.confirmingWorkspace === workspace.name;
 
     return html`
         <div
-            @click=${handleLoad}
-            class="group relative bg-slate-700 hover:bg-slate-700 border border-slate-700 hover:border-slate-700 rounded-xl p-5 cursor-pointer transition-all duration-200 hover:shadow-lg hover:shadow-[#3b82f6] h-full flex flex-col"
+            class="group relative bg-white/[0.02] border border-white/5 rounded-lg p-4 flex flex-col transition-colors ${confirming
+                ? 'border-amber-400/40'
+                : 'hover:border-white/15'}"
         >
-            <div class="flex justify-between items-start mb-4">
-                <div
-                    class="p-2.5 bg-slate-700 text-blue-400 rounded-lg border border-slate-700 group-hover:scale-110 transition-transform duration-300 shadow-inner"
+            <div class="flex justify-between items-start gap-2 mb-2">
+                <span class="p-2 rounded-md bg-white/5 text-slate-400"
+                    >${icons.folder}</span
                 >
-                    ${icons.folder}
-                </div>
-                <div
-                    class="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
-                >
+                <span class="flex gap-1">
                     <button
-                        @click=${(e) => {
-            e.stopPropagation();
-            exportWorkspace(workspace.name);
-        }}
-                        class="p-1.5 text-[#94a3b8] hover:text-[#f1f5f9] hover:bg-slate-800 rounded-lg transition-colors"
+                        @click=${() => handlers.exportWorkspace(workspace)}
+                        class="p-1.5 text-slate-600 hover:text-slate-200 rounded transition-colors"
                         title="Export JSON"
+                        aria-label="Export workspace ${workspace.name}"
                     >
                         ${icons.share}
                     </button>
                     <button
-                        @click=${(e) => {
-            e.stopPropagation();
-            onDelete();
-        }}
-                        class="p-1.5 text-[#94a3b8] hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors"
-                        title="Delete"
+                        @click=${() => handlers.removeWorkspace(workspace)}
+                        class="p-1.5 text-slate-600 hover:text-red-300 rounded transition-colors"
+                        title="Delete workspace"
+                        aria-label="Delete workspace ${workspace.name}"
                     >
-                        ${icons.xCircle}
+                        ${icons.x}
                     </button>
-                </div>
+                </span>
             </div>
 
             <h4
-                class="font-bold text-[#f1f5f9] text-base mb-1 group-hover:text-[#60a5fa] transition-colors truncate"
+                class="font-medium text-slate-100 text-[15px] mb-0.5 truncate"
+                title="${workspace.name}"
             >
                 ${workspace.name}
             </h4>
-            <p class="text-xs text-[#94a3b8] mb-4">
-                ${count} saved streams
+            <p class="mono text-[11px] text-slate-600 mb-3">
+                ${count} saved stream${count === 1 ? '' : 's'}
             </p>
 
-            <div class="space-y-1.5 mt-auto">
-                ${workspace.inputs.slice(0, 3).map(
-            (input) => html`
+            <div class="flex flex-col gap-1 mb-3">
+                ${workspace.inputs?.slice(0, 3).map(
+                    (input) => html`
                         <div
-                            class="flex items-center gap-2 text-[10px] text-[#94a3b8]/80"
+                            class="flex items-center gap-2 mono text-[10px] text-slate-500"
                         >
-                            <div
-                                class="w-1.5 h-1.5 rounded-full ${input.url.includes(
-                '.m3u8'
-            )
-                    ? 'bg-purple-500'
-                    : 'bg-blue-500'}"
-                            ></div>
-                            <span class="truncate max-w-[200px]"
+                            <span
+                                class="w-1 h-1 rounded-full bg-slate-600 shrink-0"
+                            ></span>
+                            <span class="truncate"
                                 >${input.name ||
-                new URL(input.url).hostname}</span
+                                safeHostname(input.url)}</span
                             >
                         </div>
                     `
-        )}
+                )}
                 ${count > 3
-            ? html`<div
-                          class="text-[9px] text-[#94a3b8] pl-3.5 font-medium"
-                      >
+                    ? html`<div class="mono text-[10px] text-slate-600 pl-3">
                           + ${count - 3} more
                       </div>`
-            : ''}
+                    : ''}
             </div>
+
+            ${confirming
+                ? html`<div class="mt-auto pt-3 border-t border-amber-400/20">
+                      <p class="text-xs text-slate-300 mb-2">
+                          Replace the current queue with these ${count}
+                          stream${count === 1 ? '' : 's'}?
+                      </p>
+                      <div class="flex gap-2">
+                          <button
+                              @click=${() => handlers.loadWorkspace(workspace)}
+                              class="grow py-2 rounded-md bg-amber-400 text-slate-950 text-[13px] font-bold hover:bg-amber-300 transition-colors"
+                          >
+                              Replace queue
+                          </button>
+                          <button
+                              @click=${() => handlers.cancelConfirm()}
+                              class="px-3 py-2 rounded-md border border-white/10 text-[13px] text-slate-400 hover:text-slate-100 transition-colors"
+                          >
+                              Keep
+                          </button>
+                      </div>
+                  </div>`
+                : html`<button
+                      @click=${() => handlers.askLoadWorkspace(workspace)}
+                      class="mt-auto w-full py-2 rounded-md border border-white/10 text-[13px] font-medium text-slate-200 hover:border-white/25 hover:bg-white/5 transition-colors"
+                  >
+                      Load workspace
+                  </button>`}
         </div>
     `;
 };
 
 export class LibraryModalComponent extends HTMLElement {
+    constructor() {
+        super();
+        this._confirmingWorkspace = null;
+        this._lastFocus = null;
+    }
+
     connectedCallback() {
         this.render();
         this.unsubscribe = useUiStore.subscribe(() => this.render());
-
-        // Handle close from Frame
         this.addEventListener('close', () => this.close());
+        document.addEventListener('keydown', this._onKeyDown, true);
     }
 
     disconnectedCallback() {
         if (this.unsubscribe) this.unsubscribe();
+        document.removeEventListener('keydown', this._onKeyDown, true);
+    }
+
+    _onKeyDown = (e) => {
+        if (e.key === 'Escape' && useUiStore.getState().isLibraryModalOpen) {
+            e.stopPropagation();
+            this.close();
+        }
+    };
+
+    get confirmingWorkspace() {
+        return this._confirmingWorkspace;
     }
 
     close() {
+        this._confirmingWorkspace = null;
         uiActions.setLibraryModalOpen(false);
+        if (this._lastFocus?.isConnected) {
+            this._lastFocus.focus({ preventScroll: true });
+        }
+        this._lastFocus = null;
     }
 
-    handleImport(e) {
-        if (e.target.files.length > 0) {
-            importWorkspace(e.target.files[0]);
-            e.target.value = '';
+    async handleImport(e) {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        if (!file) return;
+        try {
+            const imported = await importWorkspace(file);
+            uiActions.loadWorkspaces();
+            showToast({
+                message: `Imported workspace "${imported.name}".`,
+                type: 'pass',
+            });
+        } catch (err) {
+            showToast({
+                message: `Import failed: ${err?.message || 'invalid file'}.`,
+                type: 'fail',
+            });
         }
+    }
+
+    _stageAndClose(stream, label) {
+        if (!stream || typeof stream.url !== 'string' || !stream.url.trim()) {
+            showToast({
+                message: 'That entry has no URL to stage.',
+                type: 'fail',
+            });
+            return;
+        }
+        analysisActions.addStreamInputFromPreset(stream);
+        this.close();
+        showToast({
+            message: `Staged "${stream.name || safeHostname(stream.url)}"${label ? ` — ${label}` : ''}.`,
+            type: 'pass',
+        });
     }
 
     render() {
@@ -244,8 +300,22 @@ export class LibraryModalComponent extends HTMLElement {
         } = useUiStore.getState();
 
         if (!isLibraryModalOpen) {
+            this._renderedOpen = false;
             render(html``, this);
             return;
+        }
+
+        if (!this._renderedOpen) {
+            this._lastFocus =
+                document.activeElement instanceof HTMLElement
+                    ? document.activeElement
+                    : null;
+            this._renderedOpen = true;
+            queueMicrotask(() => {
+                this.querySelector('[data-vault-search]')?.focus({
+                    preventScroll: true,
+                });
+            });
         }
 
         const tabs = [
@@ -275,179 +345,281 @@ export class LibraryModalComponent extends HTMLElement {
             },
         ];
 
-        const searchLower = streamLibrarySearchTerm.toLowerCase();
+        const searchLower = (streamLibrarySearchTerm || '').toLowerCase();
         const filter = (items) =>
-            items.filter(
+            (items || []).filter(
                 (i) =>
                     i.name?.toLowerCase().includes(searchLower) ||
                     i.url?.toLowerCase().includes(searchLower)
             );
 
-        let content;
+        const handlers = {
+            stage: (s) => this._stageAndClose(s),
+            remove: (s) => {
+                if (streamLibraryActiveTab === 'history') {
+                    uiActions.deleteAndReloadHistoryItem(s.url);
+                    showToast({ message: 'Removed from history.', type: 'pass' });
+                } else if (streamLibraryActiveTab === 'presets') {
+                    uiActions.deleteAndReloadPreset(s.url);
+                    showToast({ message: 'Preset removed.', type: 'pass' });
+                }
+            },
+            exportWorkspace: (w) => {
+                try {
+                    exportWorkspace(w.name);
+                    showToast({
+                        message: `Exported "${w.name}".`,
+                        type: 'pass',
+                    });
+                } catch (err) {
+                    showToast({
+                        message: `Export failed: ${err?.message || 'unknown error'}.`,
+                        type: 'fail',
+                    });
+                }
+            },
+            removeWorkspace: (w) => {
+                uiActions.deleteAndReloadWorkspace(w.name);
+                showToast({
+                    message: `Deleted workspace "${w.name}".`,
+                    type: 'pass',
+                });
+            },
+            askLoadWorkspace: (w) => {
+                this._confirmingWorkspace = w.name;
+                this.render();
+            },
+            cancelConfirm: () => {
+                this._confirmingWorkspace = null;
+                this.render();
+            },
+            loadWorkspace: (w) => {
+                analysisActions.setStreamInputs(w.inputs || []);
+                uiActions.setLoadedWorkspaceName(w.name);
+                this._confirmingWorkspace = null;
+                this.close();
+                showToast({
+                    message: `Loaded workspace "${w.name}" into the queue.`,
+                    type: 'pass',
+                });
+            },
+        };
 
+        let content;
         if (streamLibraryActiveTab === 'workspaces') {
             const filtered = filter(workspaces);
             content =
                 filtered.length > 0
                     ? html`<div
-                          class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-max"
+                          class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
                       >
                           ${filtered.map((w) =>
-                        workspaceCard(w, () =>
-                            uiActions.deleteAndReloadWorkspace(w.name)
-                        )
-                    )}
+                              workspaceCard(w, handlers, this)
+                          )}
                       </div>`
-                    : html` <div
-                          class="flex flex-col items-center justify-center h-full text-[#94a3b8] border-2 border-dashed border-slate-800 rounded-2xl bg-slate-800/20 min-h-[200px]"
+                    : html`<div
+                          class="flex flex-col items-center justify-center text-slate-500 border border-dashed border-white/10 rounded-lg bg-white/[0.02] min-h-[180px] p-8 text-center"
                       >
-                          <div class="scale-150 mb-4 opacity-50">
-                              ${icons.folder}
-                          </div>
-                          <p>No workspaces found.</p>
+                          <div class="mb-3 text-slate-600">${icons.folder}</div>
+                          <p class="text-sm text-slate-400 mb-1">
+                              No workspaces yet
+                          </p>
+                          <p
+                              class="mono text-[11px] text-slate-600 mb-4 max-w-sm"
+                          >
+                              Stage some streams, then save the queue to
+                              reuse it later.
+                          </p>
                           <label
-                              class="mt-4 px-4 py-2 bg-[#60a5fa] hover:bg-blue-500 text-slate-100 text-xs font-bold rounded-lg cursor-pointer transition-colors shadow-lg shadow-[#3b82f6]"
+                              class="px-4 py-2 bg-emerald-400 hover:bg-emerald-300 text-slate-950 text-[13px] font-bold rounded-md cursor-pointer transition-colors"
                           >
                               Import JSON
                               <input
                                   type="file"
-                                  accept=".json"
+                                  accept=".json,application/json"
                                   class="hidden"
                                   @change=${this.handleImport}
                               />
                           </label>
                       </div>`;
         } else {
-            let sourceList = [];
-            let context = streamLibraryActiveTab;
-            if (streamLibraryActiveTab === 'presets') sourceList = presets;
-            else if (streamLibraryActiveTab === 'history') sourceList = history;
-            else sourceList = exampleStreams;
-
+            const sourceList =
+                streamLibraryActiveTab === 'presets'
+                    ? presets
+                    : streamLibraryActiveTab === 'history'
+                      ? history
+                      : exampleStreams;
             const filtered = filter(sourceList);
-            const handleDelete = (url) => {
-                if (context === 'history')
-                    uiActions.deleteAndReloadHistoryItem(url);
-                if (context === 'presets') uiActions.deleteAndReloadPreset(url);
-            };
-
             content =
                 filtered.length > 0
                     ? html`<div
-                          class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 auto-rows-max"
+                          class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"
                       >
                           ${filtered.map((s) =>
-                        streamCard(s, context, () => handleDelete(s.url))
-                    )}
+                              streamCard(
+                                  s,
+                                  streamLibraryActiveTab,
+                                  handlers
+                              )
+                          )}
                       </div>`
-                    : html` <div
-                          class="flex flex-col items-center justify-center h-full text-[#94a3b8] italic min-h-[200px]"
+                    : html`<div
+                          class="flex flex-col items-center justify-center text-slate-500 min-h-[180px] p-8 text-center"
                       >
-                          <div class="mb-2 opacity-50">${icons.search}</div>
-                          No streams match your search
+                          <div class="mb-3 text-slate-600">${icons.search}</div>
+                          <p class="text-sm text-slate-400">
+                              ${searchLower
+                                  ? 'Nothing matches that filter.'
+                                  : streamLibraryActiveTab === 'examples'
+                                    ? 'No examples found.'
+                                    : `No ${streamLibraryActiveTab} yet. Analyze a stream and it will show up here.`}
+                          </p>
+                          ${searchLower
+                              ? html`<button
+                                    @click=${() =>
+                                        uiActions.setStreamLibrarySearchTerm(
+                                            ''
+                                        )}
+                                    class="mono mt-3 text-[11px] text-emerald-300 hover:text-emerald-200 transition-colors"
+                                >
+                                    Clear filter
+                                </button>`
+                              : ''}
                       </div>`;
         }
 
-        // Use plain standard modal frame but reimplement internal structure
         const template = html`
-            <div class="flex flex-col h-full min-h-0">
-                <!-- Modal Window Internal -->
-                <div class="relative w-full h-[85vh] flex flex-col bg-slate-800 backdrop-filter backdrop-blur-[blur(12px)] border border-slate-800 rounded-[2rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden">
-                    
-                    <!-- Ambient Glows -->
+            <div
+                class="fixed inset-0 z-[90] flex items-center justify-center p-4 sm:p-8"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Stream library"
+            >
+                <div
+                    class="absolute inset-0 bg-black/70"
+                    @click=${() => this.close()}
+                ></div>
+                <div
+                    class="relative w-full max-w-5xl max-h-[85vh] flex flex-col bg-[#0b111c] border border-white/10 rounded-lg overflow-hidden"
+                >
                     <div
-                        class="absolute top-0 right-0 w-64 h-64 bg-slate-700 rounded-full blur-[100px] pointer-events-none"
-                    ></div>
-                    <div
-                        class="absolute bottom-0 left-0 w-64 h-64 bg-slate-700 rounded-full blur-[100px] pointer-events-none"
-                    ></div>
-
-                    <!-- Header / Toolbar -->
-                    <div class="shrink-0 p-5 border-b border-slate-800 bg-transparent z-10 flex flex-col gap-5 relative">
-                        <div class="flex justify-between items-center">
-                            <div class="flex items-center gap-4">
-                                <div class="p-2.5 bg-slate-800 rounded-xl border border-slate-800 text-blue-400 shadow-[0_0_15px_#3b82f6]">
-                                    ${icons.inbox}
-                                </div>
-                                <div>
-                                    <h2 class="text-2xl font-bold text-[#f1f5f9] tracking-tight">
-                                        The Vault
-                                    </h2>
-                                    <p class="text-xs text-[#94a3b8] font-medium">
-                                        Manage your saved environments and streams.
-                                    </p>
-                                </div>
+                        class="shrink-0 px-5 pt-4 pb-3 border-b border-white/5 flex flex-col gap-3"
+                    >
+                        <div class="flex justify-between items-center gap-3">
+                            <div>
+                                <h2
+                                    class="text-lg font-bold text-slate-100 tracking-tight"
+                                >
+                                    Library
+                                </h2>
+                                <p class="mono text-[11px] text-slate-500">
+                                    workspaces · presets · history ·
+                                    examples
+                                </p>
                             </div>
-                            <!-- Close button is also provided by ModalFrame via backdrop click, but keeping explicit one here -->
                             <button
                                 @click=${() => this.close()}
-                                class="text-[#94a3b8] hover:text-[#f1f5f9] transition-all p-2 hover:bg-slate-800 rounded-full hover:rotate-90 duration-300"
+                                class="p-2 text-slate-500 hover:text-slate-100 hover:bg-white/5 rounded-md transition-colors"
+                                aria-label="Close library"
                             >
-                                ${icons.xCircle}
+                                ${icons.x}
                             </button>
                         </div>
 
-                        <div class="flex flex-col md:flex-row gap-4">
-                            <!-- Tabs -->
-                            <div class="flex p-1.5 bg-slate-800 rounded-xl border border-slate-800 self-start overflow-x-auto w-full md:w-auto max-w-full scrollbar-hide backdrop-blur-md">
+                        <div class="flex flex-col md:flex-row gap-2">
+                            <div
+                                class="flex p-1 bg-black/30 rounded-md border border-white/5 self-start overflow-x-auto max-w-full"
+                                role="tablist"
+                            >
                                 ${tabs.map((tab) => {
-            const isActive = streamLibraryActiveTab === tab.key;
-            return html`
+                                    const isActive =
+                                        streamLibraryActiveTab === tab.key;
+                                    return html`
                                         <button
-                                            @click=${() => uiActions.setStreamLibraryTab(tab.key)}
-                                            class="px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${isActive
-                    ? 'bg-gradient-to-r from-slate-700 to-slate-700 text-[#f1f5f9] shadow-[0_0_15px_#3b82f6] border border-slate-700'
-                    : 'text-[#94a3b8] hover:text-[#f1f5f9] hover:bg-slate-800'}"
+                                            role="tab"
+                                            aria-selected=${isActive}
+                                            @click=${() => {
+                                                this._confirmingWorkspace =
+                                                    null;
+                                                uiActions.setStreamLibraryTab(
+                                                    tab.key
+                                                );
+                                            }}
+                                            class="px-3 py-1.5 rounded text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap ${isActive
+                                                ? 'bg-white/10 text-slate-100'
+                                                : 'text-slate-500 hover:text-slate-200'}"
                                         >
-                                            ${tab.icon} ${tab.label}
-                                            <span class="opacity-60 text-[9px] bg-slate-800 px-1.5 py-0.5 rounded-md border border-slate-800">
-                                                ${tab.count}
-                                            </span>
+                                            ${tab.label}
+                                            <span
+                                                class="mono text-[10px] text-slate-600"
+                                                >${tab.count}</span
+                                            >
                                         </button>
                                     `;
-        })}
+                                })}
                             </div>
 
-                            <!-- Search -->
                             <div class="relative grow">
-                                <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-[#94a3b8]">
+                                <div
+                                    class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-600"
+                                >
                                     ${icons.search}
                                 </div>
                                 <input
-                                    type="text"
-                                    placeholder="Filter library..."
-                                    class="w-full bg-slate-800 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-sm text-[#f1f5f9] placeholder-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:bg-slate-800 transition-all shadow-inner"
-                                    .value=${streamLibrarySearchTerm}
-                                    @input=${(e) => uiActions.setStreamLibrarySearchTerm(e.target.value)}
+                                    data-vault-search
+                                    type="search"
+                                    placeholder="Filter..."
+                                    aria-label="Filter library"
+                                    class="w-full bg-[#06090f] border border-white/10 rounded-md py-2 pl-9 pr-8 text-sm text-slate-100 placeholder-slate-600 focus:border-emerald-400/60 outline-none transition-colors"
+                                    .value=${streamLibrarySearchTerm || ''}
+                                    @input=${(e) =>
+                                        uiActions.setStreamLibrarySearchTerm(
+                                            e.target.value
+                                        )}
                                 />
+                                ${searchLower
+                                    ? html`<button
+                                          @click=${() =>
+                                              uiActions.setStreamLibrarySearchTerm(
+                                                  ''
+                                              )}
+                                          class="absolute inset-y-0 right-2 flex items-center text-slate-600 hover:text-slate-200"
+                                          aria-label="Clear filter"
+                                      >
+                                          ${icons.x}
+                                      </button>`
+                                    : ''}
                             </div>
                         </div>
                     </div>
 
-                    <!-- Scrollable Content Area -->
-                    <div class="grow overflow-y-auto custom-scrollbar p-4 md:p-6 bg-slate-800 relative z-0">
+                    <div class="grow overflow-y-auto custom-scrollbar p-4">
                         ${content}
                     </div>
 
-                    <!-- Footer for Workspaces -->
                     ${streamLibraryActiveTab === 'workspaces'
-                ? html`
-                              <div class="shrink-0 p-4 bg-slate-800 border-t border-slate-800 flex justify-between items-center backdrop-blur-xl relative z-10">
-                                  <div class="text-[10px] text-[#94a3b8] font-medium">
-                                      Workspaces persist your session queue, custom headers, and DRM settings.
-                                  </div>
-                                  <label class="cursor-pointer flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs font-bold text-[#94a3b8] hover:text-[#f1f5f9] transition-all hover:shadow-lg hover:border-slate-800">
-                                      ${icons.upload} Import Workspace
+                        ? html`
+                              <div
+                                  class="shrink-0 px-4 py-3 bg-black/20 border-t border-white/5 flex flex-col sm:flex-row gap-2 sm:justify-between sm:items-center"
+                              >
+                                  <p class="mono text-[10px] text-slate-600">
+                                      Workspaces keep the queue, headers,
+                                      and DRM settings.
+                                  </p>
+                                  <label
+                                      class="cursor-pointer flex items-center justify-center gap-2 px-3 py-2 border border-white/10 rounded-md text-xs font-medium text-slate-300 hover:border-white/25 hover:bg-white/5 transition-colors"
+                                  >
+                                      ${icons.upload} Import workspace
                                       <input
                                           type="file"
-                                          accept=".json"
+                                          accept=".json,application/json"
                                           class="hidden"
                                           @change=${this.handleImport}
                                       />
                                   </label>
                               </div>
                           `
-                : ''}
+                        : ''}
                 </div>
             </div>
         `;

@@ -1,5 +1,5 @@
 export const tooltipTriggerClasses =
-    'cursor-help border-b border-dotted border-blue-500/40 transition-colors hover:bg-blue-500/15 hover:border-solid';
+    'cursor-help border-b border-dotted border-emerald-400/25 transition-colors hover:bg-emerald-500/10 hover:border-solid';
 
 export const UI_SELECTORS = {
     // Input Section

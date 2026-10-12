@@ -106,7 +106,7 @@ export function setupGlobalTooltipListener(dom) {
 
             if (updateTooltipContent(tooltipTrigger, dom.globalTooltip)) {
                 dom.globalTooltip.className =
-                    'fixed z-[10000] px-3 py-1.5 text-xs font-bold text-slate-100 bg-slate-800 backdrop-filter backdrop-blur-xl border border-slate-800/50 rounded-lg shadow-[0_4px_20px_rgba(0,0,0,0.5)] pointer-events-none transition-opacity duration-200 whitespace-nowrap opacity-0';
+                    'fixed z-[10000] px-3 py-1.5 text-xs font-bold text-slate-100 bg-white/5 backdrop-filter  border border-white/10 rounded-md  pointer-events-none transition-opacity duration-200 whitespace-nowrap opacity-0';
 
                 const MARGIN = 10;
                 const SPACING = 8;

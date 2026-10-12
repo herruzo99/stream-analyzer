@@ -272,15 +272,15 @@ class PlayerSimulationView {
         const isSignalOpen = isSignalMonitorOpen;
         const monitorElement = isSignalOpen
             ? html`
-                    <div class="h-full flex flex-col overflow-hidden bg-slate-800"
+                    <div class="h-full flex flex-col overflow-hidden bg-white/5"
                          style=" border-radius: 0.75rem; backdrop-filter: blur(12px); box-shadow: 0 8px 30px rgb(0 0 0 / 0.35);">
-                         <div class="flex items-center gap-2 p-4 border-b border-slate-800"
+                         <div class="flex items-center gap-2 p-4 border-b border-white/10"
                               style="padding: 1rem;">
                             <h3 class="font-bold text-slate-100 text-sm flex items-center gap-2">
                                  ${icons.activity} Signal Monitor
                             </h3>
                          </div>
-                         <div class="grow min-h-0 relative border-b border-slate-800">
+                         <div class="grow min-h-0 relative border-b border-white/10">
                               <signal-monitor-video class="absolute inset-0"></signal-monitor-video>
                          </div>
                          <div class="h-24 shrink-0 relative">
@@ -299,7 +299,7 @@ class PlayerSimulationView {
                     </div>
                     ${sidebarElement
                         ? html`<div
-                              class="w-80 shrink-0 border-l border-slate-800 overflow-y-auto custom-scrollbar hidden xl:block"
+                              class="w-80 shrink-0 border-l border-white/10 overflow-y-auto custom-scrollbar hidden xl:block"
                           >
                               ${sidebarElement}
                           </div>`
@@ -307,14 +307,14 @@ class PlayerSimulationView {
                 </div>
                 ${bottomElement
                     ? html`<div
-                          class="shrink-0 h-64 min-h-0 border-t border-slate-800 overflow-hidden"
+                          class="shrink-0 h-64 min-h-0 border-t border-white/10 overflow-hidden"
                       >
                           ${bottomElement}
                       </div>`
                     : ''}
                 ${monitorElement
                     ? html`<div
-                          class="shrink-0 h-56 min-h-0 border-t border-slate-800 overflow-hidden"
+                          class="shrink-0 h-56 min-h-0 border-t border-white/10 overflow-hidden"
                       >
                           ${monitorElement}
                       </div>`
@@ -373,22 +373,22 @@ class PlayerSimulationView {
         let videoOverlayContent = html``;
         if (isSwitching) {
             videoOverlayContent = html`
-            <div class="absolute inset-0 z-50 flex flex-col items-center justify-centertext-blue-500 animate-fadeIn" >
+            <div class="absolute inset-0 z-50 flex flex-col items-center justify-centertext-emerald-200" >
                     <div class="scale-150 mb-4 animate-spin">${icons.spinner}</div>
-                    <span class="text-sm font-mono uppercase tracking-widest">Initializing Stream...</span>
+                    <span class="text-sm font-mono">Initializing Stream...</span>
                 </div >
             `;
         } else if (!isLoaded && !activeError) {
             videoOverlayContent = html`
-            <div class="absolute inset-0 z-40 flex flex-col items-center justify-center bg-slate-800 animate-fadeIn" >
-                    <div class="p-4 rounded-full bg-slate-800 text-slate-400 mb-4 border border-slate-800 shadow-xl">
+            <div class="absolute inset-0 z-40 flex flex-col items-center justify-center bg-white/5" >
+                    <div class="p-4 rounded-full bg-white/5 text-slate-400 mb-4 border border-white/10">
                         ${icons.play}
                     </div>
                     <h3 class="text-lg font-bold text-slate-100 mb-1">Player Ready</h3>
                     <p class="text-sm text-slate-400 mb-6 max-w-xs text-center">
                         Stream: <span class="text-slate-100 font-semibold">${stream.name}</span>
                     </p>
-                    <button @click=${handleManualLaunch} class="px-8 py-3 bg-blue-500 hover:bg-[#60a5fa] text-slate-100 font-bold rounded-full transition-all flex items-center gap-2 shadow-[0_0_20px_#3b82f6] hover:scale-105 active:scale-95 duration-300" >
+                    <button @click=${handleManualLaunch} class="px-8 py-3 bg-emerald-500/10 hover:bg-[#60a5fa] text-slate-100 font-bold rounded-full transition-all flex items-center gap-2 hover:scale-105 active:scale-95 duration-300" >
             ${icons.play} Launch Stream
                     </button >
                 </div >
@@ -403,18 +403,18 @@ class PlayerSimulationView {
                     The key is ensuring the background is applied to the CONTAINER, while the VIDEO
                     sits cleanly inside, masked by overflow - hidden.
                 -->
-                <div class="grow relative min-h-0 flex flex-col justify-center rounded-xl overflow-hidden group bg-black">
+                <div class="grow relative min-h-0 flex flex-col justify-center rounded-md overflow-hidden group bg-black">
                      <!-- 
                         Ambient Glow (Optional, for that 'premium' feel behind the video) 
                         Implementation: A subtle radial gradient that is only visible if video has letterboxing
                      -->
-                     <div class="absolute inset-0 bg-gradient-to-b from-transparent to-black/50 pointer-events-none z-10"></div>
+                     <div class="absolute inset-0 from-transparent to-black/50 pointer-events-none z-10"></div>
 
                      <!-- Header Overlay (Title) -->
-                     <div class="absolute top-0 left-0 right-0 p-6 z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-b from-black/90 via-black/40 to-transparent pointer-events-none">
-                         <h2 class="text-xl font-bold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] tracking-wide truncate font-display">${stream.name}</h2>
+                     <div class="absolute top-0 left-0 right-0 p-6 z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 from-black/90 via-black/40 to-transparent pointer-events-none">
+                         <h2 class="text-xl font-bold text-white drop- truncate font-display">${stream.name}</h2>
                          <div class="flex items-center gap-2 mt-1">
-                            <span class="text-[10px] uppercase tracking-widest text-white/70 font-mono border border-white/20 px-1.5 py-0.5 rounded">Live</span>
+                            <span class="text-[10px] text-white/70 font-mono border border-white/20 px-1.5 py-0.5 rounded">Live</span>
                          </div>
                      </div>
 
@@ -455,9 +455,9 @@ class PlayerSimulationView {
         ];
 
         return html`
-            <div class="h-full flex flex-col overflow-hidden bg-slate-800"
+            <div class="h-full flex flex-col overflow-hidden bg-white/5"
         style = " border-radius: 0.75rem; backdrop-filter: blur(12px); box-shadow: 0 8px 30px rgb(0 0 0 / 0.35);" >
-                 <div class="flex justify-between items-center p-4 border-b border-slate-800 bg-white/5"
+                 <div class="flex justify-between items-center p-4 border-b border-white/10 bg-white/5"
                       style="padding: 1rem;">
                     <span class="font-bold text-sm text-slate-100">Analysis Data</span>
                     ${connectedTabBar(tabs, activeTab, (t) => playerActions.setActiveTab(t))}
@@ -475,16 +475,16 @@ class PlayerSimulationView {
     renderBottomConfig() {
         const playerConfig = playerService.getConfiguration();
         return html`
-            <div class="h-full flex flex-col overflow-hidden bg-slate-800"
+            <div class="h-full flex flex-col overflow-hidden bg-white/5"
         style = " border-radius: 0.75rem; backdrop-filter: blur(12px); box-shadow: 0 8px 30px rgb(0 0 0 / 0.35);" >
-            <div class="flex justify-between items-center p-4 border-b border-slate-800 bg-white/5"
+            <div class="flex justify-between items-center p-4 border-b border-white/10 bg-white/5"
                 style="padding: 1rem;">
                 <div class="flex items-center gap-2 text-slate-100 font-bold">
                     ${icons.slidersHorizontal}
                     <span>Stream Configuration</span>
                 </div>
                 <button @click=${() => uiActions.setPlayerControlMode('standard')}
-                          class="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-slate-100">
+                          class="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-slate-100">
                 ${icons.xCircle}
             </button>
                  </div >

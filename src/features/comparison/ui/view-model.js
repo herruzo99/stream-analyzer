@@ -75,11 +75,11 @@ const createRow = (
  * @returns {import('@/types').ManifestSummary}
  */
 function resolveHlsVariantSummary(stream, variantId) {
-    const playlistData = stream.mediaPlaylists.get(variantId);
+    const playlistData = stream.mediaPlaylists?.get(variantId);
     const masterSummary = stream.manifest.summary;
 
     // If we can't find specific playlist data, fallback to master but warn
-    if (!playlistData) return masterSummary;
+    if (!playlistData?.manifest) return masterSummary;
 
     const mediaManifest = playlistData.manifest;
     // Access raw properties from serializedManifest (parsed HLS object) for properties not in generic Manifest IR
@@ -89,42 +89,43 @@ function resolveHlsVariantSummary(stream, variantId) {
     const variantDef = stream.manifest.variants?.find(
         (v) => (v.stableId || v.id) === variantId
     );
+    const variantAttrs = variantDef?.attributes || {};
 
     // Calculate specific stats for this variant
-    const segmentCount = mediaManifest.segments?.length || 0;
+    const segments = mediaManifest?.segments || [];
+    const segmentCount = segments.length;
     const actualDuration =
-        mediaManifest.segments?.reduce((acc, s) => acc + s.duration, 0) || 0;
+        segments.reduce((acc, s) => acc + (s.duration || 0), 0) || 0;
 
     // Calculate last segment duration for HLS specific checks
     let lastSegmentDuration = 0;
-    if (mediaManifest.segments && mediaManifest.segments.length > 0) {
-        lastSegmentDuration =
-            mediaManifest.segments[mediaManifest.segments.length - 1].duration;
+    if (segments.length > 0) {
+        lastSegmentDuration = segments[segments.length - 1].duration || 0;
     }
 
     // Construct a complete video track object that mimics what the parser produces
     const syntheticVideoTrack = variantDef
         ? {
               id: variantDef.stableId || variantDef.id,
-              bandwidth: variantDef.attributes.BANDWIDTH,
+              bandwidth: variantAttrs.BANDWIDTH,
               // Essential: The 'resolutions' array expected by UI
               resolutions: [
                   {
-                      value: variantDef.attributes.RESOLUTION || 'N/A',
+                      value: variantAttrs.RESOLUTION || 'N/A',
                       source: 'manifest',
                   },
               ],
               codecs: [
                   {
-                      value: variantDef.attributes.CODECS,
+                      value: variantAttrs.CODECS,
                       source: 'manifest',
-                      supported: isCodecSupported(variantDef.attributes.CODECS),
+                      supported: isCodecSupported(variantAttrs.CODECS),
                   },
               ],
-              frameRate: variantDef.attributes['FRAME-RATE'],
-              videoRange: variantDef.attributes['VIDEO-RANGE'],
+              frameRate: variantAttrs['FRAME-RATE'],
+              videoRange: variantAttrs['VIDEO-RANGE'],
               profiles: null,
-              manifestBandwidth: variantDef.attributes.BANDWIDTH,
+              manifestBandwidth: variantAttrs.BANDWIDTH,
               scanType: null,
               roles: [],
           }
@@ -153,7 +154,7 @@ function resolveHlsVariantSummary(stream, variantId) {
                 segmentCount,
                 averageSegmentDuration:
                     segmentCount > 0 ? actualDuration / segmentCount : 0,
-                hasDiscontinuity: mediaManifest.segments?.some(
+                hasDiscontinuity: (mediaManifest.segments || []).some(
                     (s) => s.discontinuity
                 ),
                 isIFrameOnly: false,
@@ -189,7 +190,10 @@ function resolveHlsVariantSummary(stream, variantId) {
  * @param {string} referenceCompositeId
  */
 export function createComparisonViewModel(targets, referenceCompositeId) {
-    // Resolve summaries for each target
+    // Resolve summaries for each target.
+    // NOTE: variantId is HLS-only. DASH targets always resolve the master
+    // summary — representation-level DASH comparison is not modeled, so a
+    // DASH variantId is accepted but intentionally ignored.
     const resolvedTargets = targets.map((t) => {
         const compositeId = t.variantId
             ? `${t.stream.id}::${t.variantId}`
@@ -212,7 +216,7 @@ export function createComparisonViewModel(targets, referenceCompositeId) {
             subLabel:
                 t.variantId && t.variantId !== 'master'
                     ? t.variantId
-                    : t.stream.protocol.toUpperCase(),
+                    : (t.stream.protocol || 'unknown').toLowerCase(),
             summary,
         };
     });
@@ -296,7 +300,7 @@ export function createComparisonViewModel(targets, referenceCompositeId) {
                 const tracks = s?.videoTracks || [];
                 const codecs = new Set(
                     tracks.flatMap((t) =>
-                        t.codecs.map((c) => c.value.split('.')[0])
+                        (t.codecs || []).map((c) => String(c.value || '').split('.')[0] || 'unknown')
                     )
                 );
                 return Array.from(codecs).sort((a, b) => a.localeCompare(b));
@@ -368,7 +372,7 @@ export function createComparisonViewModel(targets, referenceCompositeId) {
                 const tracks = s?.audioTracks || [];
                 const codecs = new Set(
                     tracks.flatMap((t) =>
-                        t.codecs.map((c) => c.value.split('.')[0])
+                        (t.codecs || []).map((c) => String(c.value || '').split('.')[0] || 'unknown')
                     )
                 );
                 return Array.from(codecs).sort((a, b) => a.localeCompare(b));
@@ -443,7 +447,7 @@ export function createComparisonViewModel(targets, referenceCompositeId) {
             mapValues((s) => {
                 const systems = s?.security?.systems || [];
                 return systems.map((sys) => {
-                    const uuid = sys.systemId.toLowerCase();
+                    const uuid = String(sys.systemId || '').toLowerCase();
                     if (uuid.includes('edef8ba9')) return 'Widevine';
                     if (uuid.includes('9a04f079')) return 'PlayReady';
                     if (uuid.includes('94ce86fb')) return 'FairPlay';
@@ -513,7 +517,7 @@ export function createComparisonViewModel(targets, referenceCompositeId) {
                     let width = 0,
                         height = 0;
 
-                    if (resString) {
+                    if (typeof resString === 'string' && resString.includes('x')) {
                         const parts = resString.split('x');
                         width = parseInt(parts[0], 10) || 0;
                         height = parseInt(parts[1], 10) || 0;

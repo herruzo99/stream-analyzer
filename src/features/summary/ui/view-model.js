@@ -13,7 +13,22 @@ export function createSummaryViewModel(stream) {
         return null;
     }
 
-    const summary = stream.manifest.summary;
+    // Deep-shape guard: a present-but-partial summary must not throw
+    // halfway through. Defaults live in locals — the store input is
+    // never mutated.
+    const raw = stream.manifest.summary;
+    const summary = {
+        ...raw,
+        general: raw.general || {},
+        security: {
+            systems: [],
+            ...raw.security,
+        },
+        content: raw.content || {},
+        videoTracks: raw.videoTracks || [],
+        audioTracks: raw.audioTracks || [],
+        textTracks: raw.textTracks || [],
+    };
     const isLive = stream.manifest.type === 'dynamic';
     const manifestIR = stream.manifest;
     const serializedManifest = stream.manifest.serializedManifest;
@@ -57,16 +72,19 @@ export function createSummaryViewModel(stream) {
             (pr) => ({
                 source: pr.source,
                 description: pr.source_description,
-                count: pr.rates.length,
+                count: pr.rates?.length ?? 0,
             })
         );
 
-        manifestIR.periods.forEach((p) => {
-            subsets.push(...p.subsets);
-            p.adaptationSets.forEach((as) => {
+        (manifestIR.periods || []).forEach((p) => {
+            if (!p) return;
+            if (Array.isArray(p.subsets)) subsets.push(...p.subsets);
+            (p.adaptationSets || []).forEach((as) => {
+                if (!as) return;
                 if (as.ratings) ratings.push(...as.ratings);
                 if (as.viewpoints) viewpoints.push(...as.viewpoints);
-                as.representations.forEach((rep) => {
+                (as.representations || []).forEach((rep) => {
+                    if (!rep) return;
                     if (rep.extendedBandwidth)
                         extendedBandwidths.push(rep.extendedBandwidth);
                     if (rep.failoverContent)
@@ -130,15 +148,25 @@ export function createSummaryViewModel(stream) {
                 id: t.value['DATA-ID'],
                 value: t.value['VALUE'] || t.value['URI'],
             }));
-        if (manifestIR.hlsDefinedVariables) {
-            manifestIR.hlsDefinedVariables.forEach((val, key) => {
-                variables.push({
-                    name: key,
-                    value: val.value,
-                    source: val.source,
-                });
+        // hlsDefinedVariables is a Map everywhere it is produced, but
+        // tolerate plain-object shapes from older persisted state.
+        const varEntries =
+            typeof manifestIR.hlsDefinedVariables?.forEach === 'function'
+                ? (() => {
+                    const out = [];
+                    manifestIR.hlsDefinedVariables.forEach((val, key) =>
+                        out.push([key, val])
+                    );
+                    return out;
+                })()
+                : Object.entries(manifestIR.hlsDefinedVariables || {});
+        varEntries.forEach(([key, val]) => {
+            variables.push({
+                name: key,
+                value: val?.value,
+                source: val?.source,
             });
-        }
+        });
         const steeringTag = tags.find(
             (t) => t.name === 'EXT-X-CONTENT-STEERING'
         );
@@ -156,8 +184,8 @@ export function createSummaryViewModel(stream) {
         protocol: summary.general.protocol,
         type: isLive ? 'LIVE' : 'VOD',
         typeClass: isLive
-            ? 'bg-slate-800 text-red-400 border-red-500'
-            : 'bg-slate-800 text-blue-400 border-blue-500',
+            ? 'bg-white/5 text-red-400 border-red-500'
+            : 'bg-white/5 text-emerald-200 border-emerald-400/25',
         isEncrypted: summary.security.isEncrypted,
         encryptionType:
             summary.security.hlsEncryptionMethod ||
@@ -201,10 +229,13 @@ export function createSummaryViewModel(stream) {
         },
     ];
 
+    const codecValuesOf = (tracks) =>
+        (tracks || [])
+            .flatMap((t) => (t.codecs || []).map((c) => c?.value))
+            .filter((v) => typeof v === 'string' && v.length > 0);
+
     const features = [];
-    const videoCodecs = new Set(
-        summary.videoTracks.flatMap((t) => t.codecs.map((c) => c.value))
-    );
+    const videoCodecs = new Set(codecValuesOf(summary.videoTracks));
     videoCodecs.forEach((c) => {
         let name = c.split('.')[0];
         if (name.includes('avc')) name = 'H.264 (AVC)';
@@ -214,13 +245,11 @@ export function createSummaryViewModel(stream) {
     });
 
     const ranges = new Set(
-        summary.videoTracks.map((t) => t.videoRange).filter(Boolean)
+        (summary.videoTracks || []).map((t) => t.videoRange).filter(Boolean)
     );
     ranges.forEach((r) => features.push({ label: r, type: 'quality' }));
 
-    const audioCodecs = new Set(
-        summary.audioTracks.flatMap((t) => t.codecs.map((c) => c.value))
-    );
+    const audioCodecs = new Set(codecValuesOf(summary.audioTracks));
     audioCodecs.forEach((c) => {
         let name = c.split('.')[0];
         if (name.includes('mp4a')) name = 'AAC';
@@ -233,8 +262,8 @@ export function createSummaryViewModel(stream) {
         features.push({ label: 'Low Latency', type: 'tech' });
     if (
         summary.hls?.iFramePlaylists > 0 ||
-        summary.videoTracks.some((t) =>
-            t.roles.some((r) => r.value === 'trick')
+        (summary.videoTracks || []).some((t) =>
+            (t.roles || []).some((r) => r.value === 'trick')
         )
     ) {
         features.push({ label: 'Trick Play', type: 'tech' });
@@ -244,29 +273,41 @@ export function createSummaryViewModel(stream) {
     if (summary.general.segmenting)
         features.push({ label: summary.general.segmenting, type: 'tech' });
 
-    const ladderPoints = summary.videoTracks
-        .map((t) => ({
-            bandwidth: t.bandwidth,
-            width: t.resolutions[0]?.value.split('x')[0] || 0,
-            height: t.resolutions[0]?.value.split('x')[1] || 0,
-            codecs: t.codecs.map((c) => c.value).join(', '),
-        }))
+    const parseWxH = (value) => {
+        if (typeof value !== 'string' || !value.includes('x'))
+            return [0, 0];
+        const [w, h] = value.split('x').map(Number);
+        return [Number.isFinite(w) ? w : 0, Number.isFinite(h) ? h : 0];
+    };
+    const ladderPoints = (summary.videoTracks || [])
+        .map((t) => {
+            const [width, height] = parseWxH(t.resolutions?.[0]?.value);
+            return {
+                bandwidth: t.bandwidth,
+                width,
+                height,
+                codecs: (t.codecs || [])
+                    .map((c) => c?.value)
+                    .filter(Boolean)
+                    .join(', '),
+            };
+        })
         .sort((a, b) => a.bandwidth - b.bandwidth);
 
     const deduplicatedFeatures = Array.from(
         new Set(features.map((f) => JSON.stringify(f)))
     ).map((s) => JSON.parse(s));
 
-    const enrichedVideoTracks = summary.videoTracks.map((track) => {
+    const enrichedVideoTracks = (summary.videoTracks || []).map((track) => {
         let hdcpLevel = null;
         if (stream.protocol === 'hls' && manifestIR.variants) {
             const variant = manifestIR.variants.find(
                 (v) =>
                     v.stableId === track.id ||
-                    v.attributes.BANDWIDTH === track.bandwidth
+                    v.attributes?.BANDWIDTH === track.bandwidth
             );
             if (variant) {
-                hdcpLevel = variant.attributes['HDCP-LEVEL'];
+                hdcpLevel = variant.attributes?.['HDCP-LEVEL'] ?? null;
             }
         }
 
@@ -277,6 +318,7 @@ export function createSummaryViewModel(stream) {
     });
 
     return {
+        streamKey: `${stream.id ?? stream.originalUrl ?? stream.name}`,
         hero,
         stats,
         features: deduplicatedFeatures,
@@ -296,8 +338,14 @@ export function createSummaryViewModel(stream) {
             failoverContents,
         },
         cmafData: {
-            status: stream.semanticData?.get('cmafValidationStatus') || 'idle',
-            results: stream.semanticData?.get('cmafValidation') || [],
+            status:
+                (typeof stream.semanticData?.get === 'function'
+                    ? stream.semanticData.get('cmafValidationStatus')
+                    : stream.semanticData?.cmafValidationStatus) || 'idle',
+            results:
+                (typeof stream.semanticData?.get === 'function'
+                    ? stream.semanticData.get('cmafValidation')
+                    : stream.semanticData?.cmafValidation) || [],
         },
     };
 }

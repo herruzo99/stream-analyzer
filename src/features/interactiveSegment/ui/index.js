@@ -121,14 +121,14 @@ class InteractiveSegmentView {
             this._clearSlots();
             render(
                 html`
-                <div class="flex flex-col items-center justify-center h-full text-slate-400 bg-slate-900 relative overflow-hidden">
-                    <div class="p-8 bg-slate-800/30 backdrop-blur-xl rounded-2xl border border-slate-800 shadow-lg text-center z-10 max-w-md ring-1 ring-white/5">
-                        <div class="text-blue-400 mb-4 scale-150 drop-shadow-[0_0_10px_#3b82f6]">
+                <div class="flex flex-col items-center justify-center h-full text-slate-400 bg-white/5 relative overflow-hidden">
+                    <div class="p-8 bg-white/5 rounded-md border border-white/10 text-center z-10 max-w-md ring-1 ring-white/5">
+                        <div class="text-emerald-200 mb-4 scale-150 drop-">
                             ${icons.searchCode}
                         </div>
                         <p class="text-lg font-bold text-slate-100 mb-2">No Segment Selected</p>
                         <p class="text-sm text-slate-400 mb-6">Select a segment from the timeline to inspect its internal structure.</p>
-                        <button @click=${() => uiActions.setActiveTab('explorer')} class="px-4 py-2 bg-[#3b82f6]/10 hover:bg-[#3b82f6]/20 text-blue-400 border border-[#3b82f6]/30 rounded-lg text-sm font-bold uppercase tracking-wider transition-all hover:shadow-[0_0_15px_#3b82f6]">
+                        <button @click=${() => uiActions.setActiveTab('explorer')} class="px-4 py-2 bg-[#3b82f6]/10 hover:bg-[#3b82f6]/20 text-emerald-200 border border-[#3b82f6]/30 rounded-md text-sm font-bold r transition-all hover:">
                             Go to Segment Explorer
                         </button>
                     </div>
@@ -210,15 +210,15 @@ class InteractiveSegmentView {
             <div class="flex items-center gap-4 h-full">
                 <button
                     @click=${() => uiActions.setActiveTab('explorer')}
-                    class="flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-800/50 hover:bg-slate-800/80 text-slate-400 hover:text-blue-400 border border-slate-800 hover:border-[#3b82f6]/50 transition-all duration-300 group shadow-sm hover:shadow-[0_0_15px_#3b82f6]"
+                    class="flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-md bg-white/5 hover:bg-white/10 text-slate-400 hover:text-emerald-200 border border-white/10 hover:border-[#3b82f6]/50 transition-all duration-300 group hover:"
                 >
                     <span class="group-hover:-translate-x-0.5 transition-transform duration-300">${icons.arrowLeft}</span>
                     Back to Explorer
                 </button>
-                <div class="h-4 w-px bg-slate-800"></div>
+                <div class="h-4 w-px bg-white/5"></div>
                 <div class="flex items-center gap-2 text-sm">
-                    <span class="text-blue-400 scale-90 drop-shadow-[0_0_8px_#3b82f6]">${icons.fileText}</span>
-                    <span class="font-mono text-slate-100 font-bold truncate max-w-[400px] tracking-tight" title="${fileName}">
+                    <span class="text-emerald-200 scale-90 drop-">${icons.fileText}</span>
+                    <span class="font-mono text-slate-100 font-bold truncate max-w-[400px]" title="${fileName}">
                         ${fileName}
                     </span>
                 </div>
@@ -239,8 +239,8 @@ class InteractiveSegmentView {
             hexContent = hexViewTemplate(rawBuffer, this.fullByteMap);
         } else if (format === 'vtt' || format === 'ttml') {
             structureContent = html`
-                <div class="p-6 text-center text-slate-400 text-xs italic bg-slate-800/30 h-full flex flex-col items-center justify-center">
-                    <div class="mb-2 scale-150 opacity-50 text-blue-400">${icons.fileText}</div>
+                <div class="p-6 text-center text-slate-400 text-xs italic bg-white/5 h-full flex flex-col items-center justify-center">
+                    <div class="mb-2 scale-150 opacity-50 text-emerald-200">${icons.fileText}</div>
                     <p>Text-based format (${format.toUpperCase()})</p>
                     <p class="mt-1 opacity-70">Structure tree not available.</p>
                 </div>
@@ -257,8 +257,8 @@ class InteractiveSegmentView {
         // 2. Sub Nav (Structure Tree)
         // Wrapped in layout-card if Solid, or just cleaner container
         const subNavWrapper = html`
-            <div class="h-full w-full flex flex-col ${isSolid ? 'bg-slate-800 border-r border-slate-800' : ''}">
-                <div class="px-4 py-2 text-xs font-black uppercase text-slate-400 tracking-widest shrink-0">Structure</div>
+            <div class="h-full w-full flex flex-col ${isSolid ? 'bg-white/5 border-r border-white/10' : ''}">
+                <div class="px-4 py-2 text-xs font-bold text-slate-400 shrink-0">Structure</div>
                 <div class="grow overflow-y-auto custom-scrollbar">
                     ${structureContent}
                 </div>
@@ -268,8 +268,8 @@ class InteractiveSegmentView {
 
         // 3. Right Sidebar (Inspector)
         const sidebarWrapper = html`
-            <div class="h-full w-full flex flex-col ${isSolid ? 'bg-slate-800 border-l border-slate-800' : ''}">
-                 <div class="px-4 py-2 text-xs font-black uppercase text-slate-400 tracking-widest shrink-0 border-b border-slate-800/10">Inspector</div>
+            <div class="h-full w-full flex flex-col ${isSolid ? 'bg-white/5 border-l border-white/10' : ''}">
+                 <div class="px-4 py-2 text-xs font-bold text-slate-400 shrink-0 border-b border-white/10">Inspector</div>
                  <div class="grow overflow-y-auto custom-scrollbar">
                     ${inspectorContent}
                  </div>
@@ -290,7 +290,7 @@ class InteractiveSegmentView {
                         ${subNavWrapper}
                     </div>
                     <div
-                        class="grow min-h-0 overflow-hidden relative bg-slate-900 shadow-inner flex flex-col"
+                        class="grow min-h-0 overflow-hidden relative bg-white/5 flex flex-col"
                     >
                         ${hexContent}
                     </div>
@@ -327,16 +327,16 @@ class InteractiveSegmentView {
 
     _loadingTemplate(message) {
         return html`
-            <div class="flex flex-col items-center justify-center h-full w-full text-slate-400 bg-slate-900 gap-4 relative overflow-hidden">
+            <div class="flex flex-col items-center justify-center h-full w-full text-slate-400 bg-white/5 gap-4 relative overflow-hidden">
                 <div class="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60%] h-[60%] bg-[#3b82f6]/10 rounded-full blur-[120px] animate-pulse-slow mix-blend-screen"></div>
+                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60%] h-[60%] bg-[#3b82f6]/10 rounded-full animate-pulse-slow mix-blend-screen"></div>
                 </div>
                 <div class="relative z-10 flex flex-col items-center gap-6">
                     <div class="relative">
-                        <div class="w-20 h-20 border-4 border-slate-800/30 border-t-[#3b82f6] rounded-full animate-spin shadow-[0_0_30px_#3b82f6]"></div>
-                        <div class="absolute inset-0 flex items-center justify-center text-blue-400 drop-shadow-[0_0_10px_#3b82f6]">${icons.binary}</div>
+                        <div class="w-20 h-20 border-4 border-white/10 border-t-[#3b82f6] rounded-full animate-spin"></div>
+                        <div class="absolute inset-0 flex items-center justify-center text-emerald-200 drop-">${icons.binary}</div>
                     </div>
-                    <p class="text-sm font-bold uppercase tracking-widest animate-pulse text-blue-400">${message}</p>
+                    <p class="text-sm font-bold animate-pulse text-emerald-200">${message}</p>
                 </div>
             </div>
         `;
@@ -344,13 +344,13 @@ class InteractiveSegmentView {
 
     _errorTemplate(msg) {
         return html`
-             <div class="flex flex-col items-center justify-center h-full w-full text-red-400 bg-slate-900 gap-6 relative overflow-hidden">
-                <div class="p-6 bg-slate-800/40 backdrop-blur-xl rounded-full ring-1 ring-red-500/30 shadow-[0_0_40px_#ef4444/20] z-10 relative group">
+             <div class="flex flex-col items-center justify-center h-full w-full text-red-400 bg-white/5 gap-6 relative overflow-hidden">
+                <div class="p-6 bg-white/5 rounded-full ring-1 ring-red-500/30 z-10 relative group">
                     ${icons.alertTriangle}
                 </div>
                 <div class="text-center z-10 space-y-2">
-                    <p class="font-black text-xl tracking-tight text-slate-200">Failed to load segment</p>
-                    <p class="text-sm text-red-400/80 max-w-md font-mono bg-slate-800/50 px-4 py-2 rounded border border-red-500/20">${msg}</p>
+                    <p class="font-bold text-xl text-slate-200">Failed to load segment</p>
+                    <p class="text-sm text-red-400/80 max-w-md font-mono bg-white/5 px-4 py-2 rounded border border-red-500/20">${msg}</p>
                 </div>
             </div>
         `;

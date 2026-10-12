@@ -19,15 +19,13 @@ const menuItem = (item) => html`
         @click=${() => {
             item.onClick?.();
         }}
-        class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${item.isActive
-            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-            : 'text-slate-300 border border-transparent hover:bg-slate-800 hover:border-slate-700'}"
+        class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-xs font-bold transition-all ${item.isActive ? 'bg-emerald-500/10 text-emerald-200 border border-emerald-400/25' : 'text-slate-300 border border-transparent hover:bg-white/5 hover:border-white/10'}"
     >
         <span class="shrink-0">${iconFor(item.icon)}</span>
         <span class="grow text-left">${item.label}</span>
         ${item.isActive
             ? html`<span
-                  class="w-1.5 h-1.5 rounded-full bg-blue-400"
+                  class="w-1.5 h-1.5 rounded-full bg-emerald-500/10"
               ></span>`
             : ''}
     </button>
@@ -61,11 +59,11 @@ export const fabMenuTemplate = ({
         ${isOpen
             ? html`
                   <div
-                      class="w-64 rounded-2xl border border-slate-700 bg-slate-900/95 backdrop-blur-xl shadow-2xl p-2 space-y-1 animate-scaleIn origin-bottom-right max-h-[60vh] overflow-y-auto custom-scrollbar"
+                      class="w-64 rounded-md border border-white/10 bg-white/5 p-2 space-y-1 animate-scaleIn origin-bottom-right max-h-[60vh] overflow-y-auto custom-scrollbar"
                   >
                       ${contextItems.length > 0
                           ? html`
-                                <div class="pb-1 mb-1 border-b border-slate-800">
+                                <div class="pb-1 mb-1 border-b border-white/10">
                                     ${contextItems.map(menuItem)}
                                 </div>
                             `
@@ -73,15 +71,13 @@ export const fabMenuTemplate = ({
                       ${permanentItems.map(menuItem)}
                       ${sideItems.length > 0
                           ? html`
-                                <div class="pt-1 mt-1 border-t border-slate-800">
+                                <div class="pt-1 mt-1 border-t border-white/10">
                                     <button
                                         @click=${() => onSideToggle?.()}
-                                        class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all"
+                                        class="w-full flex items-center gap-3 px-3 py-2 rounded-md text-[10px] font-bold text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-all"
                                     >
                                         <span
-                                            class="transition-transform ${isSideMenuOpen
-                                                ? 'rotate-180'
-                                                : ''}"
+                                            class="transition-transform ${isSideMenuOpen ? 'rotate-180' : ''}"
                                             >${icons.chevronDown}</span
                                         >
                                         Display options
@@ -99,7 +95,7 @@ export const fabMenuTemplate = ({
             : ''}
         <button
             @click=${() => onToggle?.()}
-            class="w-12 h-12 rounded-full bg-blue-500 hover:bg-blue-400 text-white shadow-[0_0_25px_rgba(59,130,246,0.45)] flex items-center justify-center transition-all active:scale-95"
+            class="w-12 h-12 rounded-full bg-emerald-500/10 hover:bg-emerald-500/10 text-white flex items-center justify-center transition-all active:scale-95"
             aria-label="Comparison options"
             title="Comparison options"
         >

@@ -26,9 +26,9 @@ export function showToast({ message, type, duration = 4000 }) {
         pass: 'bg-emerald-500 border-emerald-500',
         fail: 'bg-red-500 border-red-500',
         warn: 'bg-amber-500 border-amber-500',
-        info: 'bg-blue-500 border-blue-500',
+        info: 'bg-emerald-500/10 border-emerald-400/25',
     };
-    toast.className = `p-4 rounded-lg border text-slate-100 shadow-lg transition-all duration-300 ease-in-out transform translate-x-full opacity-0 ${colors[type]}`;
+    toast.className = `p-4 rounded-md border text-slate-100  transition-all duration-300 ease-in-out transform translate-x-full opacity-0 ${colors[type]}`;
     toast.textContent = message;
     toastContainer.appendChild(toast);
 

@@ -55,18 +55,18 @@ class MultiPlayerView {
         if (!this.container) return;
         render(
             html`
-            <div class="relative h-full w-full bg-slate-900 overflow-hidden flex flex-col">
+            <div class="relative h-full w-full bg-white/5 overflow-hidden flex flex-col">
                 <div class="grow min-h-0 z-0 w-full relative flex min-h-0">
                     <div class="grow min-h-0 relative">
                         <player-grid-component></player-grid-component>
                     </div>
                     <div
-                        class="w-80 shrink-0 border-l border-slate-800 overflow-y-auto hidden xl:block"
+                        class="w-80 shrink-0 border-l border-white/10 overflow-y-auto hidden xl:block"
                     >
                         <event-log-component></event-log-component>
                     </div>
                 </div>
-                <div class="shrink-0 border-t border-slate-800 h-60 min-h-0">
+                <div class="shrink-0 border-t border-white/10 h-60 min-h-0">
                     <multi-player-bottom-panel
                         class="w-full h-full block"
                     ></multi-player-bottom-panel>

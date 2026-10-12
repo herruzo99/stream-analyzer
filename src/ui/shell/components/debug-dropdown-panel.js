@@ -13,35 +13,36 @@ const toggleRow = (key, label, description, isChecked) => {
     };
 
     return html`
-        <div
-            class="flex items-start justify-between p-3 rounded-lg bg-slate-800 hover:bg-slate-800 border border-transparent hover:border-slate-800 transition-colors cursor-pointer group"
+        <button
+            class="w-full flex items-start justify-between gap-3 p-2.5 rounded-md hover:bg-white/5 border border-transparent transition-colors text-left"
             @click=${handleChange}
+            role="switch"
+            aria-checked=${isChecked}
+            aria-label="${label}"
         >
-            <div class="pr-4">
-                <div
-                    class="text-sm font-bold text-slate-100 group-hover:text-slate-100 transition-colors"
-                >
+            <span class="pr-2">
+                <span class="block text-[13px] font-medium text-slate-100">
                     ${label}
-                </div>
-                <div
-                    class="text-[11px] text-slate-400 leading-tight mt-1 group-hover:text-slate-400 transition-colors"
+                </span>
+                <span
+                    class="block text-[11px] text-slate-500 leading-snug mt-0.5"
                 >
                     ${description}
-                </div>
-            </div>
+                </span>
+            </span>
 
-            <div
+            <span
                 class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0 mt-0.5 ${isChecked
-            ? 'bg-blue-500'
-            : 'bg-slate-800 border border-slate-800'}"
+                    ? 'bg-emerald-400'
+                    : 'bg-white/10'}"
             >
                 <span
-                    class="inline-block h-3.5 w-3.5 transform rounded-full bg-slate-100 transition-transform shadow-sm ${isChecked
-            ? 'translate-x-4.5'
-            : 'translate-x-1'}"
+                    class="inline-block h-3.5 w-3.5 rounded-full bg-slate-950 transition-transform ${isChecked
+                        ? 'translate-x-[18px]'
+                        : 'translate-x-[3px]'}"
                 ></span>
-            </div>
-        </div>
+            </span>
+        </button>
     `;
 };
 
@@ -55,30 +56,22 @@ export const debugDropdownPanelTemplate = () => {
 
     return html`
         <base-dropdown class="w-96 max-h-[80vh]">
-            <!--Header -->
             <div
                 slot="header"
-                class="flex items-center gap-3 p-4 pb-3 border-b border-slate-800"
+                class="flex items-center gap-3 px-4 py-3 border-b border-white/5"
             >
-                <div
-                    class="p-2.5 bg-amber-500/10 rounded-xl text-amber-400 shadow-inner border border-amber-500/20"
-                >
-                    ${icons.debug}
-                </div>
+                <span class="text-slate-500">${icons.debug}</span>
                 <div>
-                    <h3
-                        class="font-bold text-slate-100 text-sm"
-                    >
-                        State Diagnostics
+                    <h3 class="font-medium text-slate-100 text-sm">
+                        State diagnostics
                     </h3>
-                    <p class="text-[11px] text-slate-400">
-                        Select components to export for debugging.
+                    <p class="mono text-[10px] text-slate-600">
+                        pick sections, copy to clipboard
                     </p>
                 </div>
             </div>
 
-            <!--Options List-->
-            <div class="p-4 space-y-2">
+            <div class="p-3">
                 ${toggleRow(
         'analysisState',
         'Analysis State',
@@ -105,15 +98,14 @@ export const debugDropdownPanelTemplate = () => {
     )}
             </div>
 
-            <!--Action Footer-->
-        <div slot="footer" class="p-4 pt-3 border-t border-slate-800">
+        <div slot="footer" class="p-3 border-t border-white/5">
             <button
-                    @click=${handleCopy}
-            class="w-full bg-blue-500 hover:bg-[#60a5fa] text-slate-100 font-bold text-xs py-3 px-4 rounded-lg shadow-lg shadow-blue-500/20 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
-                >
-            ${icons.clipboardCopy} Copy Debug Info
-        </button>
-            </div>
+                @click=${handleCopy}
+                class="w-full bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-bold text-[13px] py-2.5 px-4 rounded-md transition-colors flex items-center justify-center gap-2"
+            >
+                ${icons.clipboardCopy} Copy debug info
+            </button>
+        </div>
         </base-dropdown>
     `;
 };

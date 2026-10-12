@@ -80,19 +80,12 @@ class MultiPlayerBottomPanel extends HTMLElement {
                 this.activeDropdown = null;
                 this.render();
             }}
-                        class="
-                            w-full text-left px-3 py-2 rounded-md text-sm font-medium
-                            text-slate-400
-                            hover:text-slate-100
-                            hover:bg-slate-800
-                            transition-colors duration-150
-                            flex items-center gap-2
-                        "
+                        class="w-full text-left px-3 py-2 rounded-md text-sm font-medium text-slate-400 hover:text-slate-100 hover:bg-white/10 transition-colors duration-150 flex items-center gap-2"
                     >
                         ${item.icon ? html`<span class="opacity-70">${item.icon}</span>` : ''}
                         ${item.label}
                     </button>
-                    ${item.divider ? html`<div class="h-px bg-slate-800 my-1 opacity-50"></div>` : ''}
+                    ${item.divider ? html`<div class="h-px bg-white/5 my-1 opacity-50"></div>` : ''}
                 `)}
             </div>
         `;
@@ -119,9 +112,9 @@ class MultiPlayerBottomPanel extends HTMLElement {
         // --- STYLES ---
         const islandClass = `
             h-14 flex items-center px-4 gap-3
-            bg-slate-800
+            bg-white/5
             transition-all duration-300
-            hover:bg-slate-800
+            hover:bg-white/10
             pointer-events-auto
             relative
         `;
@@ -139,7 +132,7 @@ class MultiPlayerBottomPanel extends HTMLElement {
             text-slate-400
             transition-all duration-200
             hover:text-slate-100
-            hover:bg-slate-800
+            hover:bg-white/10
             active:scale-95
             disabled:opacity-40 disabled:cursor-not-allowed
         `;
@@ -147,14 +140,14 @@ class MultiPlayerBottomPanel extends HTMLElement {
         const btnPrimary = `
             relative flex items-center justify-center
             w-14 h-14 rounded-full
-            bg-blue-500 text-slate-200
-            shadow-[0_0_20px_-5px_#3b82f6]
+            bg-emerald-500/10 text-slate-200
+            
             hover:bg-[#60a5fa]
             transition-all duration-200
             hover:scale-105 active:scale-95
         `;
 
-        const divider = `w-px h-6 bg-slate-800 opacity-50`;
+        const divider = `w-px h-6 bg-white/5 opacity-50`;
 
         // --- DROPDOWN ITEMS DEFINITION ---
 
@@ -215,15 +208,15 @@ class MultiPlayerBottomPanel extends HTMLElement {
                         class="${btnBase} !w-10 !px-0"
                         data-tooltip="Select All"
                     >
-                         <div class="flex items-center justify-center w-6 h-6 rounded-full ${selectedCount > 0 ? 'bg-blue-500 text-white' : 'bg-slate-800'}">
+                         <div class="flex items-center justify-center w-6 h-6 rounded-full ${selectedCount > 0 ? 'bg-emerald-500/10 text-white' : 'bg-white/5'}">
                             ${icons.check}
                          </div>
                     </button>
 
                     <!-- Selection Count -->
                     <div class="flex flex-col leading-tight mr-2">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Selected</span>
-                        <span class="text-slate-100 font-black text-sm">${selectedCount}</span>
+                        <span class="text-[10px] font-bold text-slate-400 r">Selected</span>
+                        <span class="text-slate-100 font-bold text-sm">${selectedCount}</span>
                     </div>
 
                     <div class="${divider}"></div>
@@ -232,7 +225,7 @@ class MultiPlayerBottomPanel extends HTMLElement {
                     <div class="relative">
                         <button
                             @click=${(e) => this.toggleDropdown('actions', e)}
-                            class="${btnBase} ${this.activeDropdown === 'actions' ? 'bg-slate-800 text-blue-400' : ''}"
+                            class="${btnBase} ${this.activeDropdown === 'actions' ? 'bg-white/5 text-emerald-200' : ''}"
                             data-tooltip="Selection Actions"
                             ?disabled=${selectedCount === 0}
                         >
@@ -246,7 +239,7 @@ class MultiPlayerBottomPanel extends HTMLElement {
                     <div class="relative">
                         <button
                             @click=${(e) => this.toggleDropdown('config', e)}
-                            class="${btnBase} ${this.activeDropdown === 'config' ? 'bg-slate-800 text-blue-400' : ''}"
+                            class="${btnBase} ${this.activeDropdown === 'config' ? 'bg-white/5 text-emerald-200' : ''}"
                             data-tooltip="Deep Config"
                             ?disabled=${selectedCount === 0}
                         >
@@ -262,10 +255,10 @@ class MultiPlayerBottomPanel extends HTMLElement {
                     <div class="relative">
                         <button
                             @click=${(e) => this.toggleDropdown('grid', e)}
-                            class="${btnBase} pl-3 pr-2 ${this.activeDropdown === 'grid' ? 'bg-slate-800 text-blue-400' : ''}"
+                            class="${btnBase} pl-3 pr-2 ${this.activeDropdown === 'grid' ? 'bg-white/5 text-emerald-200' : ''}"
                             data-tooltip="Layout Mode"
                         >
-                            <span class="mr-2 text-xs font-semibold uppercase tracking-wide opacity-80">
+                            <span class="mr-2 text-xs font-semibold opacity-80">
                                 ${gridColumns === 'auto' ? 'Auto' : `${gridColumns}x${gridColumns}`}
                             </span>
                              <span class="opacity-70">${icons.chevronDown}</span>
@@ -305,7 +298,7 @@ class MultiPlayerBottomPanel extends HTMLElement {
                 <div class="${islandClass}" style="${islandStyle}">
                     <button
                         @click=${() => eventBus.dispatch(EVENTS.UI.MP_SYNC_ALL_TO, { streamId: focusedStreamId })}
-                        class="${btnBase} ${!focusedStreamId ? '' : 'text-blue-400'}"
+                        class="${btnBase} ${!focusedStreamId ? '' : 'text-emerald-200'}"
                         data-tooltip="Sync All to Focused"
                         ?disabled=${!focusedStreamId}
                     >
@@ -324,7 +317,7 @@ class MultiPlayerBottomPanel extends HTMLElement {
 
                     <button
                         @click=${() => useMultiPlayerStore.getState().toggleGlobalHud()}
-                        class="${btnBase} ${showGlobalHud ? '!bg-blue-500 !text-white' : ''}"
+                        class="${btnBase} ${showGlobalHud ? '!bg-emerald-500/10 !text-white' : ''}"
                         data-tooltip="Toggle Metrics HUD"
                     >
                        ${icons.activity}
@@ -332,7 +325,7 @@ class MultiPlayerBottomPanel extends HTMLElement {
 
                     <button
                         @click=${() => this.toggleLog()}
-                        class="${btnBase} ${isLogOpen ? '!bg-blue-500 !text-white' : ''}"
+                        class="${btnBase} ${isLogOpen ? '!bg-emerald-500/10 !text-white' : ''}"
                          data-tooltip="Result Log"
                     >
                         ${icons.terminal}

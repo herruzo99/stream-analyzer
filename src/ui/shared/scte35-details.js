@@ -3,7 +3,7 @@ import { html } from 'lit-html';
 
 const labelVal = (label, value) => html`
     <div
-        class="flex justify-between py-1.5 border-b border-slate-800/10 last:border-0"
+        class="flex justify-between py-1.5 border-b border-white/10 last:border-0"
     >
         <span class="text-slate-400 font-medium opacity-80"
             >${label}</span
@@ -28,14 +28,14 @@ export const scte35DetailsTemplate = (scte35) => {
             errorMsg.includes('Signaled via EXT-X-CUE');
 
         const boxClass = isStructural
-            ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+            ? 'bg-emerald-500/10 border-emerald-400/25 text-emerald-200'
             : 'bg-red-500/10 border-red-500/30 text-red-400';
 
         const icon = isStructural ? icons.info : icons.alertTriangle;
         const title = isStructural ? 'Inferred Ad Break' : 'Parsing Failed';
 
         return html`
-            <div class="p-4 rounded-lg border text-center ${boxClass}">
+            <div class="p-4 rounded-md border text-center ${boxClass}">
                 <div
                     class="flex items-center justify-center gap-2 mb-2 font-bold text-sm"
                 >
@@ -64,10 +64,10 @@ export const scte35DetailsTemplate = (scte35) => {
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 text-xs">
             <!-- Header Info -->
             <div
-                class="bg-slate-800 p-4 rounded-xl border border-slate-800/30 shadow-sm"
+                class="bg-white/5 p-4 rounded-md border border-white/10"
             >
                 <h4
-                    class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 border-b border-slate-800/20 pb-2"
+                    class="text-xs font-bold text-slate-400 r mb-3 border-b border-white/10 pb-2"
                 >
                     Splice Info Section
                 </h4>
@@ -76,7 +76,7 @@ export const scte35DetailsTemplate = (scte35) => {
                 ${labelVal('Protocol Version', scte35.protocol_version)}
 
                 <div
-                    class="flex justify-between py-1.5 border-b border-slate-800/10 last:border-0"
+                    class="flex justify-between py-1.5 border-b border-white/10 last:border-0"
                 >
                     <span
                         class="text-slate-400 font-medium opacity-80"
@@ -95,9 +95,9 @@ export const scte35DetailsTemplate = (scte35) => {
                     </span>
                 </div>
 
-                <div class="mt-3 pt-2 border-t border-slate-800/20">
+                <div class="mt-3 pt-2 border-t border-white/10">
                     <span
-                        class="text-[10px] font-bold text-slate-400/70 uppercase mb-2 block"
+                        class="text-[10px] font-bold text-slate-400/70 mb-2 block"
                         >Encryption / SAP</span
                     >
                     ${labelVal(
@@ -114,13 +114,13 @@ export const scte35DetailsTemplate = (scte35) => {
 
             <!-- Command Details -->
             <div
-                class="bg-slate-800 p-4 rounded-xl border border-slate-800/30 shadow-sm"
+                class="bg-white/5 p-4 rounded-md border border-white/10"
             >
                 <h4
-                    class="text-xs font-bold text-blue-400 uppercase tracking-wider mb-3 border-b border-slate-800/20 pb-2 flex items-center gap-2"
+                    class="text-xs font-bold text-emerald-200 r mb-3 border-b border-white/10 pb-2 flex items-center gap-2"
                 >
                     <span
-                        class="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_5px_#3b82f6]"
+                        class="w-1.5 h-1.5 rounded-full bg-emerald-500/10"
                     ></span>
                     ${cmd.type}
                 </h4>
@@ -170,10 +170,10 @@ export const scte35DetailsTemplate = (scte35) => {
             ${descriptors.length > 0
                 ? html`
                       <div
-                          class="col-span-1 lg:col-span-2 bg-slate-800 p-4 rounded-xl border border-slate-800/30 shadow-sm"
+                          class="col-span-1 lg:col-span-2 bg-white/5 p-4 rounded-md border border-white/10"
                       >
                           <h4
-                              class="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-2"
+                              class="text-xs font-bold text-emerald-400 r mb-3 flex items-center gap-2"
                           >
                               <span
                                   class="p-1 rounded bg-emerald-500/10"
@@ -185,10 +185,10 @@ export const scte35DetailsTemplate = (scte35) => {
                               ${descriptors.map(
                                   (d) => html`
                                       <div
-                                          class="bg-slate-800 p-3 rounded-lg border border-slate-800/20"
+                                          class="bg-white/5 p-3 rounded-md border border-white/10"
                                       >
                                           <div
-                                              class="font-bold text-slate-100 mb-2 text-xs border-b border-slate-800/10 pb-1"
+                                              class="font-bold text-slate-100 mb-2 text-xs border-b border-white/10 pb-1"
                                           >
                                               ${d.segmentation_type_id ||
                                               'Unknown Type'}

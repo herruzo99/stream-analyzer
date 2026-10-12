@@ -34,7 +34,7 @@ function closeAllDropdowns() {
 /**
  * Calculates and applies position to the panel element relative to the trigger.
  */
-function updatePosition(panel, trigger) {
+function updatePosition(panel, trigger, options = {}) {
     if (!panel || !trigger) return;
 
     // Ensure we are in absolute mode for final placement
@@ -89,8 +89,30 @@ function updatePosition(panel, trigger) {
     let left = triggerRect.left;
     let transformOriginX = 'left';
 
-    // If right edge overflows viewport
-    if (left + panelRect.width > viewportWidth - MARGIN) {
+    if (options.side === 'right') {
+        // Sidebar-footer menus: open beside the trigger, bottom-aligned,
+        // so the panel never covers the sidebar content.
+        left = triggerRect.right + SPACING * 2;
+        transformOriginX = 'left';
+        if (left + panelRect.width > viewportWidth - MARGIN) {
+            left = Math.max(MARGIN, viewportWidth - panelRect.width - MARGIN);
+        }
+        const wantBottom = viewportHeight - triggerRect.bottom;
+        const topFromBottom = viewportHeight - wantBottom - panelRect.height;
+        if (topFromBottom < MARGIN) {
+            topStyle = `${MARGIN}px`;
+            bottomStyle = '';
+            maxHeightStyle = `${viewportHeight - MARGIN * 2}px`;
+        } else {
+            topStyle = '';
+            bottomStyle = `${wantBottom}px`;
+            maxHeightStyle =
+                panelRect.height > viewportHeight - MARGIN * 2
+                    ? `${viewportHeight - MARGIN * 2}px`
+                    : '';
+        }
+    } else if (left + panelRect.width > viewportWidth - MARGIN) {
+        // If right edge overflows viewport
         const rightAlignedLeft = triggerRect.right - panelRect.width;
         if (rightAlignedLeft >= MARGIN) {
             left = rightAlignedLeft;
@@ -116,7 +138,7 @@ function updatePosition(panel, trigger) {
     panel.style.transformOrigin = `${transformOriginY} ${transformOriginX}`;
 }
 
-export function toggleDropdown(triggerElement, templateFn, event) {
+export function toggleDropdown(triggerElement, templateFn, event, options = {}) {
     if (!dropdownContainer) {
         console.error('[DropdownService] Not initialized.');
         return;
@@ -143,6 +165,8 @@ export function toggleDropdown(triggerElement, templateFn, event) {
     if (!isNested) {
         closeAllDropdowns();
     }
+
+    const dropdownOptions = options || {};
 
     // 3. Create Wrapper
     // We use a wrapper to isolate the Lit rendering, but the wrapper itself
@@ -179,24 +203,33 @@ export function toggleDropdown(triggerElement, templateFn, event) {
     // 5. Initial Position Calculation
     // We do this immediately to set initial coordinates.
     // Then we do it again in RAF to handle any layout shifts from rendering.
-    updatePosition(panelElement, triggerElement);
+    updatePosition(panelElement, triggerElement, dropdownOptions);
 
     requestAnimationFrame(() => {
-        updatePosition(panelElement, triggerElement);
+        updatePosition(panelElement, triggerElement, dropdownOptions);
     });
 
-    // 6. Reactive Updates
+    // 6. Reactive Updates (microtask-batched: player ticks and polling
+    // updates fire store writes at high frequency; re-render at most once
+    // per frame instead of once per write). Placement follows the trigger
+    // unless options.side is set ('right' opens beside the trigger,
+    // used by sidebar-footer menus that have no room below).
+    let rerenderQueued = false;
     const rerender = () => {
-        if (panelContainer.isConnected) {
+        if (rerenderQueued || !panelContainer.isConnected) return;
+        rerenderQueued = true;
+        queueMicrotask(() => {
+            rerenderQueued = false;
+            if (!panelContainer.isConnected) return;
             render(templateFn(), panelContainer);
             const el = /** @type {HTMLElement} */ (
                 panelContainer.firstElementChild
             );
             if (el) {
                 el.style.pointerEvents = 'auto'; // Ensure recreated element has events
-                updatePosition(el, triggerElement);
+                updatePosition(el, triggerElement, dropdownOptions);
             }
-        }
+        });
     };
 
     const unsubAnalysis = useAnalysisStore.subscribe(rerender);
@@ -222,8 +255,13 @@ export function toggleDropdown(triggerElement, templateFn, event) {
     resizeObserver.observe(panelElement);
 
     const close = () => {
+        rerenderQueued = false;
         if (resizeObserver && panelElement)
             resizeObserver.unobserve(panelElement);
+        if (resizePositionFrame !== null) {
+            cancelAnimationFrame(resizePositionFrame);
+            resizePositionFrame = null;
+        }
         unsubAnalysis();
         unsubUi();
         unsubMultiPlayer();
@@ -241,7 +279,7 @@ export function toggleDropdown(triggerElement, templateFn, event) {
 
     // 7. Global Click Listener
     if (!globalClickListener) {
-        globalClickListener = (e) => {
+        const pendingListener = (e) => {
             const path = e.composedPath();
             let clickedIndex = -1;
             for (let i = activeDropdowns.length - 1; i >= 0; i--) {
@@ -266,11 +304,17 @@ export function toggleDropdown(triggerElement, templateFn, event) {
                 toClose.forEach((d) => d.close());
             }
         };
-        // Defer adding listener to avoid catching the current opening click
-        setTimeout(
-            () => document.addEventListener('click', globalClickListener),
-            0
-        );
+        globalClickListener = pendingListener;
+        // Defer adding listener to avoid catching the current opening click.
+        // Guarded: if every dropdown closed before the timeout fires, the
+        // listener is never attached (previously leaked a dead handler).
+        setTimeout(() => {
+            if (activeDropdowns.length > 0) {
+                document.addEventListener('click', pendingListener);
+            } else {
+                globalClickListener = null;
+            }
+        }, 0);
     }
 
     return {

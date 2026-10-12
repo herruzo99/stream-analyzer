@@ -5,22 +5,22 @@ import { html } from 'lit-html';
 
 const NOTIFICATION_DESCRIPTIONS = {
     playerError: {
-        label: 'Critical Errors',
-        description: 'Get alerted when playback fails irrecoverably.',
+        label: 'Critical errors',
+        description: 'Alert when playback fails irrecoverably.',
         icon: icons.alertTriangle,
     },
     seekPollSuccess: {
-        label: 'Poll Success',
+        label: 'Poll success',
         description: 'Notify when a conditional feature search completes.',
         icon: icons.locateFixed,
     },
     pollingDisabled: {
-        label: 'Background Pause',
+        label: 'Background pause',
         description: 'Alert when polling stops due to inactivity.',
         icon: icons.moon,
     },
     qcAnalysisComplete: {
-        label: 'QC Analysis Done',
+        label: 'QC analysis done',
         description: 'Notify when a signal quality scan finishes.',
         icon: icons.activity,
     },
@@ -35,42 +35,41 @@ const settingToggleTemplate = (type, settings) => {
     };
 
     return html`
-        <div
-            class="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 hover:bg-slate-800 border border-transparent hover:border-slate-700 transition-colors cursor-pointer group"
+        <button
+            class="w-full flex items-center justify-between gap-3 p-2.5 rounded-md hover:bg-white/5 border border-transparent transition-colors text-left"
             @click=${handleToggle}
+            role="switch"
+            aria-checked=${isEnabled}
+            aria-label="${info.label}"
         >
-            <div class="flex items-center gap-3 pr-4">
-                <div
-                    class="p-2 rounded-lg bg-slate-700 text-slate-400 group-hover:text-white transition-colors"
-                >
-                    ${info.icon}
-                </div>
-                <div>
-                    <div
-                        class="font-bold text-sm text-slate-200 group-hover:text-white"
+            <span class="flex items-center gap-3 min-w-0">
+                <span class="text-slate-500 shrink-0">${info.icon}</span>
+                <span class="min-w-0">
+                    <span
+                        class="block text-[13px] font-medium text-slate-100"
                     >
                         ${info.label}
-                    </div>
-                    <div
-                        class="text-[10px] text-slate-500 leading-tight mt-0.5"
+                    </span>
+                    <span
+                        class="block text-[11px] text-slate-500 leading-snug mt-0.5"
                     >
                         ${info.description}
-                    </div>
-                </div>
-            </div>
+                    </span>
+                </span>
+            </span>
 
-            <div
+            <span
                 class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0 ${isEnabled
-                    ? 'bg-blue-600'
-                    : 'bg-slate-700'}"
+                    ? 'bg-emerald-400'
+                    : 'bg-white/10'}"
             >
                 <span
-                    class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow-sm ${isEnabled
-                        ? 'translate-x-4.5'
-                        : 'translate-x-1'}"
+                    class="inline-block h-3.5 w-3.5 rounded-full bg-slate-950 transition-transform ${isEnabled
+                        ? 'translate-x-[18px]'
+                        : 'translate-x-[2px]'}"
                 ></span>
-            </div>
-        </div>
+            </span>
+        </button>
     `;
 };
 
@@ -78,32 +77,26 @@ const permissionBanner = (permission) => {
     if (permission === 'granted') return '';
 
     const isDenied = permission === 'denied';
-    const bgClass = isDenied
-        ? 'bg-red-900/20 border-red-900/50'
-        : 'bg-blue-900/20 border-blue-900/50';
-    const textClass = isDenied ? 'text-red-200' : 'text-blue-200';
     const icon = isDenied ? icons.xCircle : icons.informationCircle;
-    const title = isDenied ? 'Notifications Blocked' : 'Enable Notifications';
+    const title = isDenied ? 'Notifications blocked' : 'Enable notifications';
     const desc = isDenied
-        ? 'Please enable notifications in your browser settings to receive alerts.'
+        ? 'Allow notifications in your browser settings to receive alerts.'
         : 'Allow notifications to receive real-time alerts for stream events.';
 
     return html`
-        <div class="p-3 rounded-lg border ${bgClass} mb-4">
-            <div
-                class="flex items-center gap-2 font-bold text-xs ${textClass} mb-1"
-            >
+        <div class="p-3 rounded-md border ${isDenied ? 'border-red-400/25 bg-red-500/5' : 'border-white/10 bg-white/[0.02]'} mb-2">
+            <div class="flex items-center gap-2 text-[13px] font-medium ${isDenied ? 'text-red-200' : 'text-slate-100'} mb-1">
                 ${icon} ${title}
             </div>
-            <p class="text-[10px] opacity-80 mb-3 ${textClass}">${desc}</p>
+            <p class="text-[11px] text-slate-500 mb-3">${desc}</p>
             ${!isDenied
                 ? html`
                       <button
                           @click=${() =>
                               notificationService.requestPermission()}
-                          class="w-full py-1.5 px-3 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-colors shadow-lg shadow-blue-900/20"
+                          class="w-full py-2 px-3 rounded-md bg-emerald-400 hover:bg-emerald-300 text-slate-950 text-[13px] font-bold transition-colors"
                       >
-                          Request Permission
+                          Request permission
                       </button>
                   `
                 : ''}
@@ -114,25 +107,16 @@ const permissionBanner = (permission) => {
 export const notificationSettingsPanelTemplate = () => {
     const { permission, settings } = useNotificationStore.getState();
 
+    // Rendered inline inside the settings dropdown: no card chrome here,
+    // just a section with rows.
     return html`
-        <div
-            class="dropdown-panel bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl w-80 p-4 ring-1 ring-black/50"
-        >
-            <div
-                class="flex items-center gap-2 pb-3 mb-2 border-b border-white/5"
-            >
-                <div class="p-1.5 bg-blue-500/10 rounded text-blue-400">
-                    ${icons.settings}
-                </div>
-                <h4 class="font-bold text-white text-sm tracking-wide">
-                    Notification Preferences
-                </h4>
-            </div>
-
+        <div class="px-2 py-2 border-t border-white/5">
+            <p class="mono px-2.5 mb-1 text-[10px] text-slate-600">
+                notifications
+            </p>
             ${permissionBanner(permission)}
-
             <div
-                class="space-y-2 ${permission !== 'granted'
+                class="${permission !== 'granted'
                     ? 'opacity-50 pointer-events-none grayscale'
                     : ''}"
             >

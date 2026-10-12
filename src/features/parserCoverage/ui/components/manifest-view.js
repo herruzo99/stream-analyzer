@@ -26,11 +26,11 @@ export const manifestViewTemplate = (stream, report = []) => {
     return html`
         <div class="flex flex-col h-full min-h-0 gap-2">
             <div
-                class="shrink-0 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-slate-400"
+                class="shrink-0 flex items-center justify-between text-[10px] font-bold text-slate-400"
             >
                 <span>Manifest source</span>
                 <span
-                    class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-300"
+                    class="px-1.5 py-0.5 rounded bg-white/5 text-slate-300"
                     >${report.length} finding${report.length === 1
                         ? ''
                         : 's'}</span

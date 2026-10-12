@@ -5,15 +5,15 @@ const renderCmcdRow = (item) => {
     // We calculate statusColor but it was previously unused.
     // Now we use it to color the key/label when there is an error.
     const statusColor = item.isValid
-        ? 'text-blue-400'
+        ? 'text-emerald-200'
         : 'text-red-400';
     const borderClass = item.isValid
-        ? 'border-slate-800'
+        ? 'border-white/10'
         : 'border-red-500/50 bg-red-500/10';
 
     return html`
         <div
-            class="flex flex-col p-2 rounded border ${borderClass} mb-1 hover:bg-slate-800/50 transition-colors"
+            class="flex flex-col p-2 rounded border ${borderClass} mb-1 hover:bg-white/10 transition-colors"
         >
             <div class="flex justify-between items-center">
                 <div class="flex items-center gap-2">
@@ -21,7 +21,7 @@ const renderCmcdRow = (item) => {
                         >${item.key}</span
                     >
                     <span
-                        class="text-[10px] text-slate-400 uppercase tracking-wider"
+                        class="text-[10px] text-slate-400 r"
                         >${item.label}</span
                     >
                 </div>
@@ -51,10 +51,10 @@ export const cmcdPanelTemplate = (cmcdData) => {
     return html`
         <section class="mt-6">
             <div
-                class="flex items-center justify-between mb-2 pb-2 border-b border-slate-800"
+                class="flex items-center justify-between mb-2 pb-2 border-b border-white/10"
             >
                 <h5
-                    class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2"
+                    class="text-xs font-bold text-slate-400 r flex items-center gap-2"
                 >
                     ${icons.activity} CMCD Data
                     ${hasErrors
@@ -67,7 +67,7 @@ export const cmcdPanelTemplate = (cmcdData) => {
                     ${sources.map(
                         (s) => html`
                             <span
-                                class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-800"
+                                class="text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-slate-400 border border-white/10"
                             >
                                 ${s}
                             </span>
@@ -77,7 +77,7 @@ export const cmcdPanelTemplate = (cmcdData) => {
             </div>
 
             <div
-                class="bg-slate-800 rounded-lg border border-slate-800 p-2"
+                class="bg-white/5 rounded-md border border-white/10 p-2"
             >
                 ${values.map(renderCmcdRow)}
             </div>

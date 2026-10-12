@@ -99,14 +99,14 @@ function renderNetworkView() {
     const topBarHeader = html`
         <div class="w-full h-full flex items-center justify-between px-4">
             <h3 class="text-xl font-bold text-slate-100 flex items-center gap-3">
-                 <div class="p-2 rounded-xl bg-blue-500/10 text-blue-400">
+                 <div class="p-2 rounded-md bg-emerald-500/10 text-emerald-200">
                     ${icons.network}
                 </div>
                 Network Inspector
             </h3>
             <button
                 @click=${handleOpenChaosModal}
-                class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 hover:bg-slate-800"
+                class="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all bg-white/5 text-slate-400 hover:text-slate-200 border border-white/10 hover:bg-white/10"
             >
                 ${icons.zapOff} Chaos Tools
                 ${activeRulesCount > 0
@@ -122,7 +122,7 @@ function renderNetworkView() {
     // Main Content
     const template = html`
         <div
-            class="flex flex-col h-full animate-fadeIn custom-scrollbar overflow-y-auto"
+            class="flex flex-col h-full custom-scrollbar overflow-y-auto"
             style="gap: 0.75rem; padding-bottom: 0.75rem;"
         >
             <div class="shrink-0 relative z-10">${topBarHeader}</div>
@@ -151,7 +151,7 @@ function renderNetworkView() {
                 style=${styleMap({ ...layoutCardStyles, background: '#1e293b' })}
             >
                  <h4
-                    class="absolute top-2 left-3 text-[10px] font-bold text-slate-400 uppercase z-10"
+                    class="absolute top-2 left-3 text-[10px] font-bold text-slate-400 z-10"
                 >
                     Throughput
                 </h4>

@@ -34,39 +34,29 @@ class BitrateLadderComponent extends HTMLElement {
         if (!this._data || this._data.length === 0) return;
 
         const isMobile = window.innerWidth < 640;
-        const getCssVar = (name, fallback) => {
-            const val = getComputedStyle(document.documentElement)
-                .getPropertyValue(name)
-                .trim();
-            return val || fallback;
-        };
-
-        const bgPanel = getCssVar('--bg-surface-B-panel', '#1e293b');
-        const borderMain = getCssVar('--border-on-B', 'rgba(255,255,255,0.1)');
-        const textMain = getCssVar('--text-on-B-primary', '#f8fafc');
-        const textMuted = getCssVar('--text-on-B-secondary', '#94a3b8');
-        const chartColors = [];
-        for (let i = 1; i <= 10; i++) {
-            chartColors.push(getCssVar(`--chart-${i}`, '#3b82f6'));
-        }
+        // Single-hue workbench chart: emerald bars, slate chrome.
+        // No per-bar colors, no theme-var rainbow.
+        const barColor = '#34d399';
+        const trackColor = 'rgba(255,255,255,0.05)';
+        const gridColor = 'rgba(255,255,255,0.08)';
+        const textMain = '#e2e8f0';
+        const textMuted = '#64748b';
 
         const options = {
             backgroundColor: 'transparent',
             tooltip: {
                 trigger: 'axis',
-                backgroundColor: bgPanel,
-                borderColor: borderMain,
-                textStyle: { color: textMain },
+                backgroundColor: '#0b111c',
+                borderColor: 'rgba(255,255,255,0.1)',
+                textStyle: { color: textMain, fontSize: 12 },
                 formatter: (params) => {
                     const item = params[0];
                     const track = this._data[item.dataIndex];
-                    const color =
-                        chartColors[item.dataIndex % chartColors.length];
                     return `
-                        <div class="font-bold mb-1" style="color: ${color}">${track.height}p</div>
-                        <div class="text-xs text-slate-400">Bitrate: <span style="color: ${color}">${formatBitrate(track.bandwidth)}</span></div>
-                        <div class="text-xs text-slate-400">Res: ${track.width}x${track.height}</div>
-                        <div class="text-xs text-slate-400 mt-1 opacity-75">${track.codecs}</div>
+                        <div style="margin-bottom:2px">${track.height}p</div>
+                        <div>Bitrate: ${formatBitrate(track.bandwidth)}</div>
+                        <div>Res: ${track.width}x${track.height}</div>
+                        <div style="opacity:0.7">${track.codecs}</div>
                     `;
                 },
             },
@@ -86,34 +76,32 @@ class BitrateLadderComponent extends HTMLElement {
                 },
                 splitLine: {
                     lineStyle: {
-                        color: borderMain,
+                        color: gridColor,
                         type: 'dashed',
-                        opacity: 0.3,
                     },
                 },
             },
             yAxis: {
                 type: 'category',
                 data: this._data.map((d) => `${d.height}p`),
-                axisLabel: { color: textMain, fontWeight: 'bold' },
+                axisLabel: { color: textMuted },
                 axisLine: { show: false },
                 axisTick: { show: false },
             },
             series: [
                 {
                     type: 'bar',
-                    data: this._data.map((d, index) => ({
+                    data: this._data.map((d) => ({
                         value: d.bandwidth,
                         itemStyle: {
-                            color: chartColors[index % chartColors.length],
+                            color: barColor,
                             borderRadius: [0, 4, 4, 0],
                         },
                     })),
                     barWidth: '60%',
                     showBackground: true,
                     backgroundStyle: {
-                        color: textMain,
-                        opacity: 0.05,
+                        color: trackColor,
                         borderRadius: [0, 4, 4, 0],
                     },
                 },

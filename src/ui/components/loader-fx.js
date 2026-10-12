@@ -13,7 +13,7 @@ export class LoaderFX {
     constructor(canvas) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d', {
-            alpha: true, // Enable transparency for the backdrop-blur to work
+            alpha: true, // Enable transparency for the  to work
             desynchronized: true, // Hint to browser for low-latency rendering
         });
 
