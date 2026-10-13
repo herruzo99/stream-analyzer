@@ -13,6 +13,7 @@ import {
 import {
     chunkUrl,
     getHelperToken,
+    playlistUrl,
 } from '@/infrastructure/helper/bridgeClient.js';
 import {
     helperMetricsUrl,
@@ -22,6 +23,10 @@ import {
 } from '@/features/srtSource/application/srtController.js';
 import { analyzeTsChunk } from '@/features/srtSource/domain/tsAnalytics.js';
 import { analyzeAvSync } from '@/features/srtSource/domain/avSync.js';
+import {
+    extractAdtsFrames,
+    measureLoudnessFromTs,
+} from '@/features/srtSource/domain/adts.js';
 import {
     adviseLinkConfig,
     adviceToQuery,
@@ -257,6 +262,12 @@ function sessionCard(state, id) {
                 >
                     Inspect stream contents
                 </button>
+                <button
+                    class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs"
+                    @click=${() => measureLoudnessUI(id)}
+                >
+                    Measure loudness
+                </button>
                 <div class="text-xs text-slate-400" id="ts-contents-${id}">
                     ${state.contents?.[id]
                         ? html`${state.contents[id].pids} PIDs · video
@@ -291,7 +302,7 @@ function sessionCard(state, id) {
                         eventBus.dispatch(EVENTS.UI.STREAM_ANALYSIS_REQUESTED, {
                             inputs: [
                                 {
-                                    url: `http://127.0.0.1:7231/sessions/${id}/playlist.m3u8`,
+                                    url: playlistUrl(id),
                                     name: `SRT ${s.streamId ?? s.id}`,
                                     auth: { mode: 'none' },
                                     drmAuth: { mode: 'none' },
@@ -387,6 +398,75 @@ function newSessionForm() {
             </div>
         </section>
     `;
+}
+
+/**
+ * Measure EBU R128 loudness from the live façade: concatenates the last few
+ * chunks (so there is enough audio for gated blocks), extracts ADTS frames
+ * for the audio PIDs and decodes via WebAudio.
+ */
+async function measureLoudnessUI(id) {
+    contentsCache[id] = {
+        ...(contentsCache[id] ?? {}),
+        loudness: 'measuring…',
+    };
+    renderView();
+    try {
+        const chunkIndex = latestChunkIndex(id);
+        const buffers = [];
+        for (let i = Math.max(0, chunkIndex - 2); i <= chunkIndex; i++) {
+            const resp = await fetch(chunkUrl(id, i), {
+                headers: getHelperToken()
+                    ? { Authorization: `Bearer ${getHelperToken()}` }
+                    : {},
+            });
+            if (resp.ok) buffers.push(new Uint8Array(await resp.arrayBuffer()));
+        }
+        if (buffers.length === 0) throw new Error('no chunks available');
+        const merged = new Uint8Array(
+            buffers.reduce((n, b) => n + b.length, 0)
+        );
+        let off = 0;
+        for (const b of buffers) {
+            merged.set(b, off);
+            off += b.length;
+        }
+        const a = analyzeTsChunk(merged, { durationMs: 6000 });
+        const audioPids = a.pidInventory
+            .filter((p) => String(p.role).startsWith('audio'))
+            .map((p) => p.pid);
+        if (audioPids.length === 0) {
+            contentsCache[id] = {
+                ...(contentsCache[id] ?? {}),
+                loudness: 'no audio PID found',
+            };
+            renderView();
+            return;
+        }
+        const { frames } = extractAdtsFrames(merged, audioPids);
+        if (frames.length === 0) {
+            contentsCache[id] = {
+                ...(contentsCache[id] ?? {}),
+                loudness: 'no ADTS frames extracted',
+            };
+            renderView();
+            return;
+        }
+        const result = await measureLoudnessFromTs(merged, audioPids);
+        contentsCache[id] = {
+            ...(contentsCache[id] ?? {}),
+            loudness:
+                result.integratedLufs == null
+                    ? `no loudness (audio decode unavailable in this browser; ${frames.length} ADTS frames found)`
+                    : `${result.integratedLufs} LUFS integrated · short-term max ${result.shortTermMaxLufs ?? '—'} · ${result.gatedBlocks} gated blocks`,
+        };
+    } catch (err) {
+        contentsCache[id] = {
+            ...(contentsCache[id] ?? {}),
+            loudness: `failed: ${String(err?.message ?? err)}`,
+        };
+    }
+    renderView();
 }
 
 async function inspectContents(id) {

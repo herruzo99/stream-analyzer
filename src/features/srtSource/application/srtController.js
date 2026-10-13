@@ -33,6 +33,7 @@ import {
 import {
     getHandshakes,
     metricsUrl,
+    playlistUrl,
 } from '@/infrastructure/helper/bridgeClient.js';
 import { srtActions, srtStore } from '@/state/srtStore.js';
 import {
@@ -168,7 +169,7 @@ export async function startSrtSession(
     ensureEventStream();
 
     if (analyze) {
-        const facade = `http://127.0.0.1:7231/sessions/${result.session.id}/playlist.m3u8`;
+        const facade = playlistUrl(result.session.id);
         eventBus.dispatch(EVENTS.UI.STREAM_ANALYSIS_REQUESTED, {
             inputs: [
                 {

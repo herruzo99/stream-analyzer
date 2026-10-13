@@ -7,8 +7,6 @@
 
 const TS_PACKET = 188;
 
-const ADTS_SYNC = 0xfff;
-
 /**
  * Extract complete ADTS frames for the given audio PIDs from TS bytes.
  *
@@ -85,7 +83,6 @@ function sliceAdts(payloadParts) {
             i += 1; // resync
             continue;
         }
-        const protectionAbsent = buf[i + 1] & 0x01;
         const profile = (buf[i + 2] >> 6) & 0x03;
         const samplingIndex = (buf[i + 2] >> 2) & 0x0f;
         const channelConfig =
