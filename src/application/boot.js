@@ -34,6 +34,7 @@ import { initializePlayerSimulationFeature } from '@/features/playerSimulation/i
 import { initializeRegressionFeature } from '@/features/regression/index.js'; // NEW
 import { initializeSegmentExplorerFeature } from '@/features/segmentExplorer/index';
 import { initializeSettingsFeature } from '@/features/settings/index.js';
+import { initializeSrtSourceFeature } from '@/features/srtSource/index';
 import { initializeStreamInputFeature } from '@/features/streamInput/index';
 
 import '@/application/services/streamService';
@@ -96,7 +97,8 @@ export async function startApp() {
     initializeInteractiveManifestFeature();
     initializeInteractiveSegmentFeature();
     initializeSegmentExplorerFeature();
-    initializeStreamInputFeature(); // Critical: Registers listener for 'ui:stream-analysis-requested'
+    initializeStreamInputFeature();
+    initializeSrtSourceFeature(); // Critical: Registers listener for 'ui:stream-analysis-requested'
     initializePlayerSimulationFeature();
     initializeMultiPlayerFeature();
     initializeNotificationFeature();

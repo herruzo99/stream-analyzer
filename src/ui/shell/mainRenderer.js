@@ -26,6 +26,7 @@ import { regressionView } from '@/features/regression/ui/index.js'; // NEW
 import { segmentComparisonView } from '@/features/segmentComparison/ui/index';
 import { segmentExplorerView } from '@/features/segmentExplorer/ui/index';
 import { qcDashboardView } from '@/features/signalQuality/ui/qc-dashboard.js';
+import { srtMonitorView } from '@/features/srtSource/ui/srt-monitor.js';
 import { summaryView } from '@/features/summary/ui/index';
 import { timelineView } from '@/features/timeline/ui/index.js';
 
@@ -49,6 +50,7 @@ const viewMap = {
     'segment-comparison': segmentComparisonView,
     drm: drmView,
     'qc-dashboard': qcDashboardView,
+    srt: srtMonitorView,
 };
 
 // ... rest of the file remains exactly the same ...

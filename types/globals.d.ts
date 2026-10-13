@@ -1,3 +1,8 @@
+interface Window {
+    __APP_VERSION__?: string;
+    STREAM_ANALYZER_HELPER_ORIGIN?: string;
+}
+
 declare interface Window {
     shaka: any;
 

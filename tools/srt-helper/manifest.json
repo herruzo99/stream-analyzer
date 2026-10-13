@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "channel": "stable",
+  "version": "1.0.0",
+  "helperProtocol": 1,
+  "minimumHelper": "1.0.0",
+  "minimumApp": "1.0.0",
+  "publishedAt": "2026-10-13T18:41:37Z",
+  "commit": "ec1b12f8",
+  "artifacts": {
+    "darwin-amd64": {
+      "url": "/helper/darwin-amd64/stream-analyzer-helper",
+      "sha256": "16031a4173ee515945802b0caa67db0b30db6ad25e2bc64e20c92896401ed9f0",
+      "bytes": 8160880
+    },
+    "darwin-arm64": {
+      "url": "/helper/darwin-arm64/stream-analyzer-helper",
+      "sha256": "30729c459b7a0779b1bb273a1c1ae4649a2b0e79db24e782e37b5aa56b4b30ac",
+      "bytes": 7576194
+    },
+    "linux-amd64": {
+      "url": "/helper/linux-amd64/stream-analyzer-helper",
+      "sha256": "c8f03353418548715e62783bbfdf914bf22bbb4b0439b76d4b70b2e72a154c90",
+      "bytes": 7979168
+    },
+    "linux-arm64": {
+      "url": "/helper/linux-arm64/stream-analyzer-helper",
+      "sha256": "6509ac77ddfed764619a90eab0d53b68adf8fb6d45e9071e5954bf580e0f68f2",
+      "bytes": 7471264
+    },
+    "linux-riscv64": {
+      "url": "/helper/linux-riscv64/stream-analyzer-helper",
+      "sha256": "8f5d1f5cf3ef724c359ca346f4c21d8e38463fc81a082977db381b1f882ee0ba",
+      "bytes": 7078048
+    },
+    "windows-amd64": {
+      "url": "/helper/windows-amd64/stream-analyzer-helper.exe",
+      "sha256": "4776768d05039a872636c00e1204222f6fcb5ecb39620c1e968d17c4bcff1aa7",
+      "bytes": 8190464
+    },
+    "windows-arm64": {
+      "url": "/helper/windows-arm64/stream-analyzer-helper.exe",
+      "sha256": "3565e3047d413be422d0290a81cfb6bfc636954c2f259e65f172d5665a7658ae",
+      "bytes": 7440384
+    }
+  }
+}

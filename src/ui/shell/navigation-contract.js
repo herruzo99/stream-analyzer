@@ -22,6 +22,7 @@ const ROUTE_ICON_NAMES = Object.freeze({
     'player-simulation': 'play',
     'multi-player': 'layout-grid',
     'qc-dashboard': 'activity',
+    srt: 'radio',
     advertising: 'badge-percent',
     'parser-coverage': 'bug',
 });
@@ -185,6 +186,12 @@ export function getShellNavigationGroups() {
                     key: 'timeline',
                     label: 'Timeline',
                     icon: icons.timeline,
+                    visible: true,
+                },
+                {
+                    key: 'srt',
+                    label: 'SRT Monitor',
+                    icon: icons.radio,
                     visible: true,
                 },
                 {

@@ -36,6 +36,7 @@ const mockDevConfig = {
     __SENTRY_DSN__: 'mock-sentry-key',
     __CLARITY_ID__: 'mock-clarity-id',
     __PROD_HOSTNAME__: 'localhost',
+    __APP_VERSION__: '1.2.0',
 };
 
 async function safeCopyFile(src, dest) {

@@ -18,6 +18,7 @@ export const EVENTS = {
     UI: {
         SHOW_STATUS: 'ui:show-status',
         STREAM_ANALYSIS_REQUESTED: 'ui:stream-analysis-requested',
+        SRT_SESSION_REQUESTED: 'ui:srt-session-requested',
         SHOW_INITIAL_ANALYSIS_WARNING: 'ui:show-initial-analysis-warning',
         PROCEED_WITH_PARTIAL_ANALYSIS: 'ui:proceed-with-partial-analysis',
         EDIT_ANALYSIS_INPUT: 'ui:edit-analysis-input',

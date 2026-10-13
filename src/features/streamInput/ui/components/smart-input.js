@@ -10,6 +10,7 @@ class InputLogic {
     static detectProtocol(value) {
         if (!value || typeof value !== 'string') return null;
         const v = value.trim();
+        if (v.toLowerCase().startsWith('srt://')) return 'SRT';
         if (v.includes('.m3u8') || v.includes('#EXTM3U')) return 'HLS';
         if (v.includes('.mpd') || v.includes('<MPD')) return 'DASH';
         if (v.includes('.ism')) return 'MSS';
@@ -22,7 +23,12 @@ class InputLogic {
         return text
             .split(/[\n,\s]+/)
             .map((s) => s.trim())
-            .filter((s) => s.startsWith('http://') || s.startsWith('https://'));
+            .filter(
+                (s) =>
+                    s.startsWith('http://') ||
+                    s.startsWith('https://') ||
+                    s.toLowerCase().startsWith('srt://')
+            );
     }
 
     static isValidUrl(url) {
@@ -212,9 +218,7 @@ export class SmartInputComponent extends HTMLElement {
             showToast({
                 message:
                     `Queued ${valid.length} stream${valid.length === 1 ? '' : 's'}` +
-                    (skipped > 0
-                        ? `, skipped ${skipped} invalid.`
-                        : '.'),
+                    (skipped > 0 ? `, skipped ${skipped} invalid.` : '.'),
                 type: skipped > 0 ? 'warn' : 'pass',
             });
             this.setState({ viewMode: 'single', batchList: [] });
@@ -223,6 +227,12 @@ export class SmartInputComponent extends HTMLElement {
 
         const url = this.state.value.trim();
         if (!url) return;
+
+        if (url.toLowerCase().startsWith('srt://')) {
+            eventBus.dispatch(EVENTS.UI.SRT_SESSION_REQUESTED, { url });
+            this.setState({ value: '', protocol: null });
+            return;
+        }
 
         if (InputLogic.isValidUrl(url)) {
             if (this.mode === 'add') {
@@ -265,10 +275,10 @@ export class SmartInputComponent extends HTMLElement {
                     </div>
                     <button
                         @click=${() =>
-                this.setState({
-                    viewMode: 'single',
-                    batchList: [],
-                })}
+                            this.setState({
+                                viewMode: 'single',
+                                batchList: [],
+                            })}
                         class="text-slate-500 hover:text-slate-100 transition-colors p-1 rounded-md focus-visible:outline-2 focus-visible:outline-emerald-400"
                         aria-label="Cancel batch import"
                     >
@@ -278,19 +288,22 @@ export class SmartInputComponent extends HTMLElement {
                 <div
                     class="max-h-48 overflow-y-auto custom-scrollbar p-2 space-y-1"
                 >
-                    ${this.state.batchList.map(
-                    (url, i) => {
+                    ${this.state.batchList.map((url, i) => {
                         const valid = InputLogic.isValidUrl(url);
                         return html`
                             <div
-                                class="flex items-center gap-2 px-2 py-1.5 rounded-md ${valid ? '' : 'border border-red-400/30'}"
+                                class="flex items-center gap-2 px-2 py-1.5 rounded-md ${valid
+                                    ? ''
+                                    : 'border border-red-400/30'}"
                             >
                                 <span
                                     class="mono text-slate-500 w-5 shrink-0 text-right text-[11px] select-none"
                                     >${i + 1}</span
                                 >
                                 <span
-                                    class="truncate grow font-mono text-xs ${valid ? 'text-slate-200' : 'text-red-300'}"
+                                    class="truncate grow font-mono text-xs ${valid
+                                        ? 'text-slate-200'
+                                        : 'text-red-300'}"
                                     title="${url}"
                                     >${url}</span
                                 >
@@ -310,23 +323,22 @@ export class SmartInputComponent extends HTMLElement {
                                 </button>
                             </div>
                         `;
-                    }
-                )}
+                    })}
                 </div>
                 <div class="p-3 border-t border-white/5 flex gap-2">
                     <button
                         @click=${() =>
-                this.setState({
-                    viewMode: 'single',
-                    batchList: [],
-                })}
+                            this.setState({
+                                viewMode: 'single',
+                                batchList: [],
+                            })}
                         class="flex-1 py-2 rounded-md text-[13px] font-semibold text-slate-400 hover:text-slate-100 hover:bg-white/5 transition-colors"
                     >
                         Cancel
                     </button>
                     ${(() => {
-                        const validCount = this.state.batchList.filter(
-                            (url) => InputLogic.isValidUrl(url)
+                        const validCount = this.state.batchList.filter((url) =>
+                            InputLogic.isValidUrl(url)
                         ).length;
                         const empty = this.state.batchList.length === 0;
                         return html`
@@ -335,16 +347,14 @@ export class SmartInputComponent extends HTMLElement {
                                 ?disabled=${validCount === 0}
                                 title=${empty
                                     ? 'Nothing to import'
-                                    : validCount <
-                                        this.state.batchList.length
+                                    : validCount < this.state.batchList.length
                                       ? 'Imports the valid rows, skips the flagged ones'
                                       : 'Import every row'}
                                 class="flex-[2] py-2 rounded-md text-[13px] font-bold bg-emerald-400 text-slate-950 hover:bg-emerald-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                                 ${empty
                                     ? 'Nothing to import'
-                                    : validCount <
-                                        this.state.batchList.length
+                                    : validCount < this.state.batchList.length
                                       ? `Import ${validCount} valid`
                                       : 'Import all'}
                             </button>
@@ -391,7 +401,9 @@ export class SmartInputComponent extends HTMLElement {
             >
                 <!-- Drag Overlay -->
                 <div
-                    class="absolute inset-0 z-50 rounded-md border border-dashed border-emerald-400/60 bg-[#06090f]/95 flex items-center justify-center gap-3 text-emerald-300 font-semibold text-sm ${isDragActive ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}"
+                    class="absolute inset-0 z-50 rounded-md border border-dashed border-emerald-400/60 bg-[#06090f]/95 flex items-center justify-center gap-3 text-emerald-300 font-semibold text-sm ${isDragActive
+                        ? 'opacity-100 pointer-events-auto'
+                        : 'opacity-0 pointer-events-none'}"
                 >
                     ${icons.upload}
                     <span>Drop a manifest or media file</span>
@@ -402,11 +414,13 @@ export class SmartInputComponent extends HTMLElement {
                         class="pl-3 pr-2 shrink-0 flex justify-center min-w-[3rem]"
                     >
                         ${protocol
-                ? html`<span
+                            ? html`<span
                                   class="mono text-[10px] font-bold px-2 py-1 rounded ${badgeColor}"
                                   >${protocol}</span
                               >`
-                : html`<span class="text-slate-500">${icons.link}</span>`}
+                            : html`<span class="text-slate-500"
+                                  >${icons.link}</span
+                              >`}
                     </div>
                     <input
                         type="url"
@@ -439,12 +453,12 @@ export class SmartInputComponent extends HTMLElement {
                             ?disabled=${!value.trim()}
                         >
                             ${this.mode === 'add'
-                ? icons.plusCircle
-                : icons.searchCode}
+                                ? icons.plusCircle
+                                : icons.searchCode}
                             <span
                                 >${this.mode === 'add'
-                ? 'Add'
-                : 'Analyze'}</span
+                                    ? 'Add'
+                                    : 'Analyze'}</span
                             >
                         </button>
                     </div>

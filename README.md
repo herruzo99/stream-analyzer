@@ -18,6 +18,18 @@ An advanced, browser-based tool for analyzing and comparing DASH & HLS streaming
 - **Feature Analysis**: A summary of which streaming features (e.g., low latency, multi-period, DRM) are being used.
 - **Live Stream Monitoring**: Automatically fetch and diff manifest updates for live streams, highlighting changes and new compliance issues.
 
+### SRT (Secure Reliable Transport) support
+
+SRT runs over raw UDP, which browsers cannot speak. The analyzer therefore ships a tiny, fully static companion binary (`tools/srt-helper/`, pure Go) that owns the UDP sockets and serves your streams to the web app as a synthetic HLS façade:
+
+- **Pull (caller)** — paste `srt://host:port?streamid=…&passphrase=…` into the smart input; the helper connects out and the session opens in the analyzer.
+- **Push (listener)** — start a listener session from the **SRT Monitor** view; point any encoder at the shown port. Recordings spool to disk and replay later with full analysis.
+- **Telemetry & analytics** — live RTT, loss, retransmission, drop, buffer and negotiated-latency charts; an SRT compliance rule family (encryption off, latency < 3×RTT, sub-minimum TSBPD, sustained loss, too-late drops); PCR-accurate synthetic segments.
+
+Run once, then forget it: download the binary for your platform from `/helper/<os>-<arch>/stream-analyzer-helper` on either deployment, run it (token printed at startup — paste it into the SRT Monitor once), and the site detects it automatically. The helper's `/version` and the published `/helper/manifest.json` drive update prompts. See `ai/srt-integration-analysis.md` for the full architecture.
+
+Local development: `bash scripts/build-helper.sh "$PWD" "$(node -p "require('./package.json').version")"` builds the 7-platform matrix + manifest; `bash scripts/smoke-srt.sh` runs a real end-to-end test with ffmpeg as the SRT peer.
+
 ## Local Development
 
 This project uses [Nix](https://nixos.org/) and [direnv](https://direnv.net/) to provide a reproducible development environment.
