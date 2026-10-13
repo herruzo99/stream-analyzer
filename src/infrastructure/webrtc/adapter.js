@@ -15,21 +15,34 @@ const finite = (v, fallback = 0) =>
     Number.isFinite(Number(v)) ? Number(v) : fallback;
 
 /**
- * Normalize a getStats() snapshot onto the LinkTelemetry schema used by the
- * SRT adapter. Accepts either a Map or a plain array of report entries
- * (browsers produce Map; snappedshots for tests use arrays).
+ * Coerce any getStats() container (Map, RTCStatsReport-like, array, or a
+ * plain object of reports) into an array of entries.
  *
- * @param {Map<string, any> | RTCStatsReport | any[]} stats
+ * @param {Map<string, any> | RTCStatsReport | any[] | Record<string, any>} stats
+ * @returns {any[]}
+ */
+function statsEntries(stats) {
+    if (stats instanceof Map || typeof stats?.values === 'function') {
+        return [...stats.values()].filter(Boolean);
+    }
+    if (Array.isArray(stats)) return stats.filter(Boolean);
+    // Plain-object reports (non-Map producers): read their values.
+    if (stats && typeof stats === 'object') {
+        return Object.values(stats).filter(Boolean);
+    }
+    return [];
+}
+
+/**
+ * Normalize a getStats() snapshot onto the LinkTelemetry schema used by the
+ * SRT adapter.
+ *
+ * @param {Map<string, any> | RTCStatsReport | any[] | Record<string, any>} stats
  * @param {{t?: number}} [options]
  * @returns {WebRtcSample}
  */
 export function normalizeWebrtcStats(stats, options = {}) {
-    const reports =
-        stats instanceof Map
-            ? [...stats.values()]
-            : Array.isArray(stats)
-              ? stats
-              : [];
+    const reports = statsEntries(stats);
     const byType = (type) => reports.filter((r) => r?.type === type);
 
     const inboundRtp = byType('inbound-rtp');
@@ -53,10 +66,13 @@ export function normalizeWebrtcStats(stats, options = {}) {
         (sum, r) => sum + finite(r.packetsReceived),
         0
     );
-    const pktLost = remoteInbound.reduce(
-        (sum, r) => sum + finite(r.packetsLost),
-        0
-    );
+    // A WHEP *receiver* sees its own loss on inbound-rtp.packetsLost; the
+    // server's view (remote-inbound-rtp) is often absent. Prefer the local
+    // view, fall back to the remote one.
+    const pktLost =
+        inboundRtp.length > 0
+            ? inboundRtp.reduce((sum, r) => sum + finite(r.packetsLost), 0)
+            : remoteInbound.reduce((sum, r) => sum + finite(r.packetsLost), 0);
     const nackCount = (() => {
         const values = [...inboundRtp, ...remoteInbound]
             .map((r) => (Number.isFinite(r.nackCount) ? r.nackCount : null))

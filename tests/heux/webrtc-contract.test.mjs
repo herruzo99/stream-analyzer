@@ -37,7 +37,7 @@ const fixtureStats = () =>
                 type: 'inbound-rtp',
                 kind: 'video',
                 packetsReceived: 30000,
-                packetsLost: 0,
+                packetsLost: 12,
                 jitter: 0.004,
                 nackCount: 7,
                 pliCount: 2,
@@ -70,7 +70,7 @@ test('AT-SRT-WEBRTC-01 normalization maps browser stats onto LinkTelemetry', () 
     assert.equal(s.rttMs, 21);
     // packets: inbound video + audio.
     assert.equal(s.pktRecv, 45000);
-    // loss from remote-inbound-rtp.
+    // loss from the receiver's own inbound-rtp view.
     assert.equal(s.pktRecvLost, 12);
     // NACKs count as the retransmission proxy.
     assert.equal(s.pktRetrans, 10); // 7 (inbound) + 3 (remote-inbound)
@@ -83,6 +83,42 @@ test('AT-SRT-WEBRTC-01 normalization maps browser stats onto LinkTelemetry', () 
     assert.equal(s.encrypted, true);
     // mbpsRecv>0 from bytesReceived: 4.8MB*8 bits / 1MB ≈ 36.6 Mb/s
     assert.ok(s.mbpsRecv > 30, `mbpsRecv = ${s.mbpsRecv}`);
+});
+
+// Regression: the LIVE aiortc/MediaMTX stats shape found a real bug — the
+// receiver's packet loss lives on inbound-rtp.packetsLost (not only
+// remote-inbound-rtp) and some producers emit plain objects, not a Map.
+const LIVE_MTX_STATS = {
+    outbound_rtp: {
+        type: 'outbound-rtp',
+        kind: 'video',
+        packetsSent: 0,
+        bytesSent: 0,
+    },
+    transport_1: {
+        type: 'transport',
+        dtlsState: 'connected',
+        bytesReceived: 1110231,
+        packetsReceived: 2095,
+    },
+    remote_out: { type: 'remote-outbound-rtp', kind: 'video', packetsSent: 2 },
+    inbound_rtp_1: {
+        type: 'inbound-rtp',
+        kind: 'video',
+        packetsReceived: 2092,
+        packetsLost: 1875,
+        jitter: 0.011,
+        ssrc: 615484214,
+    },
+};
+
+test('AT-SRT-WEBRTC-05 live-shape stats (plain object, inbound loss) normalize', () => {
+    const s = normalizeWebrtcStats(LIVE_MTX_STATS, { t: 1000 });
+    assert.equal(s.pktRecv, 2092);
+    assert.equal(s.pktRecvLost, 1875); // from inbound-rtp, not remote
+    assert.equal(s.dtlsState, 'connected');
+    assert.equal(s.encrypted, true);
+    assert.equal(s.jitterMs, 11);
 });
 
 test('AT-SRT-WEBRTC-02 defensive against missing/hostile reports', () => {
