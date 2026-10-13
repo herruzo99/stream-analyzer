@@ -103,7 +103,7 @@ export function buildSessionReport(input) {
             input.chunks.reduce((s, c) => s + Number(c.durationMs ?? 0), 0) ||
             2000;
         const a = analyzeTsChunk(merged, { durationMs: totalMs });
-        const av = analyzeAvSync(a);
+        const av = analyzeAvSync(a, { first: a.pcr.first, last: a.pcr.last });
         report.streamContents = {
             packets: a.packets,
             pidCount: a.pidInventory.length,

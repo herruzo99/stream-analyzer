@@ -85,10 +85,12 @@
   alert history in srtStore (bounded 200), Monitor panel.
 - **#8 Failover view** — `domain/failover.js`: 1 Hz time alignment + pairwise
   rate/RTT/loss deltas; Monitor comparison section.
-- **#9 A/V sync + loudness** — `domain/avSync.js` (PTS/PCR offset + drift ppm,
-  discontinuity summary) and `domain/loudness.js` (EBU R128: K-weighting per
-  BS.1770-4, 400 ms gated blocks, -70/-10 LU gates, short-term/momentary max,
-  WebAudio decode path); A/V offset shown in Stream Contents.
+- **#9 A/V sync + loudness** — `domain/avSync.js` (PTS/PCR offset + drift ppm
+  over PCR span, discontinuity summary) and `domain/loudness.js` (EBU R128:
+  K-weighting per BS.1770-4, 400 ms gated blocks, -70/-10 LU gates,
+  short-term/momentary max, WebAudio decode path) plus `domain/adts.js`
+  (PES→ADTS frame extraction from TS, browser measure path degrades
+  gracefully without WebAudio); A/V offset shown in Stream Contents; 5 tests.
 - **#10 Latency budget** — `domain/latencyBudget.js`: staged budget
   (link half-RTT + TSBPD + helper window + player buffer) with honest
   "unknown" stages; draft formula RTT/2 + latency; Monitor panel.

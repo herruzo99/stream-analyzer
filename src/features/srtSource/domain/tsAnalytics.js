@@ -22,7 +22,7 @@ const CC_MAX = 15;
  *   programs: Array<{programNumber:number, pcrPid:number, pmtPid:number, streams:Array<{streamType:number, pid:number, kind:string}>}>,
  *   ccErrorLedger: Array<{pid:number, errors:number}>,
  *   gop: {keyframes:number, avgGopFrames:number|null, keyframePids:number[]},
- *   pcr: {count:number, minIntervalMs:number|null, maxIntervalMs:number|null, avgIntervalMs:number|null},
+ *   pcr: {count:number, minIntervalMs:number|null, maxIntervalMs:number|null, avgIntervalMs:number|null, first:number|null, last:number|null},
  *   pts: {discontinuities:number, streams:Array<{pid:number,kind:string,count:number,first:number,last:number}>}
  * }}
  */
@@ -41,6 +41,8 @@ export function analyzeTsChunk(bytes, options = {}) {
             minIntervalMs: null,
             maxIntervalMs: null,
             avgIntervalMs: null,
+            first: null,
+            last: null,
         },
         pts: { discontinuities: 0, streams: [] },
     };
@@ -209,6 +211,10 @@ export function analyzeTsChunk(bytes, options = {}) {
 
     // Per-stream PTS export (video + audio) for A/V sync/drift analysis.
     result.pts.streams = [...ptsByPid.values()].sort((a, b) => a.pid - b.pid);
+    if (pcrTimes.length > 0) {
+        result.pcr.first = Math.round(pcrTimes[0] * 100) / 100;
+        result.pcr.last = Math.round(pcrTimes[pcrTimes.length - 1] * 100) / 100;
+    }
 
     // PCR intervals (90 kHz ticks → ms).
     if (pcrTimes.length >= 2) {
