@@ -10,6 +10,14 @@ import {
     startSrtSession,
     stopSrtSession,
 } from '@/features/srtSource/application/srtController.js';
+import { chunkUrl } from '@/infrastructure/helper/bridgeClient.js';
+import { getHelperToken } from '@/infrastructure/helper/bridgeClient.js';
+import { analyzeTsChunk } from '@/features/srtSource/domain/tsAnalytics.js';
+import {
+    downloadText,
+    toCsv,
+    toSummary,
+} from '@/features/srtSource/application/srtExport.js';
 import { srtStore } from '@/state/srtStore.js';
 import { deriveSignals } from '@/features/srtSource/domain/telemetry.js';
 import * as icons from '@/ui/icons';
@@ -18,6 +26,8 @@ import { EVENTS } from '@/types/events.js';
 let container = null;
 let unsub = null;
 let tokenDraft = '';
+/** @type {Record<string, any>} session id -> last stream-contents summary */
+const contentsCache = {};
 
 const STATE_COLORS = {
     'helper-missing': 'bg-red-600',
@@ -206,6 +216,34 @@ function sessionCard(state, id) {
                     ${sparkline(series, (x) => x.mbpsRecv)}
                 </div>
             </div>
+            <div class="grid grid-cols-2 gap-3">
+                <button
+                    class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs"
+                    @click=${() => inspectContents(id)}
+                >
+                    Inspect stream contents
+                </button>
+                <div class="text-xs text-slate-400" id="ts-contents-${id}">
+                    ${state.contents?.[id]
+                        ? html`${state.contents[id].pids} PIDs · video
+                          ${state.contents[id].video || '—'} · GOP
+                          ${state.contents[id].gop ?? '—'} · CC errors
+                          ${state.contents[id].ccErrors}`
+                        : 'not analyzed yet'}
+                </div>
+                <button
+                    class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs"
+                    @click=${() => exportTelemetry(id)}
+                >
+                    Export telemetry (CSV)
+                </button>
+                <button
+                    class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs"
+                    @click=${() => exportSummary(id)}
+                >
+                    Export session summary
+                </button>
+            </div>
             <div class="flex gap-2">
                 <button
                     class="px-3 py-1 rounded bg-sky-700 hover:bg-sky-600 text-xs"
@@ -286,9 +324,57 @@ function newSessionForm() {
     `;
 }
 
+async function inspectContents(id) {
+    try {
+        const resp = await fetch(chunkUrl(id, latestChunkIndex(id)), {
+            headers: getHelperToken()
+                ? { Authorization: `Bearer ${getHelperToken()}` }
+                : {},
+        });
+        if (!resp.ok) throw new Error(`helper returned ${resp.status}`);
+        const bytes = new Uint8Array(await resp.arrayBuffer());
+        const a = analyzeTsChunk(bytes, { durationMs: 2000 });
+        const video = a.pidInventory.find((p) =>
+            String(p.role).startsWith('video')
+        );
+        contentsCache[id] = {
+            pids: a.pidInventory.length,
+            video: video ? `${video.mbps} Mbps` : '—',
+            gop: a.gop.avgGopFrames ?? '—',
+            ccErrors: a.ccErrorLedger.reduce((sum, c) => sum + c.errors, 0),
+        };
+    } catch (err) {
+        contentsCache[id] = { error: String(err?.message ?? err) };
+    }
+    renderView();
+}
+
+function latestChunkIndex(id) {
+    // Prefer the newest segment: ask the store's session summary; fallback 0.
+    const session = srtStore.getState().sessions[id];
+    return Math.max(0, (session?.segments ?? 1) - 1);
+}
+
+function exportTelemetry(id) {
+    const series = srtStore.getState().telemetry[id] ?? [];
+    downloadText(`srt-${id}-telemetry.csv`, toCsv(series), 'text/csv');
+}
+
+function exportSummary(id) {
+    const state = srtStore.getState();
+    const session = state.sessions[id] ?? {};
+    const issues = (state.issues ?? []).filter((i) => i.sessionId === id);
+    const doc = toSummary(session, state.telemetry[id] ?? [], issues);
+    downloadText(
+        `srt-${id}-summary.json`,
+        JSON.stringify(doc, null, 2),
+        'application/json'
+    );
+}
+
 function renderView() {
     if (!container) return;
-    const state = srtStore.getState();
+    const state = { ...srtStore.getState(), contents: contentsCache };
     render(
         html`
             <div class="p-6 space-y-4 max-w-5xl">
