@@ -30,6 +30,15 @@ Run once, then forget it: download the binary for your platform from `/helper/<o
 
 Local development: `bash scripts/build-helper.sh "$PWD" "$(node -p "require('./package.json').version")"` builds the 7-platform matrix + manifest; `bash scripts/smoke-srt.sh` runs a real end-to-end test with ffmpeg as the SRT peer.
 
+**Testing against a real public SRT source** (no local publisher needed): the free IN/OUT-SRT beacons serve a continuously running UTC-timecode test signal over SRT in caller/pull mode:
+
+```
+srt://us.inoutsrt.com:6999?streamid=read:beacon    # USA node
+srt://de.inoutsrt.com:6999?streamid=read:beacon    # Germany node
+```
+
+Paste either URL into the analyzer's SRT Monitor (Connect) — the helper dials out, and telemetry + the synthetic façade populate within seconds. Sessions on the beacon are limited to ~30 minutes. Recordings are capped by `-max-record-mb` (default 2048 MiB; 0 = unlimited) and flagged `truncated` in `/recordings` when the budget is hit.
+
 ## Local Development
 
 This project uses [Nix](https://nixos.org/) and [direnv](https://direnv.net/) to provide a reproducible development environment.

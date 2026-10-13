@@ -156,6 +156,8 @@ type Options struct {
 	MinSegBytes int
 	Window      int
 	EventBuffer int
+	// MaxRecordBytes truncates recordings at a disk budget (0 = unlimited).
+	MaxRecordBytes int64
 }
 
 // NewManager builds a manager. A nil recorder disables recording support.
@@ -223,6 +225,7 @@ func (m *Manager) StartPull(rawURL string, record bool) (*Session, error) {
 	s.StreamID = conn.StreamId()
 	s.HSVersion = conn.Version()
 	s.Encrypted = opts.HasPassphrase
+	s.Peer = opts.DialAddr()
 	s.mu.Unlock()
 	s.handshakes.Record(HandshakeEvent{
 		Kind: "connected", StreamID: conn.StreamId(), HSVersion: conn.Version(),
@@ -346,19 +349,16 @@ func (m *Manager) acceptLoop(s *Session, ln gosrt.Listener, opts *srturl.Options
 	}
 }
 
-func (m *Manager) attachPublisher(s *Session, conn gosrt.Conn, streamID string, version uint32, peer string) {
+func (m *Manager) attachPublisher(
+	s *Session,
+	conn gosrt.Conn,
+	streamID string,
+	version uint32,
+	peer string,
+) {
 	s.mu.Lock()
-	if s.conn != nil {
-		// A new publisher replaces the old one (reconnect semantics).
-		old := s.conn
-		s.conn = conn
-		s.mu.Unlock()
-		if old != nil {
-			_ = old.Close()
-		}
-	} else {
-		s.conn = conn
-	}
+	old := s.conn // a new publisher replaces the old one (reconnect semantics)
+	s.conn = conn
 	now := time.Now()
 	s.ConnectedAt = &now
 	s.Peer = peer
@@ -368,6 +368,11 @@ func (m *Manager) attachPublisher(s *Session, conn gosrt.Conn, streamID string, 
 	s.Status = StatusConnected
 	s.Error = ""
 	s.mu.Unlock()
+
+	// Close the replaced connection outside the lock.
+	if old != nil {
+		_ = old.Close()
+	}
 
 	s.handshakes.Record(HandshakeEvent{
 		Kind: "connected", Peer: peer, StreamID: streamID, HSVersion: version,
@@ -487,7 +492,9 @@ func (m *Manager) Stop(id string) error {
 		conn := s.conn
 		ln := s.listener
 		s.mu.Unlock()
-		_ = conn.Close()
+		if conn != nil {
+			_ = conn.Close() // nil once the publisher already went away
+		}
 		if ln != nil {
 			ln.Close()
 		}

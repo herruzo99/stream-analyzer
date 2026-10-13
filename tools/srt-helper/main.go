@@ -52,6 +52,7 @@ func main() {
 		token       = flag.String("token", "", "auth token; generated and printed when empty")
 		recordings  = flag.String("recordings", "", "recording directory (default: ./recordings)")
 		updateURL   = flag.String("update-url", envOr("STREAM_ANALYZER_UPDATE_URL", ""), "published helper manifest URL for update checks")
+		maxRecordMB = flag.Int64("max-record-mb", 2048, "recording disk budget in MiB (0 = unlimited)")
 		origins     multiFlag
 		showVersion = flag.Bool("version", false, "print version and exit")
 	)
@@ -85,6 +86,9 @@ func main() {
 	if err != nil {
 		log.Error("recorder init failed", "error", err, "dir", recDir)
 		os.Exit(1)
+	}
+	if *maxRecordMB > 0 {
+		recorder.MaxTotalBytes = *maxRecordMB * 1024 * 1024
 	}
 
 	if len(origins) == 0 {

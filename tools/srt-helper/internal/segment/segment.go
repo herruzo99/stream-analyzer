@@ -296,16 +296,21 @@ func TargetDuration(segs []Segment) int {
 	return d
 }
 
-// Recorder persists every closed segment under <dir>/<sessionID>.
+// Recorder persists every closed segment under <dir>/<sessionID>. A disk
+// budget (MaxTotalBytes, 0 = unlimited) truncates recordings instead of
+// filling the drive; truncated recordings stay replayable and are flagged.
 type Recorder struct {
-	Dir   string
-	mu    sync.Mutex
-	metas map[string]*Recording
+	Dir           string
+	MaxTotalBytes int64
+	mu            sync.Mutex
+	metas         map[string]*Recording
+	totalBytes    int64
 }
 
 // Recording describes a persisted session.
 type Recording struct {
 	ID        string    `json:"id"`
+	Truncated bool      `json:"truncated,omitempty"`
 	URL       string    `json:"url"`
 	StartedAt time.Time `json:"startedAt"`
 	EndedAt   time.Time `json:"endedAt,omitempty"`
@@ -342,6 +347,7 @@ func (r *Recorder) StartRecording(id, url, streamID, peer string, encrypted bool
 	if _, exists := r.metas[id]; exists {
 		return nil, fmt.Errorf("recording %s already exists", id)
 	}
+	_ = id
 	dir := filepath.Join(r.Dir, id)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
@@ -363,10 +369,17 @@ func (r *Recorder) StartRecording(id, url, streamID, peer string, encrypted bool
 func (r *Recorder) AddSegment(id string, seg Segment) error {
 	r.mu.Lock()
 	rec, ok := r.metas[id]
-	r.mu.Unlock()
 	if !ok {
+		r.mu.Unlock()
 		return fmt.Errorf("unknown recording %s", id)
 	}
+	if r.MaxTotalBytes > 0 && r.totalBytes+int64(seg.Bytes) > r.MaxTotalBytes {
+		rec.Truncated = true
+		r.mu.Unlock()
+		return nil // budget reached: keep what is written, stop spooling
+	}
+	r.totalBytes += int64(seg.Bytes)
+	r.mu.Unlock()
 	name := fmt.Sprintf("%d.ts", seg.Index)
 	if err := os.WriteFile(filepath.Join(rec.Dir, name), seg.Data, 0o644); err != nil {
 		return err

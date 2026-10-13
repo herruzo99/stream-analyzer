@@ -155,7 +155,7 @@ test('AT-SRT-TSA-01 PID inventory and program discovery', () => {
     assert.ok(pids.includes(0x0100), 'video present');
     assert.ok(pids.includes(0x0101), 'audio present');
     const pmt = a.pidInventory.find((p) => p.pid === 0x1000);
-    assert.ok(pmt.role.includes('video'), `PMT role = ${pmt.role}`);
+    assert.equal(pmt.role, 'PMT'); // the PMT's own PID; its streams live in programs[]
     assert.equal(a.programs.length, 1);
     assert.equal(a.programs[0].streams.length, 2);
     assert.equal(a.programs[0].pcrPid, 0x0100);

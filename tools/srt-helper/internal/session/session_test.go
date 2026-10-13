@@ -3,6 +3,8 @@ package session
 import (
 	"fmt"
 	"net"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -199,9 +201,49 @@ func TestLoopbackPullSession(t *testing.T) {
 	}()
 
 	waitStatus(t, m, upstream.ID, StatusConnected, 10*time.Second)
-	if d, _ := m.Session(upstream.ID); d.StreamID != "pull/src" {
+	d, ok := m.Session(upstream.ID)
+	if !ok || d.StreamID != "pull/src" {
 		t.Fatalf("streamId = %q", d.StreamID)
 	}
+	if !strings.HasPrefix(d.Peer, "127.0.0.1:") {
+		t.Fatalf("listener session peer = %q, want the publisher address", d.Peer)
+	}
+	_ = m.Stop(upstream.ID)
+}
+
+func TestCallerSessionRecordsDialPeer(t *testing.T) {
+	port := freeUDPPort(t)
+	m := NewManager(Options{})
+	upstream, err := m.StartPush(fmt.Sprintf("srt://127.0.0.1:%d?mode=listener", port), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := gosrt.DefaultConfig()
+	cfg.StreamId = "src/x"
+	go func() {
+		conn, err := gosrt.Dial("srt", fmt.Sprintf("127.0.0.1:%d", port), cfg)
+		if err != nil {
+			t.Errorf("dial failed: %v", err)
+			return
+		}
+		time.Sleep(3 * time.Second)
+		conn.Close()
+	}()
+	waitStatus(t, m, upstream.ID, StatusConnected, 10*time.Second)
+
+	// The analyzer's own caller session dialing that listener.
+	caller, err := m.StartPull(fmt.Sprintf("srt://127.0.0.1:%d?streamid=analyzer/pull", port), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if caller.Status != StatusConnected {
+		t.Fatalf("caller status = %s", caller.Status)
+	}
+	d, ok := m.Session(caller.ID)
+	if !ok || d.Peer != net.JoinHostPort("127.0.0.1", strconv.Itoa(port)) {
+		t.Fatalf("caller peer = %q, want the dial address", d.Peer)
+	}
+	_ = m.Stop(caller.ID)
 	_ = m.Stop(upstream.ID)
 }
 

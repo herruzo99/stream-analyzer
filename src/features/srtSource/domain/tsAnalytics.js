@@ -255,10 +255,7 @@ function pidRole(pid, entry, pmtPids, programs) {
     const stream = streamForPid(pid, pmtPids);
     if (stream) return stream.kind;
     const pmt = pmtPids.get(pid);
-    if (pmt) {
-        const kinds = pmt.streams.map((s) => s.kind);
-        return kinds.length ? kinds.join('+') : 'PMT';
-    }
+    if (pmt) return 'PMT'; // the PMT's own PID; its streams live in programs[]
     return null;
 }
 

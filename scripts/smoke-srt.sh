@@ -44,7 +44,7 @@ SESSION="$(curl -sf -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: 
 ID="$(node -e "console.log(JSON.parse(process.argv[1]).id)" "$SESSION")"
 echo "session $ID"
 
-ffmpeg -hide_banner -loglevel error -f lavfi -i "testsrc=size=160x90:rate=15" \
+ffmpeg -hide_banner -loglevel error -re -f lavfi -i "testsrc=size=160x90:rate=15" \
   -c:v libx264 -preset ultrafast -tune stillimage -g 30 -pix_fmt yuv420p \
   -f mpegts -transtype live "srt://127.0.0.1:$SRT_PORT?mode=caller&streamid=smoke/live&passphrase=0123456789" \
   >"$WORK/ffmpeg.log" 2>&1 &
@@ -85,7 +85,7 @@ echo "== stop session, verify recording replay =="
 curl -sf -X DELETE -H "Authorization: Bearer $TOKEN" "http://127.0.0.1:$PORT/sessions/$ID" > /dev/null
 wait $FFMPEG_PID 2>/dev/null || true
 curl -sf -H "Authorization: Bearer $TOKEN" "http://127.0.0.1:$PORT/recordings" > "$WORK/recordings.json"
-REC="$(node -e "const r=JSON.parse(process.argv[1]).recordings; console.log(r[0]?.id ?? '')" "$(cat "$WORK/recordings.json")")"
+REC="$(node -e "const r=JSON.parse(require('fs').readFileSync(0,'utf8')).recordings; console.log(r[0]?.id ?? '')" < "$WORK/recordings.json")"
 [ -n "$REC" ] || { echo "FAIL: no recording persisted"; exit 1; }
 curl -sf -H "Authorization: Bearer $TOKEN" "http://127.0.0.1:$PORT/recordings/$REC/playlist.m3u8" > "$WORK/vod.m3u8"
 grep -q "#EXT-X-ENDLIST" "$WORK/vod.m3u8" || { echo "FAIL: recording playlist has no ENDLIST"; exit 1; }
