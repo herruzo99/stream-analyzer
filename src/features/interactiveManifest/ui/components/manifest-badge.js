@@ -1,5 +1,3 @@
-import { html, render } from 'lit-html';
-
 export class ManifestBadge extends HTMLElement {
     static get observedAttributes() {
         return ['start', 'end', 'spd', 'is-spd-active'];

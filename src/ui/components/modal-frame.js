@@ -1,5 +1,4 @@
 import { themeRegistry } from '@/ui/layout-engine/theme-registry.js';
-import { prismGlassTheme } from '@/ui/layout-engine/themes/prism-glass.js';
 import { useUiStore } from '@/state/uiStore';
 import { html, render } from 'lit-html';
 import * as icons from '@/ui/icons';
