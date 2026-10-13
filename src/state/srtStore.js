@@ -17,6 +17,8 @@ const createInitialSrtState = () => ({
     telemetry: {},
     /** @type {Array<object>} SRT rule issues across sessions */
     issues: [],
+    /** @type {Array<object>} threshold alert history (transitions only) */
+    alerts: [],
     /** @type {boolean} */
     probing: false,
     /** @type {string | null} session id the monitor view should focus */
@@ -74,6 +76,15 @@ export const srtStore = createStore((set, get) => ({
         set({ issues });
     },
 
+    pushAlert(alert) {
+        if (!alert?.sessionId || !alert.metric) return;
+        set((s) => {
+            const alerts = [...s.alerts, alert];
+            if (alerts.length > 200) alerts.splice(0, alerts.length - 200);
+            return { alerts };
+        });
+    },
+
     focusSession(id) {
         set({ focusedSessionId: id });
     },
@@ -93,6 +104,7 @@ export const srtActions = {
     setSessions: (v) => srtStore.getState().setSessions(v),
     pushTelemetry: (a, b) => srtStore.getState().pushTelemetry(a, b),
     setIssues: (v) => srtStore.getState().setIssues(v),
+    pushAlert: (v) => srtStore.getState().pushAlert(v),
     focusSession: (v) => srtStore.getState().focusSession(v),
     reset: () => srtStore.getState().reset(),
 };

@@ -64,12 +64,59 @@
     `maxbw`/`inputbw`/`latency`/`pbkeylen` for the link (utilizing the SRT
     draft's 3–4×RTT rule).
 
-## Implemented in this pass (on top of 30bcd23)
+## Status after the Tier 2/3 implementation pass — ALL TIERS IMPLEMENTED
 
+### Tier 1 (done, commit fbaabc3)
 - `src/features/srtSource/domain/tsAnalytics.js` — items 1–3 as pure,
   contract-tested functions (TS byte scanner: PAT/PMT/PCR/PES walk, PID
-  inventory, per-PID bitrate, continuity errors, GOP spacing, PCR interval).
-- Telemetry + analytics export (`srtExport.js`): JSONL series export and a
-  session summary document.
-- Monitor UI: new "Stream contents" panel (PID table + bitrate sparkline +
-  CC error ledger) and export buttons.
+  inventory, per-PID bitrate, continuity errors, GOP spacing, PCR interval,
+  per-stream PTS export).
+- Telemetry + analytics export (`srtExport.js`): JSONL/CSV series export and
+  a session summary document.
+- Monitor UI: "Stream contents" panel + export buttons.
+
+### Tier 2 (done)
+- **#6 Handshake forensics** — Go ledger (`internal/session/handshake.go`):
+  every accept/reject with SRT rejection codes (`REJ_BADSECRET`,
+  `REJ_UNSECURE`, …) and negotiated parameters; `GET /sessions/{id}/handshake`;
+  persisted rejection/success records in recording sessions; Monitor panel.
+- **#7 Threshold alerts** — `domain/alerts.js`: threshold config with
+  warn/critical levels, hysteresis (fire on transitions, clear on recovery),
+  alert history in srtStore (bounded 200), Monitor panel.
+- **#8 Failover view** — `domain/failover.js`: 1 Hz time alignment + pairwise
+  rate/RTT/loss deltas; Monitor comparison section.
+- **#9 A/V sync + loudness** — `domain/avSync.js` (PTS/PCR offset + drift ppm,
+  discontinuity summary) and `domain/loudness.js` (EBU R128: K-weighting per
+  BS.1770-4, 400 ms gated blocks, -70/-10 LU gates, short-term/momentary max,
+  WebAudio decode path); A/V offset shown in Stream Contents.
+- **#10 Latency budget** — `domain/latencyBudget.js`: staged budget
+  (link half-RTT + TSBPD + helper window + player buffer) with honest
+  "unknown" stages; draft formula RTT/2 + latency; Monitor panel.
+
+### Tier 3 (done)
+- **#11 WebTransport/MoQ adapter** — `infrastructure/webrtc/webtransport-adapter.js`:
+  datagram + unidirectional-stream ducts with cancellation, 1 Hz byte/datagram
+  counters, honest nulls (no RTT/loss in WebTransport); controller wiring
+  (`startWebTransportSession`); 4 contract tests.
+- **#12 Unified session reports** — `domain/report.js`: one schema for
+  dash/hls/srt/webrtc (session + telemetry + advisories + TS contents +
+  issues), SRT URL redaction enforced, Markdown rendering; Monitor "Export
+  full report".
+- **#13 Prometheus exporter** — Go `internal/api/metrics.go`:
+  `GET /metrics` exposition (per-session counters/gauges for RTT, loss,
+  retransmission, drops, buffers, TSBPD, rates) with pure render function +
+  tests; link surfaced in the Monitor.
+- **#14 Config advisor** — `domain/advisor.js`: latency = max(120 ms floor,
+  4× worst RTT) on a 25 ms grid, inputbw = peak × 1.3 headroom, pbkeylen
+  escalation under sustained loss, paste-ready query string + rationale;
+  Monitor panel.
+
+### Verification for this pass
+- 19 new contract tests (alerts, advisor, budget, A/V sync, loudness,
+  failover, report, WebTransport) — 109/109 node tests total.
+- Go: handshake ledger + Prometheus tests; 7 packages green (incl. real
+  loopback reject-then-accept forensics), `gofmt`/`vet` clean.
+- Real binary: `/metrics`, `/version`, `/sessions/{id}/handshake` verified
+  against a live helper process; `scripts/smoke-srt.sh` (real ffmpeg/libsrt
+  end-to-end) passes again.
+- ESLint 0, tsc exactly at the main baseline (43).

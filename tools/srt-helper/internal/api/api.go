@@ -76,6 +76,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /recordings/{id}/playlist.m3u8", s.withAuth(s.handleVodPlaylist))
 	mux.HandleFunc("GET /recordings/{id}/chunks/{index}", s.withAuth(s.handleRecordingChunk))
 	mux.HandleFunc("GET /events", s.withAuth(s.handleEvents))
+	mux.HandleFunc("GET /metrics", s.withAuth(s.handleMetrics))
+	mux.HandleFunc("GET /sessions/{id}/handshake", s.withAuth(s.handleHandshakes))
 
 	return s.withPreflight(mux)
 }
@@ -158,6 +160,24 @@ func (s *Server) setCORS(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- handlers ---------------------------------------------------------------
+
+func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	_, active := s.manager.Stats()
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	fmt.Fprint(w, renderPrometheus(s.manager.Sessions(), s.version, runtime.GOOS+"/"+runtime.GOARCH, active))
+}
+
+// handleHandshakes exposes the SRT handshake ledger (Tier-2 #6): every
+// accepted/rejected peer attempt with rejection reason codes.
+func (s *Server) handleHandshakes(w http.ResponseWriter, r *http.Request) {
+	events, ok := s.manager.SessionHandshakes(r.PathValue("id"))
+	if !ok {
+		s.writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown session"})
+		return
+	}
+	s.writeJSON(w, http.StatusOK, map[string]any{"handshakes": events})
+}
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	sessions, active := s.manager.Stats()

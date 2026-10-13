@@ -10,9 +10,31 @@ import {
     startSrtSession,
     stopSrtSession,
 } from '@/features/srtSource/application/srtController.js';
-import { chunkUrl } from '@/infrastructure/helper/bridgeClient.js';
-import { getHelperToken } from '@/infrastructure/helper/bridgeClient.js';
+import {
+    chunkUrl,
+    getHelperToken,
+} from '@/infrastructure/helper/bridgeClient.js';
+import {
+    helperMetricsUrl,
+    loadHandshakes,
+    startWebTransportSession,
+    startWebrtcSession,
+} from '@/features/srtSource/application/srtController.js';
 import { analyzeTsChunk } from '@/features/srtSource/domain/tsAnalytics.js';
+import { analyzeAvSync } from '@/features/srtSource/domain/avSync.js';
+import {
+    adviseLinkConfig,
+    adviceToQuery,
+} from '@/features/srtSource/domain/advisor.js';
+import {
+    latencyBudget,
+    srtFixedLatency,
+} from '@/features/srtSource/domain/latencyBudget.js';
+import { compareTwo } from '@/features/srtSource/domain/failover.js';
+import {
+    buildSessionReport,
+    reportToMarkdown,
+} from '@/features/srtSource/domain/report.js';
 import {
     downloadText,
     toCsv,
@@ -143,6 +165,18 @@ function helperCard(state) {
             </dl>
             ${updateRow}
             ${helper.reachable && !helper.authorized ? tokenRow : html``}
+            ${helper.reachable
+                ? html`<p class="text-xs text-slate-500 mt-2">
+                      Prometheus scrape target:
+                      <a
+                          class="underline"
+                          href="${helperMetricsUrl()}"
+                          target="_blank"
+                          rel="noopener"
+                          >/metrics</a
+                      >
+                  </p>`
+                : html``}
             ${!helper.reachable
                 ? html`<p class="text-xs text-amber-300 mt-2">
                       No helper on localhost: download and run
@@ -243,6 +277,12 @@ function sessionCard(state, id) {
                 >
                     Export session summary
                 </button>
+                <button
+                    class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs"
+                    @click=${() => sessionReport(id)}
+                >
+                    Export full report
+                </button>
             </div>
             <div class="flex gap-2">
                 <button
@@ -300,22 +340,47 @@ function issuesCard(state) {
     `;
 }
 
+let transportDraft = 'srt';
+
 function newSessionForm() {
     let draft = '';
     return html`
         <section class="rounded-lg border border-slate-700 bg-slate-800/60 p-4">
             <h3 class="text-sm font-semibold mb-2">Start session</h3>
-            <div class="flex gap-2">
+            <div class="flex gap-2 items-center">
+                <select
+                    class="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs"
+                    @change=${(e) => {
+                        transportDraft = e.target.value;
+                    }}
+                >
+                    <option value="srt">SRT (helper)</option>
+                    <option value="webrtc">WebRTC (WHEP)</option>
+                    <option value="webtransport">WebTransport</option>
+                </select>
                 <input
                     class="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs font-mono"
-                    placeholder="srt://host:port?streamid=live/abc&passphrase=…"
+                    placeholder=${transportDraft === 'srt'
+                        ? 'srt://host:port?streamid=live/abc&passphrase=…'
+                        : transportDraft === 'webrtc'
+                          ? 'http://host:8889/live/whep'
+                          : 'https://host:4433/live'}
                     @input=${(e) => {
                         draft = e.target.value;
                     }}
                 />
                 <button
                     class="px-3 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-xs"
-                    @click=${() => startSrtSession(draft.trim())}
+                    @click=${() => {
+                        const url = draft.trim();
+                        if (transportDraft === 'srt') {
+                            startSrtSession(url);
+                        } else if (transportDraft === 'webrtc') {
+                            startWebrtcSession(url);
+                        } else {
+                            startWebTransportSession(url);
+                        }
+                    }}
                 >
                     Connect
                 </button>
@@ -337,11 +402,14 @@ async function inspectContents(id) {
         const video = a.pidInventory.find((p) =>
             String(p.role).startsWith('video')
         );
+        const av = analyzeAvSync(a);
         contentsCache[id] = {
             pids: a.pidInventory.length,
             video: video ? `${video.mbps} Mbps` : '—',
             gop: a.gop.avgGopFrames ?? '—',
             ccErrors: a.ccErrorLedger.reduce((sum, c) => sum + c.errors, 0),
+            avOffsetMs: av.offsetMs,
+            avDirection: av.offsetDirection,
         };
     } catch (err) {
         contentsCache[id] = { error: String(err?.message ?? err) };
@@ -372,6 +440,287 @@ function exportSummary(id) {
     );
 }
 
+function alertsCard(state) {
+    if (!state.alerts?.length) {
+        return html`<section
+            class="rounded-lg border border-slate-700 bg-slate-800/60 p-4"
+        >
+            <h3 class="text-sm font-semibold mb-2">Threshold alerts</h3>
+            <p class="text-xs text-slate-500">
+                None. Breaches fire once per excursion (defaults: RTT 80/250 ms,
+                loss 1/5 %, retrans 5/15 %, min rate 1 Mbps).
+            </p>
+        </section>`;
+    }
+    const rows = state.alerts.slice(-40).map((a) => {
+        const color =
+            a.level === 'critical'
+                ? 'bg-red-600'
+                : a.level === 'warn'
+                  ? 'bg-amber-500'
+                  : 'bg-emerald-600';
+        return html`<li class="flex gap-2 text-xs">
+            <span class="px-1.5 rounded ${color} text-white">${a.level}</span>
+            <span class="font-mono text-slate-500">${a.sessionId}</span>
+            <span class="text-slate-300">${a.message}</span>
+        </li>`;
+    });
+    return html`<section
+        class="rounded-lg border border-slate-700 bg-slate-800/60 p-4"
+    >
+        <h3 class="text-sm font-semibold mb-2">Threshold alerts (recent)</h3>
+        <ul class="space-y-1">
+            ${rows.reverse()}
+        </ul>
+    </section>`;
+}
+
+function advisorCard(state, id) {
+    const series = state.telemetry[id] ?? [];
+    const session = state.sessions[id] ?? null;
+    if (!series.length) return html``;
+    const advice = adviseLinkConfig(series);
+    const latest = series[series.length - 1];
+    const budget = latencyBudget({
+        rttMs: latest.rttMs,
+        tsbpdMs: latest.msRcvTsbpd,
+    });
+    return html`
+        <section
+            class="rounded-lg border border-slate-700 bg-slate-800/60 p-4 space-y-3"
+        >
+            <h3 class="text-sm font-semibold">Link advisor & latency budget</h3>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <p class="text-xs text-slate-500 mb-1">
+                        Recommended SRT options
+                    </p>
+                    <div class="flex gap-2 items-center">
+                        <code
+                            class="text-xs font-mono text-emerald-300 bg-slate-900 rounded px-2 py-1"
+                            >?${adviceToQuery(advice)}</code
+                        >
+                        <button
+                            class="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs"
+                            @click=${() =>
+                                navigator.clipboard?.writeText(
+                                    '?' + adviceToQuery(advice)
+                                )}
+                        >
+                            Copy
+                        </button>
+                    </div>
+                    <ul class="mt-2 space-y-1">
+                        ${advice.rationale.map(
+                            (r) =>
+                                html`<li class="text-xs text-slate-400">
+                                    ${r}
+                                </li>`
+                        )}
+                    </ul>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-500 mb-1">Latency budget</p>
+                    <table class="text-xs w-full">
+                        ${budget.stages.map(
+                            (stage) =>
+                                html`<tr>
+                                    <td class="text-slate-400 pr-2">
+                                        ${stage.label}
+                                    </td>
+                                    <td class="font-mono text-right">
+                                        ${stage.ms == null
+                                            ? html`<span class="text-slate-600"
+                                                  >unknown</span
+                                              >`
+                                            : `${stage.ms} ms`}
+                                    </td>
+                                </tr>`
+                        )}
+                    </table>
+                    <p
+                        class="text-xs mt-1 ${budget.unknown
+                            ? 'text-slate-500'
+                            : 'text-emerald-300'}"
+                    >
+                        ${budget.unknown
+                            ? `Total unknown (${budget.unknown} stage(s) without data)`
+                            : `Fixed SRT component: ${srtFixedLatency(latest.rttMs, latest.msRcvTsbpd)} ms · total budget ${budget.totalMs} ms`}
+                    </p>
+                    ${session?.mode
+                        ? html`<p class="text-xs text-slate-500 mt-1">
+                              ${session.mode} session
+                          </p>`
+                        : html``}
+                </div>
+            </div>
+        </section>
+    `;
+}
+
+const handshakeCache = {};
+
+async function loadHandshakePanel(id) {
+    const { handshakes } = await loadHandshakes(id);
+    handshakeCache[id] = handshakes ?? [];
+    renderView();
+}
+
+function handshakeCard(state, id) {
+    const events = handshakeCache[id];
+    if (!events) {
+        return html`<section
+            class="rounded-lg border border-slate-700 bg-slate-800/60 p-4"
+        >
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-semibold">Handshake ledger</h3>
+                <button
+                    class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs"
+                    @click=${() => loadHandshakePanel(id)}
+                >
+                    Load
+                </button>
+            </div>
+        </section>`;
+    }
+    const rows = events.map(
+        (ev) =>
+            html`<li class="flex gap-2 text-xs font-mono">
+                <span class="text-slate-500"
+                    >${new Date(ev.t).toLocaleTimeString()}</span
+                >
+                <span
+                    class="px-1.5 rounded ${ev.kind === 'connected'
+                        ? 'bg-emerald-600'
+                        : 'bg-rose-700'} text-white"
+                    >${ev.kind}</span
+                >
+                <span class="text-slate-300">${ev.streamId ?? '—'}</span>
+                <span class="text-slate-500">hs v${ev.hsVersion ?? '?'}</span>
+                <span class="text-slate-500"
+                    >${ev.encrypted ? 'encrypted' : 'plain'}</span
+                >
+                ${ev.rejectionName
+                    ? html`<span class="text-rose-300"
+                          >${ev.rejectionName}</span
+                      >`
+                    : html``}
+                <span class="text-slate-500">${ev.note ?? ''}</span>
+            </li>`
+    );
+    return html`<section
+        class="rounded-lg border border-slate-700 bg-slate-800/60 p-4"
+    >
+        <div class="flex items-center justify-between mb-2">
+            <h3 class="text-sm font-semibold">Handshake ledger</h3>
+            <button
+                class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs"
+                @click=${() => loadHandshakePanel(id)}
+            >
+                Refresh
+            </button>
+        </div>
+        <ul class="space-y-1">
+            ${rows.length
+                ? rows
+                : html`<li class="text-xs text-slate-500">no attempts yet</li>`}
+        </ul>
+    </section>`;
+}
+
+function failoverCard(state) {
+    const ids = Object.keys(state.sessions).filter(
+        (id) => (state.telemetry[id] ?? []).length > 1
+    );
+    if (ids.length < 2) {
+        return html`<section
+            class="rounded-lg border border-slate-700 bg-slate-800/60 p-4"
+        >
+            <h3 class="text-sm font-semibold mb-2">Failover comparison</h3>
+            <p class="text-xs text-slate-500">
+                Needs 2+ sessions with telemetry — start main and backup links
+                to compare rate/RTT/loss deltas.
+            </p>
+        </section>`;
+    }
+    const seriesFor = (id) => ({
+        id,
+        start: Number(state.telemetry[id][0]?.t ?? 0),
+        series: state.telemetry[id] ?? [],
+    });
+    const cmp = compareTwo(seriesFor(ids[0]), seriesFor(ids[1]));
+    const rttA = cmp.rttDeltaMs;
+    return html`<section
+        class="rounded-lg border border-slate-700 bg-slate-800/60 p-4"
+    >
+        <h3 class="text-sm font-semibold mb-2">
+            Failover comparison: ${ids[0]} vs ${ids[1]}
+        </h3>
+        <table class="text-xs w-full">
+            <tr>
+                <th></th>
+                <th class="text-left font-mono">${ids[0]}</th>
+                <th class="text-left font-mono">${ids[1]}</th>
+            </tr>
+            <tr>
+                <td class="text-slate-400 pr-2">rate delta (Mbps)</td>
+                <td class="font-mono">${cmp.rateDeltaMbps}</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td class="text-slate-400 pr-2">rtt delta (ms)</td>
+                <td class="font-mono">${rttA}</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td class="text-slate-400 pr-2">loss delta (%)</td>
+                <td class="font-mono">${cmp.lossDeltaPct}</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td class="text-slate-400 pr-2">better</td>
+                <td class="font-mono text-emerald-300">
+                    ${cmp.betterRate ?? '—'}
+                </td>
+                <td class="font-mono text-emerald-300">
+                    ${cmp.betterRtt ?? '—'}
+                </td>
+            </tr>
+        </table>
+        <p class="text-xs text-slate-500 mt-1">
+            ${cmp.samples} aligned samples · A/V-aware picking: prefer lower
+            loss first, then rate, then RTT.
+        </p>
+    </section>`;
+}
+
+function sessionReport(id) {
+    const state = srtStore.getState();
+    const session = state.sessions[id] ?? { id };
+    const issues = (state.issues ?? []).filter((i) => i.sessionId === id);
+    const report = buildSessionReport({
+        transport:
+            session.mode === 'webrtc'
+                ? 'webrtc'
+                : session.mode === 'webtransport'
+                  ? 'webrtc'
+                  : 'srt',
+        session,
+        series: state.telemetry[id] ?? [],
+        issues,
+    });
+    downloadText(
+        `srt-${id}-report.json`,
+        JSON.stringify(report, null, 2),
+        'application/json'
+    );
+    downloadText(
+        `srt-${id}-report.md`,
+        reportToMarkdown(report),
+        'text/markdown'
+    );
+}
+
 function renderView() {
     if (!container) return;
     const state = { ...srtStore.getState(), contents: contentsCache };
@@ -389,11 +738,18 @@ function renderView() {
                         Re-probe
                     </button>
                 </header>
-                ${helperCard(state)} ${newSessionForm()}
+                ${helperCard(state)} ${newSessionForm()} ${alertsCard(state)}
                 ${Object.keys(state.sessions).map((id) =>
                     sessionCard(state, id)
                 )}
                 ${issuesCard(state)}
+                ${state.focusedSessionId
+                    ? advisorCard(state, state.focusedSessionId)
+                    : html``}
+                ${state.focusedSessionId
+                    ? handshakeCard(state, state.focusedSessionId)
+                    : html``}
+                ${failoverCard(state)}
                 <p class="text-xs text-slate-500">
                     SRT support: your helper owns the UDP sockets; this panel
                     shows normalized telemetry (RTT, loss, retransmissions,

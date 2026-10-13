@@ -166,6 +166,22 @@ export async function listSessions() {
     return await resp.json();
 }
 
+export async function getHandshakes(sessionId) {
+    const resp = await fetchWithTimeout(
+        `${origin()}/sessions/${sessionId}/handshake`,
+        {
+            headers: await authHeaders(),
+        }
+    );
+    if (!resp.ok) return { handshakes: [] };
+    return await resp.json();
+}
+
+/** URL of the helper's Prometheus exporter (Tier-3 #13). */
+export function metricsUrl() {
+    return `${origin()}/metrics`;
+}
+
 /**
  * Open the SSE event stream. EventSource cannot set headers, so the token
  * travels in the query string. Returns a handle with close().

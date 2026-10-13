@@ -23,7 +23,7 @@ const CC_MAX = 15;
  *   ccErrorLedger: Array<{pid:number, errors:number}>,
  *   gop: {keyframes:number, avgGopFrames:number|null, keyframePids:number[]},
  *   pcr: {count:number, minIntervalMs:number|null, maxIntervalMs:number|null, avgIntervalMs:number|null},
- *   pts: {discontinuities:number}
+ *   pts: {discontinuities:number, streams:Array<{pid:number,kind:string,count:number,first:number,last:number}>}
  * }}
  */
 export function analyzeTsChunk(bytes, options = {}) {
@@ -42,7 +42,7 @@ export function analyzeTsChunk(bytes, options = {}) {
             maxIntervalMs: null,
             avgIntervalMs: null,
         },
-        pts: { discontinuities: 0 },
+        pts: { discontinuities: 0, streams: [] },
     };
     if (!bytes || bytes.length === 0) return result;
 
@@ -135,18 +135,33 @@ export function analyzeTsChunk(bytes, options = {}) {
             } else if (lastKeyframePid === pid) {
                 framesSinceKey += 1;
             }
-            if (pusi) {
-                const pts = readPesPts(bytes, p, afc);
-                if (pts !== null) {
-                    const last = ptsByPid.get(pid);
-                    if (last !== undefined && pts >= 0) {
-                        // PTS wraps at 2^33 (26.5h); treat big backward jumps as discontinuities.
-                        if (last - pts > 90000 || pts - last > 10 * 90000) {
-                            result.pts.discontinuities += 1;
-                        }
+        }
+
+        // PES PTS for every elementary stream (video AND audio): A/V sync
+        // and drift measurement need both sides (capability plan Tier-2 #9).
+        const anyStream = streamForPid(pid, pmtPids);
+        if (anyStream && pusi) {
+            const pts = readPesPts(bytes, p, afc);
+            if (pts !== null && pts >= 0) {
+                const entry = ptsByPid.get(pid) ?? {
+                    pid,
+                    kind: anyStream.kind,
+                    count: 0,
+                    first: pts,
+                    last: pts,
+                };
+                if (entry.count > 0) {
+                    if (
+                        entry.last - pts > 90000 ||
+                        pts - entry.last > 10 * 90000
+                    ) {
+                        result.pts.discontinuities += 1;
                     }
-                    if (pts !== null) ptsByPid.set(pid, pts);
                 }
+                entry.count += 1;
+                entry.last = pts;
+                entry.kind = anyStream.kind;
+                ptsByPid.set(pid, entry);
             }
         }
 
@@ -191,6 +206,9 @@ export function analyzeTsChunk(bytes, options = {}) {
                 (gopLengths.reduce((a, b) => a + b, 0) / gopLengths.length) * 10
             ) / 10;
     }
+
+    // Per-stream PTS export (video + audio) for A/V sync/drift analysis.
+    result.pts.streams = [...ptsByPid.values()].sort((a, b) => a.pid - b.pid);
 
     // PCR intervals (90 kHz ticks → ms).
     if (pcrTimes.length >= 2) {

@@ -18,7 +18,22 @@ import {
     validateManifest,
 } from '@/infrastructure/helper/versionCompat.js';
 import { parseSrtUrl, redactSrtUrl } from '@/infrastructure/srt/urlContract.js';
+import {
+    DEFAULT_THRESHOLDS,
+    describeBreach,
+    evaluateAlerts,
+    shouldClear,
+    shouldFire,
+} from '@/features/srtSource/domain/alerts.js';
 import { connectWhep } from '@/infrastructure/webrtc/adapter.js';
+import {
+    connectWebTransport,
+    normalizeWebTransportStats,
+} from '@/infrastructure/webrtc/webtransport-adapter.js';
+import {
+    getHandshakes,
+    metricsUrl,
+} from '@/infrastructure/helper/bridgeClient.js';
 import { srtActions, srtStore } from '@/state/srtStore.js';
 import {
     evaluateSrtRules,
@@ -184,9 +199,58 @@ export async function syncSessions() {
     ensureEventStream();
 }
 
+// --- Threshold alerting (Tier-2 #7) --------------------------------------------
+
+/**
+ * Evaluate the threshold config on each sample and record transitions only,
+ * so the alert history shows each breach once per excursion.
+ */
+export function evaluateThresholdAlerts(
+    sessionId,
+    sample,
+    thresholds = DEFAULT_THRESHOLDS
+) {
+    const prev = alertLevels.get(sessionId) ?? 'ok';
+    const { level, breaches } = evaluateAlerts(sample, thresholds);
+    if (shouldFire(prev, level)) {
+        for (const breach of breaches) {
+            srtActions.pushAlert({
+                sessionId,
+                metric: breach.metric,
+                level: breach.level,
+                t: sample.t ?? Date.now(),
+                message: describeBreach(breach),
+            });
+        }
+    }
+    if (shouldClear(prev, level)) {
+        srtActions.pushAlert({
+            sessionId,
+            metric: 'recovered',
+            level: 'ok',
+            t: sample.t ?? Date.now(),
+            message: 'Link back within thresholds.',
+        });
+    }
+    alertLevels.set(sessionId, level);
+}
+
+/** Fetch a session's SRT handshake ledger (Tier-2 #6). */
+export async function loadHandshakes(sessionId) {
+    return getHandshakes(sessionId);
+}
+
+/** Prometheus endpoint URL for homelab scrapers (Tier-3 #13). */
+export function helperMetricsUrl() {
+    return metricsUrl();
+}
+
 // --- WebRTC (native browser transport, roadmap Phase 5) ----------------------
 
 const webrtcSessions = new Map();
+const webTransportSessions = new Map();
+// sessionId -> last alert level (hysteresis for the alert history)
+const alertLevels = new Map();
 
 /**
  * Subscribe to a WHEP endpoint; telemetry flows through the SAME normalizer,
@@ -255,6 +319,68 @@ export async function stopWebrtcSession(whepUrl) {
     await handle.close();
     webrtcSessions.delete(whepUrl);
     srtActions.removeSession(`webrtc:${whepUrl}`);
+    return { ok: true };
+}
+
+// --- WebTransport (native browser transport, roadmap Phase 5/Tier-3 #11) -------
+
+/**
+ * Subscribe to a WebTransport media duct. Telemetry is JS-level counters
+ * (bytes/datagrams); RTT/loss are honestly null per the adapter contract.
+ */
+export async function startWebTransportSession(url) {
+    if (webTransportSessions.has(url)) {
+        return { ok: true, already: true, url };
+    }
+    const id = `webrtc:${url}`;
+    try {
+        const handle = await connectWebTransport(url, {
+            onData: () => {},
+            onSample: (raw) => {
+                const sample = normalizeWebTransportStats(raw);
+                srtActions.pushTelemetry(id, sample);
+                srtStore.setState((st) => ({
+                    sessions: {
+                        ...st.sessions,
+                        [id]: {
+                            id,
+                            mode: 'webtransport',
+                            status: 'connected',
+                            url,
+                            encrypted: true,
+                            startedAt: new Date(sample.t).toISOString(),
+                        },
+                    },
+                }));
+            },
+            onState: (state) => {
+                srtStore.setState((st) => ({
+                    sessions: {
+                        ...st.sessions,
+                        [id]: {
+                            ...(st.sessions[id] ?? {}),
+                            id,
+                            mode: 'webtransport',
+                            url,
+                            status: state,
+                        },
+                    },
+                }));
+            },
+        });
+        webTransportSessions.set(url, handle);
+        return { ok: true, url };
+    } catch (err) {
+        return { ok: false, error: String(err?.message ?? err) };
+    }
+}
+
+export async function stopWebTransportSession(url) {
+    const handle = webTransportSessions.get(url);
+    if (!handle) return { ok: false };
+    await handle.close();
+    webTransportSessions.delete(url);
+    srtActions.removeSession(`webrtc:${url}`);
     return { ok: true };
 }
 

@@ -71,15 +71,16 @@ type Session struct {
 
 	Latest *telemetry.Sample `json:"latest,omitempty"`
 
-	mu        sync.Mutex
-	chunker   *segment.Chunker
-	conn      gosrt.Conn // active publisher/pull connection, if any
-	listener  gosrt.Listener
-	stopCh    chan struct{}
-	stopOnce  sync.Once
-	opts      *srturl.Options
-	pass      string
-	recording bool
+	mu         sync.Mutex
+	chunker    *segment.Chunker
+	conn       gosrt.Conn // active publisher/pull connection, if any
+	listener   gosrt.Listener
+	handshakes *HandshakeLedger
+	stopCh     chan struct{}
+	stopOnce   sync.Once
+	opts       *srturl.Options
+	pass       string
+	recording  bool
 }
 
 // Summary is the API projection of a session.
@@ -223,6 +224,10 @@ func (m *Manager) StartPull(rawURL string, record bool) (*Session, error) {
 	s.HSVersion = conn.Version()
 	s.Encrypted = opts.HasPassphrase
 	s.mu.Unlock()
+	s.handshakes.Record(HandshakeEvent{
+		Kind: "connected", StreamID: conn.StreamId(), HSVersion: conn.Version(),
+		Encrypted: opts.HasPassphrase, Peer: opts.DialAddr(), Note: "caller dial",
+	})
 
 	m.emitSession(s)
 	if record {
@@ -271,16 +276,17 @@ func (m *Manager) newSession(mode string, opts *srturl.Options, record bool) *Se
 	c.MinSegBytes = m.minSeg
 	c.Window = m.window
 	s := &Session{
-		ID:        fmt.Sprintf("s%d", m.nextID),
-		Mode:      mode,
-		Status:    StatusConnecting,
-		URL:       opts.Normalized(),
-		StartedAt: time.Now(),
-		chunker:   c,
-		stopCh:    make(chan struct{}),
-		opts:      opts,
-		pass:      opts.Passphrase,
-		recording: record,
+		ID:         fmt.Sprintf("s%d", m.nextID),
+		Mode:       mode,
+		Status:     StatusConnecting,
+		URL:        opts.Normalized(),
+		StartedAt:  time.Now(),
+		chunker:    c,
+		handshakes: NewHandshakeLedger(200),
+		stopCh:     make(chan struct{}),
+		opts:       opts,
+		pass:       opts.Passphrase,
+		recording:  record,
 	}
 	m.sessions[s.ID] = s
 	return s
@@ -303,14 +309,32 @@ func (m *Manager) acceptLoop(s *Session, ln gosrt.Listener, opts *srturl.Options
 		if req.IsEncrypted() {
 			if opts.Passphrase == "" {
 				req.Reject(gosrt.REJ_UNSECURE)
+				s.handshakes.Record(HandshakeEvent{
+					Kind: "rejected", Peer: req.RemoteAddr().String(),
+					StreamID: req.StreamId(), HSVersion: req.Version(), Encrypted: true,
+					Rejection: uint32(gosrt.REJ_UNSECURE), RejectionName: RejectionName(uint32(gosrt.REJ_UNSECURE)),
+					Note: "encrypted publisher without configured passphrase",
+				})
 				continue
 			}
 			if err := req.SetPassphrase(opts.Passphrase); err != nil {
 				req.Reject(gosrt.REJ_BADSECRET)
+				s.handshakes.Record(HandshakeEvent{
+					Kind: "rejected", Peer: req.RemoteAddr().String(),
+					StreamID: req.StreamId(), HSVersion: req.Version(), Encrypted: true,
+					Rejection: uint32(gosrt.REJ_BADSECRET), RejectionName: RejectionName(uint32(gosrt.REJ_BADSECRET)),
+					Note: "passphrase mismatch",
+				})
 				continue
 			}
 		} else if opts.EnforcedEncr {
 			req.Reject(gosrt.REJ_UNSECURE)
+			s.handshakes.Record(HandshakeEvent{
+				Kind: "rejected", Peer: req.RemoteAddr().String(),
+				HSVersion: req.Version(), Rejection: uint32(gosrt.REJ_UNSECURE),
+				RejectionName: RejectionName(uint32(gosrt.REJ_UNSECURE)),
+				Note:          "unencrypted publisher refused (enforcedencryption)",
+			})
 			continue
 		}
 		conn, err := req.Accept()
@@ -344,6 +368,11 @@ func (m *Manager) attachPublisher(s *Session, conn gosrt.Conn, streamID string, 
 	s.Status = StatusConnected
 	s.Error = ""
 	s.mu.Unlock()
+
+	s.handshakes.Record(HandshakeEvent{
+		Kind: "connected", Peer: peer, StreamID: streamID, HSVersion: version,
+		Encrypted: s.pass != "", Note: "accepted publisher",
+	})
 
 	m.emitSession(s)
 	if s.recording {
@@ -522,6 +551,23 @@ func (m *Manager) SessionChunker(id string) (*segment.Chunker, bool) {
 
 // Recording exposes the recorder.
 func (m *Manager) Recording() *segment.Recorder { return m.recorder }
+
+// SessionHandshakes returns the handshake ledger of a session.
+func (m *Manager) SessionHandshakes(id string) ([]HandshakeEvent, bool) {
+	m.mu.Lock()
+	s, ok := m.sessions[id]
+	m.mu.Unlock()
+	if !ok {
+		return nil, false
+	}
+	s.mu.Lock()
+	ledger := s.handshakes
+	s.mu.Unlock()
+	if ledger == nil {
+		return nil, true
+	}
+	return ledger.Snapshot(), true
+}
 
 func (m *Manager) emitSession(s *Session) {
 	m.emit(Event{Type: EventSession, SessionID: s.ID, TS: time.Now().UnixMilli(),
