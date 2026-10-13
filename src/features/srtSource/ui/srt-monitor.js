@@ -8,7 +8,7 @@ import {
     refreshSrtStatus,
     saveHelperToken,
     startSrtSession,
-    stopSrtSession,
+    stopAnySession,
 } from '@/features/srtSource/application/srtController.js';
 import {
     chunkUrl,
@@ -200,14 +200,24 @@ function sessionCard(state, id) {
     const series = state.telemetry[id] ?? [];
     const sig = deriveSignals(series);
     const badge = STATUS_COLORS[s.status] ?? 'bg-slate-500';
+    // SRT sessions are helper-backed (segments, façade, TS analysis);
+    // WebRTC/WebTransport sessions exist only in this browser.
+    const isNative = s.mode === 'webrtc' || s.mode === 'webtransport';
+    const title = isNative
+        ? s.mode === 'webrtc'
+            ? 'WebRTC (WHEP)'
+            : 'WebTransport'
+        : s.mode === 'push'
+          ? 'Listener'
+          : 'Caller';
+    const srtOnly = (tpl) => (isNative ? html`` : tpl);
     return html`
         <section
             class="rounded-lg border border-slate-700 bg-slate-800/60 p-4 space-y-3"
         >
             <div class="flex items-center justify-between">
                 <h3 class="text-sm font-semibold flex items-center gap-2">
-                    ${icons.network}
-                    ${s.mode === 'push' ? 'Listener' : 'Caller'}
+                    ${icons.network} ${title}
                 </h3>
                 <span class="text-xs px-2 py-0.5 rounded ${badge} text-white"
                     >${s.status}</span
@@ -225,7 +235,9 @@ function sessionCard(state, id) {
                 </div>
                 <div>
                     <dt class="text-slate-500">segments</dt>
-                    <dd class="font-mono">${s.segments}</dd>
+                    <dd class="font-mono">
+                        ${isNative ? '—' : (s.segments ?? '—')}
+                    </dd>
                 </div>
                 <div>
                     <dt class="text-slate-500">rtt</dt>
@@ -234,10 +246,7 @@ function sessionCard(state, id) {
                 <div>
                     <dt class="text-slate-500">recv rate</dt>
                     <dd class="font-mono">
-                        ${fmt(
-                            sig.lossRatio * 0 + (series.at(-1)?.mbpsRecv ?? 0)
-                        )}
-                        Mbps
+                        ${fmt(series.at(-1)?.mbpsRecv ?? 0)} Mbps
                     </dd>
                 </div>
                 <div>
@@ -255,69 +264,89 @@ function sessionCard(state, id) {
                     ${sparkline(series, (x) => x.mbpsRecv)}
                 </div>
             </div>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="text-xs text-slate-400" id="ts-contents-${id}">
+                ${state.contents?.[id]
+                    ? html`${state.contents[id].pids} PIDs · video
+                      ${state.contents[id].video || '—'} · GOP
+                      ${state.contents[id].gop ?? '—'} · CC errors
+                      ${state.contents[id].ccErrors}`
+                    : ''}
+                ${state.contents?.[id]?.avOffsetMs != null
+                    ? html`· A/V ${state.contents[id].avOffsetMs} ms
+                      (${state.contents[id].avDirection})`
+                    : ''}
+                ${state.contents?.[id]?.loudness
+                    ? html`<br /><span class="text-sky-300"
+                              >loudness: ${state.contents[id].loudness}</span
+                          >`
+                    : ''}
+            </div>
+            <div class="flex flex-wrap gap-2">
+                ${srtOnly(
+                    html`<button
+                        class="px-3 py-1 rounded bg-sky-700 hover:bg-sky-600 text-xs"
+                        @click=${() =>
+                            eventBus.dispatch(
+                                EVENTS.UI.STREAM_ANALYSIS_REQUESTED,
+                                {
+                                    inputs: [
+                                        {
+                                            url: playlistUrl(id),
+                                            name: `SRT ${s.streamId ?? s.id}`,
+                                            auth: { mode: 'none' },
+                                            drmAuth: { mode: 'none' },
+                                            srt: { sessionId: id, url: s.url },
+                                        },
+                                    ],
+                                }
+                            )}
+                    >
+                        Analyze in workspace
+                    </button>`
+                )}
                 <button
-                    class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs"
-                    @click=${() => inspectContents(id)}
+                    class="px-3 py-1 rounded bg-rose-800 hover:bg-rose-700 text-xs"
+                    @click=${() => stopAnySession(id)}
                 >
-                    Inspect stream contents
+                    Stop
                 </button>
-                <button
-                    class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs"
-                    @click=${() => measureLoudnessUI(id)}
-                >
-                    Measure loudness
-                </button>
-                <div class="text-xs text-slate-400" id="ts-contents-${id}">
-                    ${state.contents?.[id]
-                        ? html`${state.contents[id].pids} PIDs · video
-                          ${state.contents[id].video || '—'} · GOP
-                          ${state.contents[id].gop ?? '—'} · CC errors
-                          ${state.contents[id].ccErrors}`
-                        : 'not analyzed yet'}
-                </div>
-                <button
-                    class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs"
-                    @click=${() => exportTelemetry(id)}
-                >
-                    Export telemetry (CSV)
-                </button>
-                <button
-                    class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs"
-                    @click=${() => exportSummary(id)}
-                >
-                    Export session summary
-                </button>
+                ${srtOnly(
+                    html`<button
+                        class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs"
+                        @click=${() => inspectContents(id)}
+                    >
+                        Inspect stream contents
+                    </button>`
+                )}
+                ${srtOnly(
+                    html`<button
+                        class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs"
+                        @click=${() => measureLoudnessUI(id)}
+                    >
+                        Measure loudness
+                    </button>`
+                )}
+                ${srtOnly(
+                    html`<button
+                        class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs"
+                        @click=${() => exportTelemetry(id)}
+                    >
+                        Export telemetry (CSV)
+                    </button>`
+                )}
+                ${srtOnly(
+                    html`<button
+                        class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs"
+                        @click=${() => exportSummary(id)}
+                    >
+                        Export session summary
+                    </button>`
+                )}
                 <button
                     class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs"
                     @click=${() => sessionReport(id)}
                 >
                     Export full report
-                </button>
-            </div>
-            <div class="flex gap-2">
-                <button
-                    class="px-3 py-1 rounded bg-sky-700 hover:bg-sky-600 text-xs"
-                    @click=${() =>
-                        eventBus.dispatch(EVENTS.UI.STREAM_ANALYSIS_REQUESTED, {
-                            inputs: [
-                                {
-                                    url: playlistUrl(id),
-                                    name: `SRT ${s.streamId ?? s.id}`,
-                                    auth: { mode: 'none' },
-                                    drmAuth: { mode: 'none' },
-                                    srt: { sessionId: id, url: s.url },
-                                },
-                            ],
-                        })}
-                >
-                    Analyze in workspace
-                </button>
-                <button
-                    class="px-3 py-1 rounded bg-rose-800 hover:bg-rose-700 text-xs"
-                    @click=${() => stopSrtSession(id)}
-                >
-                    Stop
                 </button>
             </div>
         </section>

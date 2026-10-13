@@ -191,12 +191,42 @@ export async function startSrtSession(
 export async function stopSrtSession(id) {
     const result = await stopSession(id);
     if (result.ok) srtActions.removeSession(id);
+    alertLevels.delete(id);
     return result;
+}
+
+/**
+ * Stop any session by id, routing by transport mode: WebRTC/WebTransport
+ * sessions live only in the browser (their ids are not helper sessions).
+ */
+export async function stopAnySession(id) {
+    const session = srtStore.getState().sessions[id];
+    if (!session) return { ok: false, error: 'unknown session' };
+    if (session.mode === 'webrtc') {
+        const result = await stopWebrtcSession(session.url);
+        if (result.ok) srtActions.removeSession(id);
+        alertLevels.delete(id);
+        return result;
+    }
+    if (session.mode === 'webtransport') {
+        const result = await stopWebTransportSession(session.url);
+        if (result.ok) srtActions.removeSession(id);
+        alertLevels.delete(id);
+        return result;
+    }
+    return stopSrtSession(id);
 }
 
 export async function syncSessions() {
     const { sessions } = await listSessions();
-    srtActions.setSessions(sessions);
+    // Preserve browser-only sessions (WebRTC/WebTransport): the helper knows
+    // nothing about them, so a plain replace would drop them from the view.
+    const current = srtStore.getState().sessions;
+    const merged = { ...sessions };
+    for (const [id, s] of Object.entries(current)) {
+        if (s?.mode === 'webrtc' || s?.mode === 'webtransport') merged[id] = s;
+    }
+    srtActions.setSessions(Object.values(merged));
     ensureEventStream();
 }
 
