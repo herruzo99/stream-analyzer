@@ -5,43 +5,43 @@
   "helperProtocol": 1,
   "minimumHelper": "1.0.0",
   "minimumApp": "1.0.0",
-  "publishedAt": "2026-10-13T21:12:22Z",
-  "commit": "3958aff7",
+  "publishedAt": "2026-10-13T22:06:57Z",
+  "commit": "80f7bcca",
   "artifacts": {
     "darwin-amd64": {
       "url": "/helper/darwin-amd64/stream-analyzer-helper",
-      "sha256": "fed4476068c4f7358a84969a8c15b477d26365ce51da8bfdb564e2039069b881",
-      "bytes": 8185856
+      "sha256": "37e542167d2753fd0450a192b5512225ca0656744f239eada0c54016ca552c01",
+      "bytes": 8185872
     },
     "darwin-arm64": {
       "url": "/helper/darwin-arm64/stream-analyzer-helper",
-      "sha256": "71e310e387802f0429f365aeb37c16471f04fa9c6bc19ec915f4e667c12fd9e3",
-      "bytes": 7593090
+      "sha256": "01c04dc3481ba3887654ac234accf0978da4bb299212ca7a999a3c432ab69bcb",
+      "bytes": 7593122
     },
     "linux-amd64": {
       "url": "/helper/linux-amd64/stream-analyzer-helper",
-      "sha256": "ab6cb8f963e6902c239db2d44dfaeede61b23122d2dc3817eda28686f9c267fe",
+      "sha256": "fad536245a839f88141be99d74da5e70157fa2396d78927ab628e6c75605e46b",
       "bytes": 8007840
     },
     "linux-arm64": {
       "url": "/helper/linux-arm64/stream-analyzer-helper",
-      "sha256": "1cbd5c3005f50683b0d71bc8054868fc70b3b8ea65abdacdefbacfe8f2c9adf9",
+      "sha256": "027bfac4362c8fe9e83ca849fdd244cc3a6834e99b45b5d2cf812ef2b1b8fa0e",
       "bytes": 7471264
     },
     "linux-riscv64": {
       "url": "/helper/linux-riscv64/stream-analyzer-helper",
-      "sha256": "8692c216179d333ca0a42f7c72040e31035ec36f36747a057d252b19d1ad1048",
+      "sha256": "0881139c1cdfe4cbce7f938bfb348b48177966491e052b5e953c0199873e73e9",
       "bytes": 7143584
     },
     "windows-amd64": {
       "url": "/helper/windows-amd64/stream-analyzer-helper.exe",
-      "sha256": "c7f534ab2e686e1b1ad655737985e8b090d53a4054674a0ac197351ac436a793",
-      "bytes": 8214528
+      "sha256": "526a2e9c1c40f6557df64a556ff745ebe168ed6333259654bdb2bcbb772383ef",
+      "bytes": 8216576
     },
     "windows-arm64": {
       "url": "/helper/windows-arm64/stream-analyzer-helper.exe",
-      "sha256": "2c2e371a7583c1dc124d87206f89ff21e3bc3a5bc54f89af36c0291e34c4c39d",
-      "bytes": 7463424
+      "sha256": "719f05ec11fe62ac96aae0731ea4e95dfa6e55f20818187834b6ea8b1ee83492",
+      "bytes": 7464960
     }
   }
 }

@@ -55,7 +55,7 @@ func main() {
 		origins     multiFlag
 		showVersion = flag.Bool("version", false, "print version and exit")
 	)
-	flag.Var(&origins, "origin", "allowed Origin for the control plane (repeatable); empty = extension/same-origin only")
+	flag.Var(&origins, "origin", "allowed Origin for the control plane (repeatable, port wildcards as http://localhost:*); empty = public site + localhost defaults")
 	flag.Parse()
 
 	if *showVersion {
@@ -85,6 +85,12 @@ func main() {
 	if err != nil {
 		log.Error("recorder init failed", "error", err, "dir", recDir)
 		os.Exit(1)
+	}
+
+	if len(origins) == 0 {
+		origins = api.DefaultOrigins
+		log.Info("no -origin given; defaulting to the public site + localhost dev origins",
+			"origins", origins)
 	}
 
 	manager := session.NewManager(session.Options{Recorder: recorder})

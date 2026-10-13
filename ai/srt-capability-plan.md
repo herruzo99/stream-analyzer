@@ -113,6 +113,15 @@
   escalation under sustained loss, paste-ready query string + rationale;
   Monitor panel.
 
+### Extension status (question audited: "is the extension mandatory on GitHub?")
+No. The helper binary defaults to a CORS allow-list containing the public
+Pages origin and localhost dev origins, and its OPTIONS preflight returns
+`Access-Control-Allow-Private-Network: true` — so the deployed page talks to
+the local helper directly, no extension, no `-origin` flag. Verified live
+against the compiled binary (ACAO for the public origin, absent for unknown
+origins). The Chromium extension is only a fallback for browsers that add a
+local-network permission prompt on public→private fetches.
+
 ### Verification for this pass
 - 19 new contract tests (alerts, advisor, budget, A/V sync, loudness,
   failover, report, WebTransport) — 109/109 node tests total.

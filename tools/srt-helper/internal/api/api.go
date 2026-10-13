@@ -143,19 +143,53 @@ func (s *Server) tokenOK(r *http.Request) bool {
 	return false
 }
 
+// DefaultOrigins is used when the helper is started without -origin: the
+// public site (the GitHub Pages deployment) plus localhost dev servers. With
+// these defaults the analyzer page can talk to the helper WITHOUT the
+// optional Chromium extension; the extension remains only a PNA-prompt
+// bypass. A wildcard port is written "http://localhost:*".
+var DefaultOrigins = []string{
+	"https://stream-analyzer.herruzo.dev",
+	"http://localhost:*",
+	"http://127.0.0.1:*",
+}
+
+// originAllowed reports whether an Origin header matches an allow-list entry.
+// Entries may end in ":*" to match any port; "*" matches everything.
+func originAllowed(allowed []string, origin string) bool {
+	for _, o := range allowed {
+		if o == "*" {
+			return true
+		}
+		if strings.HasSuffix(o, ":*") {
+			prefix := strings.TrimSuffix(o, "*")
+			// "http://localhost" (no port) matches "http://localhost:*" too.
+			if origin == strings.TrimSuffix(prefix, ":") || strings.HasPrefix(origin, prefix) {
+				return true
+			}
+			continue
+		}
+		if o == origin {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Server) setCORS(w http.ResponseWriter, r *http.Request) {
 	if len(s.origins) == 0 {
 		// Extension service-worker contexts and same-origin fetches need no
-		// ACAO; ordinary pages must be allow-listed explicitly.
+		// ACAO (their Origin is empty or "null").
 		if origin := r.Header.Get("Origin"); origin == "" || origin == "null" {
 			return
 		}
 	}
-	for _, o := range s.origins {
-		if o == "*" || o == r.Header.Get("Origin") {
-			w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
-			return
-		}
+	allow := s.origins
+	if len(allow) == 0 {
+		allow = DefaultOrigins
+	}
+	if originAllowed(allow, r.Header.Get("Origin")) {
+		w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
 	}
 }
 
