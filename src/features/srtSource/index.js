@@ -6,6 +6,8 @@ export {
     refreshSrtStatus,
     saveHelperToken,
     startSrtSession,
+    startWebrtcSession,
     stopSrtSession,
+    stopWebrtcSession,
     syncSessions,
 } from './application/srtController.js';

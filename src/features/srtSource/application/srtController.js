@@ -18,6 +18,7 @@ import {
     validateManifest,
 } from '@/infrastructure/helper/versionCompat.js';
 import { parseSrtUrl, redactSrtUrl } from '@/infrastructure/srt/urlContract.js';
+import { connectWhep } from '@/infrastructure/webrtc/adapter.js';
 import { srtActions, srtStore } from '@/state/srtStore.js';
 import {
     evaluateSrtRules,
@@ -181,6 +182,80 @@ export async function syncSessions() {
     const { sessions } = await listSessions();
     srtActions.setSessions(sessions);
     ensureEventStream();
+}
+
+// --- WebRTC (native browser transport, roadmap Phase 5) ----------------------
+
+const webrtcSessions = new Map();
+
+/**
+ * Subscribe to a WHEP endpoint; telemetry flows through the SAME normalizer,
+ * store, rules and export path as SRT (LinkTelemetry parity, doc §3.3).
+ */
+export async function startWebrtcSession(whepUrl) {
+    if (webrtcSessions.has(whepUrl)) {
+        return { ok: true, already: true, url: whepUrl };
+    }
+    const id = `webrtc:${whepUrl}`;
+    try {
+        const handle = await connectWhep(whepUrl, {
+            onSample: (raw) => {
+                const sample = normalizeTelemetry({
+                    ...raw,
+                    t: raw.t ?? Date.now(),
+                    encrypted: raw.encrypted ?? true,
+                });
+                srtActions.pushTelemetry(id, sample);
+                srtStore.setState((st) => ({
+                    sessions: {
+                        ...st.sessions,
+                        [id]: {
+                            id,
+                            mode: 'webrtc',
+                            status: 'connected',
+                            url: whepUrl,
+                            encrypted: Boolean(sample.encrypted),
+                            startedAt: new Date(
+                                raw.t ?? Date.now()
+                            ).toISOString(),
+                            segments: Math.floor(
+                                (st.telemetry[id]?.length ?? 0) / 10
+                            ),
+                        },
+                    },
+                }));
+                scheduleReevaluate();
+            },
+            onState: (state) => {
+                srtStore.setState((st) => ({
+                    sessions: {
+                        ...st.sessions,
+                        [id]: {
+                            ...(st.sessions[id] ?? {}),
+                            id,
+                            mode: 'webrtc',
+                            url: whepUrl,
+                            status: state,
+                        },
+                    },
+                }));
+            },
+        });
+        webrtcSessions.set(whepUrl, handle);
+        ensureEventStream();
+        return { ok: true, url: whepUrl };
+    } catch (err) {
+        return { ok: false, error: String(err?.message ?? err) };
+    }
+}
+
+export async function stopWebrtcSession(whepUrl) {
+    const handle = webrtcSessions.get(whepUrl);
+    if (!handle) return { ok: false };
+    await handle.close();
+    webrtcSessions.delete(whepUrl);
+    srtActions.removeSession(`webrtc:${whepUrl}`);
+    return { ok: true };
 }
 
 export function initializeSrtSourceFeature() {
