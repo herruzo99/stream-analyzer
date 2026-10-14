@@ -202,3 +202,147 @@ export async function connectWhep(whepUrl, options = {}) {
     options.signal?.addEventListener('abort', close, { once: true });
     return { close, pc };
 }
+
+// --- WHIP publish (RFC 9725) ----------------------------------------------------
+
+/**
+ * Normalize a publish-side getStats() snapshot (outbound-rtp plus the
+ * server's remote-inbound-rtp feedback) onto the LinkTelemetry schema.
+ *
+ * @param {Map<string, any> | RTCStatsReport | any[] | Record<string, any>} stats
+ * @param {{t?: number}} [options]
+ * @returns {{t:number, rttMs:number, mbpsSend:number, pktSent:number, pktLost:number, nackCount:number|null, jitterMs:number|null, qualityLimitation:string|null, dtlsState:string|null, selectedPair:string|null, encrypted:boolean}}
+ */
+export function normalizePublishStats(stats, options = {}) {
+    const reports = statsEntries(stats);
+    const byType = (type) => reports.filter((r) => r?.type === type);
+
+    const outbound = byType('outbound-rtp');
+    const remoteInbound = byType('remote-inbound-rtp');
+    const transport = byType('transport')[0] ?? null;
+
+    const pktSent = outbound.reduce((sum, r) => sum + finite(r.packetsSent), 0);
+    const bytesSent = outbound.reduce((sum, r) => sum + finite(r.bytesSent), 0);
+    const pktLost = remoteInbound.reduce(
+        (sum, r) => sum + finite(r.packetsLost),
+        0
+    );
+
+    const nacks = remoteInbound
+        .map((r) => (Number.isFinite(r.nackCount) ? r.nackCount : null))
+        .filter((v) => v !== null);
+    const pair =
+        reports.find(
+            (r) => r.type === 'candidate-pair' && r.state === 'succeeded'
+        ) ?? null;
+    const rttSource =
+        pair?.currentRoundTripTime ?? remoteInbound[0]?.roundTripTime ?? null;
+
+    return {
+        t: finite(options.t, Date.now()),
+        // RTT is the server's view of the round trip (seconds → ms).
+        rttMs: rttSource != null ? finite(rttSource * 1000) : 0,
+        mbpsSend: Math.round((bytesSent / 1048576) * 100) / 100,
+        pktSent,
+        pktLost,
+        nackCount: nacks.length ? nacks.reduce((a, b) => a + b, 0) : null,
+        jitterMs:
+            remoteInbound[0]?.jitter != null
+                ? Math.round(finite(remoteInbound[0].jitter * 1000, 0) * 100) /
+                  100
+                : null,
+        qualityLimitation: outbound[0]?.qualityLimitationReason ?? null,
+        dtlsState: transport?.dtlsState ?? null,
+        selectedPair: pair
+            ? `${pair.localCandidateId ?? '?'}↔${pair.remoteCandidateId ?? '?'}`
+            : null,
+        encrypted: transport?.dtlsState === 'connected',
+    };
+}
+
+/**
+ * Connect a WHIP session (RFC 9725) and publish local tracks.
+ *
+ * @param {string} whipUrl            WHEP-style endpoint, e.g. http://host:8889/live/whip
+ * @param {object} [options]
+ * @param {typeof globalThis.RTCPeerConnection} [options.RTCPeerConnection]
+ * @param {typeof fetch} [options.fetchImpl]
+ * @param {MediaStream} [options.mediaStream] tracks to publish (required in the browser)
+ * @param {(sample: ReturnType<typeof normalizePublishStats>) => void} [options.onSample]
+ * @param {(state: string) => void} [options.onState]
+ * @param {AbortSignal} [options.signal]
+ * @returns {Promise<{close: () => Promise<void>, pc: RTCPeerConnection}>}
+ */
+export async function connectWhip(whipUrl, options = {}) {
+    const PeerConnection =
+        options.RTCPeerConnection ?? globalThis.RTCPeerConnection;
+    const fetchImpl = options.fetchImpl ?? fetch;
+    const onSample = options.onSample;
+    const onState = options.onState ?? (() => {});
+    if (!PeerConnection) throw new Error('WebRTC unsupported in this browser');
+
+    const pc = new PeerConnection({
+        iceServers: [], // ingest endpoint: no STUN by default
+    });
+    pc.addTransceiver('video', { direction: 'sendonly' });
+    pc.addTransceiver('audio', { direction: 'sendonly' });
+
+    const tracks = options.mediaStream?.getTracks?.() ?? [];
+    if (tracks.length > 0) {
+        for (const track of tracks) {
+            const kind = track.kind === 'audio' ? 'audio' : 'video';
+            const senders = /** @type {any[]} */ (pc.getSenders());
+            const sender =
+                senders.find(
+                    (s) =>
+                        s.track == null &&
+                        s.transceiver?.receiver?.track?.kind === kind
+                ) ??
+                senders.find(
+                    (s) => s.transceiver?.receiver?.track?.kind === kind
+                );
+            if (sender) void sender.replaceTrack(track);
+        }
+    }
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    onState('publishing');
+    const resp = await fetchImpl(whipUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/sdp' },
+        body: offer.sdp,
+    });
+    if (!resp.ok) {
+        const body = (await resp.text?.().catch?.(() => '')) ?? '';
+        throw new Error(
+            `WHIP endpoint returned ${resp.status}${body ? `: ${body.slice(0, 120)}` : ''}`
+        );
+    }
+    const answer = await resp.text();
+    await pc.setRemoteDescription({ type: 'answer', sdp: answer });
+    onState('published');
+
+    let stopped = false;
+    const timer = setInterval(async () => {
+        if (stopped || !onSample) return;
+        try {
+            onSample(normalizePublishStats(await pc.getStats()));
+        } catch {
+            /* transient: keep polling */
+        }
+    }, 1000);
+
+    const close = async () => {
+        stopped = true;
+        clearInterval(timer);
+        try {
+            pc.close();
+        } catch {
+            /* already closed */
+        }
+    };
+    options.signal?.addEventListener('abort', close, { once: true });
+    return { close, pc };
+}

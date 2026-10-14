@@ -23,6 +23,7 @@ const ROUTE_ICON_NAMES = Object.freeze({
     'multi-player': 'layout-grid',
     'qc-dashboard': 'activity',
     srt: 'radio',
+    'low-latency': 'activity',
     advertising: 'badge-percent',
     'parser-coverage': 'bug',
 });
@@ -192,6 +193,12 @@ export function getShellNavigationGroups() {
                     key: 'srt',
                     label: 'SRT Monitor',
                     icon: icons.radio,
+                    visible: true,
+                },
+                {
+                    key: 'low-latency',
+                    label: 'Low Latency',
+                    icon: icons.activity,
                     visible: true,
                 },
                 {

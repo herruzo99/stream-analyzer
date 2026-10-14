@@ -20,6 +20,7 @@ import {
     loadHandshakes,
     startWebTransportSession,
     startWebrtcSession,
+    startWhipSession,
 } from '@/features/srtSource/application/srtController.js';
 import { analyzeTsChunk } from '@/features/srtSource/domain/tsAnalytics.js';
 import { analyzeAvSync } from '@/features/srtSource/domain/avSync.js';
@@ -202,11 +203,14 @@ function sessionCard(state, id) {
     const badge = STATUS_COLORS[s.status] ?? 'bg-slate-500';
     // SRT sessions are helper-backed (segments, façade, TS analysis);
     // WebRTC/WebTransport sessions exist only in this browser.
-    const isNative = s.mode === 'webrtc' || s.mode === 'webtransport';
+    const isNative =
+        s.mode === 'webrtc' || s.mode === 'webtransport' || s.mode === 'whip';
     const title = isNative
         ? s.mode === 'webrtc'
             ? 'WebRTC (WHEP)'
-            : 'WebTransport'
+            : s.mode === 'whip'
+              ? 'WebRTC (WHIP publish)'
+              : 'WebTransport'
         : s.mode === 'push'
           ? 'Listener'
           : 'Caller';
@@ -397,6 +401,7 @@ function newSessionForm() {
                     <option value="srt">SRT (helper)</option>
                     <option value="webrtc">WebRTC (WHEP)</option>
                     <option value="webtransport">WebTransport</option>
+                    <option value="whip">WebRTC WHIP (publish)</option>
                 </select>
                 <input
                     class="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs font-mono"
@@ -404,7 +409,9 @@ function newSessionForm() {
                         ? 'srt://host:port?streamid=live/abc&passphrase=…'
                         : transportDraft === 'webrtc'
                           ? 'http://host:8889/live/whep'
-                          : 'https://host:4433/live'}
+                          : transportDraft === 'whip'
+                            ? 'http://host:8889/live/whip'
+                            : 'https://host:4433/live'}
                     @input=${(e) => {
                         draft = e.target.value;
                     }}
@@ -417,6 +424,8 @@ function newSessionForm() {
                             startSrtSession(url);
                         } else if (transportDraft === 'webrtc') {
                             startWebrtcSession(url);
+                        } else if (transportDraft === 'whip') {
+                            startWhipSession(url);
                         } else {
                             startWebTransportSession(url);
                         }

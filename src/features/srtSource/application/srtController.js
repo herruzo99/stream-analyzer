@@ -25,7 +25,7 @@ import {
     shouldClear,
     shouldFire,
 } from '@/features/srtSource/domain/alerts.js';
-import { connectWhep } from '@/infrastructure/webrtc/adapter.js';
+import { connectWhep, connectWhip } from '@/infrastructure/webrtc/adapter.js';
 import {
     connectWebTransport,
     normalizeWebTransportStats,
@@ -202,6 +202,12 @@ export async function stopSrtSession(id) {
 export async function stopAnySession(id) {
     const session = srtStore.getState().sessions[id];
     if (!session) return { ok: false, error: 'unknown session' };
+    if (session.mode === 'whip') {
+        const result = await stopWhipSession(session.url);
+        if (result.ok) srtActions.removeSession(id);
+        alertLevels.delete(id);
+        return result;
+    }
     if (session.mode === 'webrtc') {
         const result = await stopWebrtcSession(session.url);
         if (result.ok) srtActions.removeSession(id);
@@ -350,6 +356,96 @@ export async function stopWebrtcSession(whepUrl) {
     await handle.close();
     webrtcSessions.delete(whepUrl);
     srtActions.removeSession(`webrtc:${whepUrl}`);
+    return { ok: true };
+}
+
+// --- WHIP publish (RFC 9725, protocol plan item 1) -----------------------------
+
+const whipSessions = new Map();
+
+/**
+ * Publish local media to a WHIP endpoint. The browser supplies tracks
+ * (camera/mic or screen); telemetry is the publish-side view (what the
+ * server receives: loss, RTT, quality limitation) mapped onto LinkTelemetry.
+ */
+export async function startWhipSession(whipUrl, mediaStream) {
+    if (whipSessions.has(whipUrl)) {
+        return { ok: true, already: true, url: whipUrl };
+    }
+    const id = `whip:${whipUrl}`;
+    try {
+        let stream = mediaStream;
+        if (
+            !stream &&
+            typeof navigator !== 'undefined' &&
+            navigator.mediaDevices?.getUserMedia
+        ) {
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+                audio: true,
+            });
+        }
+        const handle = await connectWhip(whipUrl, {
+            mediaStream: stream,
+            onSample: (raw) => {
+                const sample = normalizeTelemetry({
+                    t: raw.t,
+                    rttMs: raw.rttMs,
+                    mbpsSend: raw.mbpsSend,
+                    mbpsRecv: 0,
+                    pktRecv: raw.pktSent, // server-side receipt view
+                    pktRecvLost: raw.pktLost,
+                    lossRate: null,
+                    encrypted: raw.encrypted,
+                    nackCount: raw.nackCount,
+                    qualityLimitation: raw.qualityLimitation,
+                });
+                srtActions.pushTelemetry(id, sample);
+                srtStore.setState((st) => ({
+                    sessions: {
+                        ...st.sessions,
+                        [id]: {
+                            id,
+                            mode: 'whip',
+                            status: 'published',
+                            url: whipUrl,
+                            encrypted: Boolean(raw.encrypted),
+                            startedAt: new Date(raw.t).toISOString(),
+                            latest: sample,
+                        },
+                    },
+                }));
+                evaluateThresholdAlerts(id, sample);
+            },
+            onState: (state) => {
+                srtStore.setState((st) => ({
+                    sessions: {
+                        ...st.sessions,
+                        [id]: {
+                            ...(st.sessions[id] ?? {}),
+                            id,
+                            mode: 'whip',
+                            url: whipUrl,
+                            status: state,
+                        },
+                    },
+                }));
+            },
+        });
+        whipSessions.set(whipUrl, handle);
+        return { ok: true, url: whipUrl };
+    } catch (err) {
+        return { ok: false, error: String(err?.message ?? err) };
+    }
+}
+
+export async function stopWhipSession(whipUrl) {
+    const handle = whipSessions.get(whipUrl);
+    if (!handle) return { ok: false };
+    await handle.close();
+    whipSessions.delete(whipUrl);
+    srtActions.removeSession(`whip:${whipUrl}`);
+    alertLevels.delete(`whip:${whipUrl}`);
     return { ok: true };
 }
 

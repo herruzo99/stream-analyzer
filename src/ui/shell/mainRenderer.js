@@ -27,6 +27,7 @@ import { segmentComparisonView } from '@/features/segmentComparison/ui/index';
 import { segmentExplorerView } from '@/features/segmentExplorer/ui/index';
 import { qcDashboardView } from '@/features/signalQuality/ui/qc-dashboard.js';
 import { srtMonitorView } from '@/features/srtSource/ui/srt-monitor.js';
+import { lowLatencyView } from '@/features/lowLatency/ui/index.js';
 import { summaryView } from '@/features/summary/ui/index';
 import { timelineView } from '@/features/timeline/ui/index.js';
 
@@ -51,6 +52,7 @@ const viewMap = {
     drm: drmView,
     'qc-dashboard': qcDashboardView,
     srt: srtMonitorView,
+    'low-latency': lowLatencyView,
 };
 
 // ... rest of the file remains exactly the same ...
@@ -77,7 +79,8 @@ export function renderApp() {
         segmentExplorerActiveTab,
     } = useUiStore.getState();
     const isResultsView = viewState === 'results' && streams.length > 0;
-    const activeStream = streams.find((s) => s.id === activeStreamId) ?? streams[0];
+    const activeStream =
+        streams.find((s) => s.id === activeStreamId) ?? streams[0];
 
     initialDomContext.inputSection.classList.toggle('hidden', isResultsView);
     initialDomContext.appRoot.classList.toggle('hidden', !isResultsView);
