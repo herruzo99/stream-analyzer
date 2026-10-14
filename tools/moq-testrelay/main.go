@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -100,35 +101,89 @@ func logJSON(event string, fields map[string]any) {
 	_ = enc.Encode(fields)
 }
 
-func main() {
-	addr := flag.String("addr", ":4443", "WebTransport/HTTP-3 listen address")
-	spkiPath := flag.String("spki-out", "", "write the base64 SPKI hash of the server certificate to this file")
-	flag.Parse()
-
+// issueFromCA signs a short-lived loopback certificate with a locally
+// trusted CA (mkcert, step-ca, ...), giving stock Chrome a path to the relay
+// with no browser flags.
+func issueFromCA(caCertPath, caKeyPath string) (tls.Certificate, error) {
+	ca, err := tls.LoadX509KeyPair(caCertPath, caKeyPath)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	if len(ca.Certificate) == 0 {
+		return tls.Certificate{}, errors.New("CA file contains no certificate")
+	}
+	caLeaf, err := x509.ParseCertificate(ca.Certificate[0])
+	if err != nil {
+		return tls.Certificate{}, err
+	}
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		log.Fatalf("key: %v", err)
+		return tls.Certificate{}, err
+	}
+	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return tls.Certificate{}, err
 	}
 	now := time.Now().UTC()
 	tmpl := x509.Certificate{
-		SerialNumber: big.NewInt(1),
+		SerialNumber: serial,
 		Subject:      pkix.Name{CommonName: "localhost"},
 		NotBefore:    now.Add(-time.Hour),
-		NotAfter:     now.Add(13 * 24 * time.Hour),
+		NotAfter:     now.AddDate(0, 0, 30),
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		DNSNames:     []string{"localhost"},
 		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1), net.ParseIP("::1")},
 	}
-	der, err := x509.CreateCertificate(rand.Reader, &tmpl, &tmpl, &key.PublicKey, key)
+	der, err := x509.CreateCertificate(rand.Reader, &tmpl, caLeaf, &key.PublicKey, ca.PrivateKey)
 	if err != nil {
-		log.Fatalf("cert: %v", err)
+		return tls.Certificate{}, err
 	}
-	sum := sha256.Sum256(der)
+	return tls.Certificate{
+		Certificate: [][]byte{der, ca.Certificate[0]},
+		PrivateKey:  key,
+	}, nil
+}
+
+func main() {
+	addr := flag.String("addr", ":4443", "WebTransport/HTTP-3 listen address")
+	spkiPath := flag.String("spki-out", "", "write the base64 SPKI hash of the server certificate to this file")
+	caCertPath := flag.String("ca-cert", "", "CA certificate to sign a temporary server certificate (e.g. mkcert's rootCA.pem)")
+	caKeyPath := flag.String("ca-key", "", "CA private key matching -ca-cert")
+	flag.Parse()
+
+	// By default a FIXED development certificate (checked in as
+	// devcert.pem/devkey.pem) is served, so the MoQ client can pin it for
+	// loopback URLs. With -ca-cert/-ca-key (a locally trusted CA such as
+	// mkcert's) a fresh leaf is signed per start instead, which makes plain
+	// Chrome accept the relay with no flags — the client retries unpinned when
+	// the pin does not match.
+	var cert tls.Certificate
+	var err error
+	if *caCertPath != "" || *caKeyPath != "" {
+		if *caCertPath == "" || *caKeyPath == "" {
+			log.Fatal("-ca-cert and -ca-key must be given together")
+		}
+		cert, err = issueFromCA(*caCertPath, *caKeyPath)
+		if err != nil {
+			log.Fatalf("issue certificate from CA: %v", err)
+		}
+	} else {
+		cert, err = tls.LoadX509KeyPair("devcert.pem", "devkey.pem")
+		if err != nil {
+			log.Fatalf("dev certificate (devcert.pem/devkey.pem): %v", err)
+		}
+	}
+	leaf, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		log.Fatalf("parse server certificate: %v", err)
+	}
+	sum := sha256.Sum256(cert.Certificate[0])
 	fmt.Printf("CERT_HASH %s\n", base64.RawStdEncoding.EncodeToString(sum[:]))
 	// SubjectPublicKeyInfo hash: the value Chrome's
-	// --ignore-certificate-errors-spki-list expects.
-	spki, err := x509.MarshalPKIXPublicKey(&key.PublicKey)
+	// --ignore-certificate-errors-spki-list expects, and the value the
+	// browser client pins for loopback (DEV_RELAY_SPKI_SHA256).
+	spki, err := x509.MarshalPKIXPublicKey(leaf.PublicKey)
 	if err != nil {
 		log.Fatalf("spki: %v", err)
 	}
@@ -142,7 +197,7 @@ func main() {
 	os.Stdout.Sync()
 
 	tlsConf := &tls.Config{
-		Certificates: []tls.Certificate{{Certificate: [][]byte{der}, PrivateKey: key}},
+		Certificates: []tls.Certificate{cert},
 	}
 	h3 := &http3.Server{
 		Addr:      *addr,

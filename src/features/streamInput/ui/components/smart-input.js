@@ -1,4 +1,5 @@
 import { eventBus } from '@/application/event-bus';
+import { routeExampleUrl } from '@/data/example-streams';
 import { analysisActions, useAnalysisStore } from '@/state/analysisStore';
 import { uiActions } from '@/state/uiStore';
 import { EVENTS } from '@/types/events';
@@ -11,6 +12,7 @@ class InputLogic {
         if (!value || typeof value !== 'string') return null;
         const v = value.trim();
         if (v.toLowerCase().startsWith('srt://')) return 'SRT';
+        if (v.toLowerCase().startsWith('moqt://')) return 'MOQ';
         if (v.includes('.m3u8') || v.includes('#EXTM3U')) return 'HLS';
         if (v.includes('.mpd') || v.includes('<MPD')) return 'DASH';
         if (v.includes('.ism')) return 'MSS';
@@ -27,7 +29,8 @@ class InputLogic {
                 (s) =>
                     s.startsWith('http://') ||
                     s.startsWith('https://') ||
-                    s.toLowerCase().startsWith('srt://')
+                    s.toLowerCase().startsWith('srt://') ||
+                    s.toLowerCase().startsWith('moqt://')
             );
     }
 
@@ -228,7 +231,10 @@ export class SmartInputComponent extends HTMLElement {
         const url = this.state.value.trim();
         if (!url) return;
 
-        if (url.toLowerCase().startsWith('srt://')) {
+        // Non-HTTP transports (srt://, moqt://, /whep, /whip) go through the
+        // monitor pipeline, not the manifest analysis queue.
+        const route = routeExampleUrl(url);
+        if (route.kind !== 'manifest') {
             eventBus.dispatch(EVENTS.UI.SRT_SESSION_REQUESTED, { url });
             this.setState({ value: '', protocol: null });
             return;

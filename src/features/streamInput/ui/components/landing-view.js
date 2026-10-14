@@ -57,7 +57,13 @@ function exampleLabel(ex) {
               ? 'HLS'
               : ex.protocol === 'srt'
                 ? 'SRT'
-                : 'STREAM';
+                : ex.protocol === 'whep'
+                  ? 'WHEP'
+                  : ex.protocol === 'whip'
+                    ? 'WHIP'
+                    : ex.protocol === 'moq'
+                      ? 'MOQ'
+                      : 'STREAM';
     if (ex.category === 'Low Latency') {
         return base === 'HLS' ? 'LL-HLS' : base === 'DASH' ? 'LL-DASH' : base;
     }
@@ -629,6 +635,14 @@ class LandingViewComponent extends HTMLElement {
         }
         if (route.kind === 'webrtc-pull' || route.kind === 'webrtc-push') {
             eventBus.dispatch(EVENTS.UI.SRT_SESSION_REQUESTED, { url });
+            return;
+        }
+        if (route.kind === 'moq') {
+            eventBus.dispatch(EVENTS.UI.SRT_SESSION_REQUESTED, { url });
+            showToast({
+                message: `Connecting to the MoQ relay for ${url}`,
+                type: 'info',
+            });
             return;
         }
 

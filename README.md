@@ -19,6 +19,7 @@ An advanced, browser-based tool for analyzing and comparing DASH & HLS streaming
 - **Live Stream Monitoring**: Automatically fetch and diff manifest updates for live streams, highlighting changes and new compliance issues.
 - **WebRTC (WHEP playback / WHIP publish)**: native browser transport with getStats-derived telemetry (RTT, loss, NACKs, quality limitation) in the same monitor, charts, rules and exports as SRT.
 - **Low-Latency analysis**: part-level LL-HLS (EXT-X-PART / EXT-X-PART-INF / server-control) timeline and LL-DASH ServiceDescription latency view with LL conformance checks.
+- **MoQ (Media over QUIC) analysis**: browser-native MOQT client for `draft-ietf-moq-transport-22` over WebTransport — SETUP exchange, subscribe/subgroup/datagram object decoding, MSF catalog normalization and derived link telemetry in the same monitor as every other transport.
 
 ### SRT (Secure Reliable Transport) support
 
@@ -43,6 +44,7 @@ Local development: `bash scripts/build-helper.sh "$PWD" "$(node -p "require('./p
 - **LL-HLS**: `https://llhls-demo.ovenmediaengine.com/app/stream/llhls.m3u8` — OvenMediaEngine live demo (12 `EXT-X-PART` per variant, `PART-TARGET=1.0`, `CAN-BLOCK-RELOAD=YES`, `PART-HOLD-BACK=3.0`). Analyze as usual, then open the **Low-Latency** view.
 - **LL-DASH**: `https://cmafref.akamaized.net/cmaf/live-ull/2006350/akambr/out.mpd` — the Akamai CMAF ultra-low-latency reference (the stream the dash.js low-latency testplayer uses), with `ServiceDescription/Latency`.
 - **WHIP/WHEP**: there is currently no stable _public_ WHIP/WHEP test endpoint worth curating (the community demos are down or certificate-broken, and cloud ones need accounts). The adapters are fully implemented and were live-verified against a local MediaMTX (`aiortc` publisher → WHIP, WHEP playback); to spin up your own: download the MediaMTX single binary and point the Monitor's transport selector at `http://host:8889/live/whip` or `/live/whep`.
+- **MoQ**: no public relay speaks draft-22 today — Cloudflare and cdn.moq.dev are still on drafts 14–16, which are wire-incompatible (verified live: their servers never answer a draft-22 SETUP). The example list ships a one-click entry for the bundled draft-22 relay: run `go run ./tools/moq-testrelay -addr :4430` in this repo, then pick **Bundled MoQ test relay (local)** in the example list. The relay serves a checked-in self-signed certificate that the browser pins for loopback, so stock Chrome connects with no flags (Chromium additionally caps pinned self-signed certificates at ~14 days — `tests/heux/moq-devcert-contract.test.mjs` fails loudly when it is time to regenerate). For your own relay: the client retries without pinning, so a locally trusted certificate (`go run ./tools/moq-testrelay -addr :4430 -ca-cert $(mkcert -CAROOT)/rootCA.pem -ca-key $(mkcert -CAROOT)/rootCA-key.pem`) also works.
 
 Recordings are capped by `-max-record-mb` (default 2048 MiB; 0 = unlimited) and flagged `truncated` in `/recordings` when the budget is hit.
 

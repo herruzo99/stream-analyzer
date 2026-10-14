@@ -153,6 +153,80 @@ async function readControlFrame(buf) {
 }
 
 /**
+ * SHA-256 hashes of the bundled dev relay's fixed certificate
+ * (tools/moq-testrelay/devcert.pem). tests/heux/moq-devcert-contract.test.mjs
+ * recomputes both from the checked-in PEM, so a regenerated certificate
+ * fails the tests until the new values land here.
+ *
+ * Chromium matches serverCertificateHashes against the SHA-256 of the whole
+ * certificate (DER), while the W3C spec mandates the SubjectPublicKeyInfo
+ * hash — both are sent so the pin works in Chromium and in spec-conforming
+ * browsers. Pinning applies to loopback URLs ONLY — see webTransportInit.
+ * Chrome additionally caps pinned self-signed certificates at ~14 days of
+ * validity, which is why the checked-in cert is short-lived.
+ */
+export const DEV_RELAY_CERT_SHA256 =
+    'QyzL9dk53t4Llq3eqkuoE/+SaShN4sS3Er8gpZc9Su4=';
+export const DEV_RELAY_SPKI_SHA256 =
+    'ncKY56LZTf8yRg7GbGBCpbxg+7K+XnL2w7hTU18J/Fw=';
+
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+
+/**
+ * WebTransport init options.
+ *
+ * The bundled MoQ test relay serves a self-signed certificate, which Chrome
+ * rejects for WebTransport no matter what origin exceptions exist. For
+ * loopback URLs the client therefore pins the relay's fixed dev certificate
+ * via serverCertificateHashes — the only supported bypass, and safe here
+ * because it is scoped to a certificate that is by design useless anywhere
+ * but 127.0.0.1. Public endpoints keep plain TLS with no pinning.
+ *
+ * @param {string} url
+ * @returns {{serverCertificateHashes?: Array<{algorithm: string, value: ArrayBuffer}>}|undefined}
+ */
+export function webTransportInit(url) {
+    let host;
+    try {
+        host = new URL(webTransportUrl(url)).hostname;
+    } catch {
+        return undefined;
+    }
+    if (!LOOPBACK_HOSTS.has(host)) return undefined;
+    return {
+        serverCertificateHashes: [
+            DEV_RELAY_CERT_SHA256,
+            DEV_RELAY_SPKI_SHA256,
+        ].map((h) => ({
+            algorithm: 'sha-256',
+            value: Uint8Array.from(atob(h), (c) => c.charCodeAt(0)).buffer,
+        })),
+    };
+}
+
+/**
+ * Open the WebTransport handshake, scaled down to one retry for pin mismatch.
+ *
+ * @param {typeof globalThis.WebTransport} WT
+ * @param {string} url
+ * @param {object|undefined} init
+ */
+async function openTransport(WT, url, init) {
+    const transport = new WT(webTransportUrl(url), init);
+    try {
+        await transport.ready;
+    } catch (err) {
+        try {
+            transport.close();
+        } catch {
+            /* ignore */
+        }
+        throw err;
+    }
+    return transport;
+}
+
+/**
  * Open a MOQT session.
  *
  * @param {string} url moqt:// or https:// endpoint
@@ -171,7 +245,17 @@ export async function connectMoq(url, options = {}) {
         ? options.namespace
         : namespaceFromUrl(url);
     const session = new MoqSession(url, namespace, options);
-    session.transport = new WT(webTransportUrl(url));
+
+    // Loopback gets the relay's dev certificate pinned (see webTransportInit).
+    // If a locally trusted certificate is used instead (mkcert-style CA), the
+    // pin cannot match, so fall back to plain TLS once.
+    try {
+        session.transport = await openTransport(WT, url, webTransportInit(url));
+    } catch (e) {
+        if (!webTransportInit(url)) throw e;
+        // Locally trusted certificate (mkcert-style CA): retry without the pin.
+        session.transport = await openTransport(WT, url, undefined);
+    }
 
     session.onState('connecting');
     await session.transport.ready;

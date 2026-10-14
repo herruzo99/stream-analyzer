@@ -2,7 +2,7 @@
  * A curated list of public DASH, HLS, SRT and low-latency streams for testing
  * and demonstration purposes. Every entry is verified against the live source
  * before landing (see the per-entry `verified` field).
- * @typedef {'dash' | 'hls' | 'srt' | 'whep' | 'whip'} Protocol
+ * @typedef {'dash' | 'hls' | 'srt' | 'whep' | 'whip' | 'moq'} Protocol
  * @typedef {'vod' | 'live'} StreamType
  * @typedef {object} ExampleStream
  * @property {string} name - A descriptive name for the stream.
@@ -210,5 +210,21 @@ export const exampleStreams = [
         category: 'Low Latency',
         verified: '2026-10-14',
         notes: 'LL-DASH reference stream used by the dash.js low-latency testplayer; carries ServiceDescription/Latency (target 3000 ms). Feeds the Low-Latency analysis view.',
+    },
+
+    // --- MoQ (Media over QUIC, draft-ietf-moq-transport-22) ---
+    // No public relay speaks draft-22 yet: Cloudflare (draft-14/-16) and
+    // cdn.moq.dev still use the pre-16 0x20 CLIENT_SETUP message shape and
+    // never answer a draft-22 SETUP (verified live). The bundled relay is the
+    // only end-to-end source for this client — start it before clicking.
+    {
+        name: 'Bundled MoQ test relay (local)',
+        url: 'moqt://127.0.0.1:4430/anon',
+        protocol: 'moq',
+        type: 'live',
+        source: 'bundled test relay (tools/moq-testrelay)',
+        category: 'MoQ',
+        verified: '2026-10-14',
+        notes: 'Start with: go run ./tools/moq-testrelay -addr :4430 (self-signed dev certificate, pinned by the browser for loopback — no browser flags needed). Demonstrates the SETUP exchange, SUBSCRIBE/OK round trip with measured RTT, an MSF catalog over an OBJECT_DATAGRAM and objects on a subgroup stream — end-to-end over real WebTransport/QUIC.',
     },
 ];

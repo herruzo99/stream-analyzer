@@ -1,7 +1,8 @@
 // Live interop harness for the MoQ client (draft-ietf-moq-transport-22).
 // Bundles src/infrastructure/moq/session.js with esbuild, serves a page that
-// connects to the Go test relay over real WebTransport with the relay's TLS
-// certificate hash, and asserts the full client path.
+// connects to the Go test relay over real WebTransport — no flags, no cert
+// plumbing: the client pins the relay's fixed dev cert for loopback URLs,
+// exactly like the bundled example-list entry does.
 import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -28,24 +29,17 @@ console.log('bundle built');
 
 const html = `<!doctype html><meta charset="utf-8"><title>moq live</title>
 <body><script src="/bundle.js"></script><script>
+window.__MOQ_URL = new URLSearchParams(location.search).get('url') || 'moqt://127.0.0.1:4430/anon';
+</script><script>
 window.__RESULT = null;
 window.__run = async () => {
   const events = [];
-  const HASH = new URLSearchParams(location.search).get('h');
-  const pad = '==='.slice(0, (4 - (HASH.length % 4)) % 4);
-  const hashBytes = Uint8Array.from(atob(HASH + pad), (c) => c.charCodeAt(0));
-  class BoundWT {
-    constructor(url, opts) {
-      return new WebTransport(url, Object.assign({}, opts, {
-        serverCertificateHashes: [{ algorithm: 'sha-256', value: hashBytes.buffer }],
-      }));
-    }
-  }
   const started = Date.now();
   let session;
   try {
-    ({ session } = await MoqLive.connectMoq('moqt://127.0.0.1:4430/anon', {
-      WebTransportImpl: BoundWT,
+    // No certificate plumbing: the client pins the bundled relay for loopback
+    // URLs itself, exactly like the example-list path does.
+    ({ session } = await MoqLive.connectMoq(window.__MOQ_URL, {
       onEvent: (e) => events.push(e),
     }));
   } catch (err) {
@@ -72,31 +66,19 @@ const port = server.address().port;
 console.log('harness on http://127.0.0.1:' + port);
 
 const { chromium } = await import(join(PW, 'playwright', 'index.mjs'));
-// The relay writes its SPKI hash here for Chrome's allow-list flag.
-const spkiHash = process.env.RELAY_SPKI;
-if (!spkiHash) {
-    console.error('missing RELAY_SPKI');
-    process.exit(2);
-}
+
 const browser = await chromium.launch({
     headless: true,
     executablePath:
         process.env.CHROME_BIN || '/etc/profiles/per-user/juan/bin/google-chrome',
-    args: [
-        '--no-sandbox',
-        '--disable-dev-shm-usage',
-        '--ignore-certificate-errors',
-        // QUIC/WebTransport certificate errors are not covered by
-        // --ignore-certificate-errors alone; the SPKI allow-list is the
-        // supported bypass for self-signed test certificates.
-        '--ignore-certificate-errors-spki-list=' + spkiHash,
-    ],
+    args: ['--no-sandbox', '--disable-dev-shm-usage'],
 });
 const page = await browser.newPage();
-const certHash = process.argv[2];
 page.on('console', (m) => console.log('[page]', m.text()));
 page.on('pageerror', (e) => console.log('[pageerror]', e.message));
-await page.goto(`http://127.0.0.1:${port}/?h=${encodeURIComponent(certHash)}`);
+const params = new URLSearchParams();
+if (process.env.MOQ_URL) params.set('url', process.env.MOQ_URL);
+await page.goto(`http://127.0.0.1:${port}/?${params.toString()}`);
 await page.evaluate(() => window.__run());
 await page.waitForFunction('window.__RESULT !== null', null, { timeout: 30000 });
 const result = await page.evaluate(() => window.__RESULT);
@@ -105,6 +87,7 @@ server.close();
 
 const kinds = (result.events ?? []).map((e) => e.type + (e.status ? ':' + e.status : ''));
 console.log('events:', kinds.join(', '));
+
 
 const assert = (await import('node:assert/strict')).default;
 assert.equal(result.ok, true, 'connect failed: ' + result.error);
