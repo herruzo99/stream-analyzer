@@ -8,6 +8,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/herruzo/stream-analyzer/helper/internal/rtmp"
 	"log/slog"
 	"net/http"
 	"os"
@@ -78,6 +79,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /events", s.withAuth(s.handleEvents))
 	mux.HandleFunc("GET /metrics", s.withAuth(s.handleMetrics))
 	mux.HandleFunc("GET /sessions/{id}/handshake", s.withAuth(s.handleHandshakes))
+	mux.HandleFunc("GET /sessions/{id}/rtmp", s.withAuth(s.handleRtmpDetail))
 
 	return s.withPreflight(mux)
 }
@@ -271,6 +273,8 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	)
 	if isListenerURL(req.URL) {
 		sess, err = s.manager.StartPush(req.URL, req.Record)
+	} else if isRtmpURL(req.URL) {
+		sess, err = s.manager.StartRtmpPull(req.URL, req.Record)
 	} else {
 		sess, err = s.manager.StartPull(req.URL, req.Record)
 	}
@@ -481,6 +485,14 @@ func parseIndex(s string) (int, error) {
 	return n, nil
 }
 
+// isRtmpURL routes rtmp:// and rtmps:// sources to the RTMP client.
+func isRtmpURL(raw string) bool {
+	l := lowerASCII(raw)
+	return hasPrefix(l, "rtmp://") || hasPrefix(l, "rtmps://")
+}
+
+func hasPrefix(s, p string) bool { return len(s) >= len(p) && s[:len(p)] == p }
+
 // isListenerURL does a cheap scheme/query sniff so the manager picks the
 // right mode; the full parse lives in srturl.Parse.
 func isListenerURL(raw string) bool {
@@ -509,4 +521,33 @@ func contains(haystack, needle string) bool {
 		}
 	}
 	return false
+}
+
+// handleRtmpDetail returns the RTMP counters and the AMF0 command log for a
+// session, so the monitor's forensics view has something to render.
+func (s *Server) handleRtmpDetail(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	detail, ok := s.manager.Session(id)
+	if !ok {
+		s.writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown session"})
+		return
+	}
+	if detail.Mode != session.ModeRtmp {
+		s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "not an rtmp session"})
+		return
+	}
+	stats, okStats := s.manager.RtmpStats(id)
+	commands, okCmds := s.manager.RtmpCommands(id)
+	out := map[string]any{
+		"sessionId": id,
+		"stats":     rtmp.StatsSnapshot{},
+		"commands":  []rtmp.Command{},
+	}
+	if okStats {
+		out["stats"] = stats
+	}
+	if okCmds {
+		out["commands"] = commands
+	}
+	s.writeJSON(w, http.StatusOK, out)
 }

@@ -74,6 +74,7 @@ type Session struct {
 	mu         sync.Mutex
 	chunker    *segment.Chunker
 	conn       gosrt.Conn // active publisher/pull connection, if any
+	rtmp       *rtmpRef   // active RTMP pull client, if any
 	listener   gosrt.Listener
 	handshakes *HandshakeLedger
 	stopCh     chan struct{}
@@ -491,7 +492,11 @@ func (m *Manager) Stop(id string) error {
 		s.Status = StatusStopping
 		conn := s.conn
 		ln := s.listener
+		rtmpRef := s.rtmp
 		s.mu.Unlock()
+		if rtmpRef != nil {
+			rtmpRef.close()
+		}
 		if conn != nil {
 			_ = conn.Close() // nil once the publisher already went away
 		}

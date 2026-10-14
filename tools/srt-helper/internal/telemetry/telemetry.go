@@ -46,6 +46,11 @@ type Sample struct {
 	MsSndTsbpd uint64  `json:"msSndTsbpdDelay"`
 	LossRate   float64 `json:"pktRecvLossRate"`
 	Encrypted  bool    `json:"encrypted"`
+
+	// Rtmp carries RTMP-specific counters (empty for other transports). The
+	// browser side maps them onto the same LinkTelemetry contract, leaving
+	// RTT/loss null with a documented reason.
+	Rtmp map[string]any `json:"rtmp,omitempty"`
 }
 
 // Finite rounds NaN/Inf values produced by zero-length stat intervals to 0
