@@ -638,7 +638,10 @@ class LandingViewComponent extends HTMLElement {
             return;
         }
         if (route.kind === 'moq') {
-            eventBus.dispatch(EVENTS.UI.SRT_SESSION_REQUESTED, { url });
+            eventBus.dispatch(EVENTS.UI.SRT_SESSION_REQUESTED, {
+                url,
+                namespace: stream.namespace,
+            });
             showToast({
                 message: `Connecting to the MoQ relay for ${url}`,
                 type: 'info',

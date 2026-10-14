@@ -11,6 +11,9 @@
  * @property {StreamType} type - The stream type (VOD or Live).
  * @property {string} source - The provider of the stream.
  * @property {string} category - A sub-category for better organization.
+ * @property {string[]} [namespace] - explicit MoQ broadcast namespace, for
+ *   relays where the URL path cannot carry it (e.g. Cloudflare's draft-16
+ *   relay uses the path for its auth token).
  * @property {string} [verified] - ISO date the URL was last verified live.
  * @property {string} [notes] - What makes this example worth analyzing.
  * @property {object} [auth] - Authentication details.
@@ -212,7 +215,7 @@ export const exampleStreams = [
         notes: 'LL-DASH reference stream used by the dash.js low-latency testplayer; carries ServiceDescription/Latency (target 3000 ms). Feeds the Low-Latency analysis view.',
     },
 
-    // --- MoQ (Media over QUIC, draft-ietf-moq-transport-22) ---
+    // --- MoQ (Media over QUIC) ---
     // No public relay speaks draft-22 yet: Cloudflare (draft-14/-16) and
     // cdn.moq.dev still use the pre-16 0x20 CLIENT_SETUP message shape and
     // never answer a draft-22 SETUP (verified live). The bundled relay is the
@@ -226,5 +229,18 @@ export const exampleStreams = [
         category: 'MoQ',
         verified: '2026-10-14',
         notes: 'Start with: go run ./tools/moq-testrelay -addr :4430 (self-signed dev certificate, pinned by the browser for loopback — no browser flags needed). Demonstrates the SETUP exchange, SUBSCRIBE/OK round trip with measured RTT, an MSF catalog over an OBJECT_DATAGRAM and objects on a subgroup stream — end-to-end over real WebTransport/QUIC.',
+    },
+    {
+        // Cloudflare's public draft-16 relay. The URL path carries the
+        // published subscribe token, so the broadcast namespace is explicit.
+        name: 'Cloudflare MoQ: draft-16 relay (/bbb)',
+        url: 'https://draft-16.cloudflare.mediaoverquic.com/eyJhbGciOiJFZERTQSIsImtpZCI6Im1vcS12MSIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJtb3EuY2xvdWRmbGFyZS5jb20iLCJleHAiOjE4MTY0NDA0NTcsImlhdCI6MTc4NDkwNDQ1OCwiaXNzIjoiY2xvdWRmbGFyZSIsImp0aSI6IjgxMTc4MjIyZmIzNTVjMDQ3YmM0MDNkODQ2NWI0YWIzIiwib3BlcmF0aW9ucyI6WyJzdWJzY3JpYmUiXSwic3ViIjoiZWJkMWZlZDdhZjMzNzYzMjc3MDc0ODQ0NThmYWIxZmEifQ.VlTscBfWmjSybWx1NpmF0f1g5Gtfxg5H4rkUQQa2JHATtjGwO5iwl71DAS5kJ98-3ukPvmGe9RE7peYs_dqgCg',
+        protocol: 'moq',
+        type: 'live',
+        source: 'Cloudflare (public demo relay)',
+        category: 'MoQ',
+        namespace: ['bbb'],
+        verified: '2026-10-14',
+        notes: 'The only public relay that speaks a dialect this client implements (draft-16, auto-negotiated). URL path is the published subscribe token, hence the explicit namespace. Wire-level interop verified live (SETUP, TRACK_STATUS, SUBSCRIBE answered by their independent implementation); at verification time the /bbb namespace had no active publisher — TRACK_STATUS reports “track not found”, so expect a REQUEST_ERROR rather than media until Cloudflare republishes the demo.',
     },
 ];

@@ -34,7 +34,7 @@ export async function subscribeMoqTrack(url, namespace, name) {
  * Open a MoQ session and fan its events into the shared transport store.
  * @param {string} url moqt://host/namespace
  */
-export async function startMoqSession(url) {
+export async function startMoqSession(url, options = {}) {
     if (moqSessions.has(url)) return { ok: true, already: true, url };
 
     const id = `moq:${url}`;
@@ -54,6 +54,9 @@ export async function startMoqSession(url) {
 
     try {
         const { session } = await connectMoq(url, {
+            // Cloudflare-style relays keep the auth token in the URL path, so
+            // the broadcast namespace must come from the caller.
+            namespace: options.namespace,
             onEvent: (ev) => {
                 if (ev.type === 'telemetry') {
                     const sample = normalizeTelemetry(ev.sample);

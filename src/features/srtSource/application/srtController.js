@@ -516,6 +516,10 @@ export function initializeSrtSourceFeature() {
     eventBus.subscribe(EVENTS.UI.SRT_SESSION_REQUESTED, async (payload) => {
         const url = typeof payload === 'string' ? payload : payload?.url;
         if (!url) return;
+        const namespace =
+            typeof payload === 'object' && Array.isArray(payload.namespace)
+                ? payload.namespace
+                : undefined;
         // The URL itself carries the transport: srt://, .../whep or .../whip
         // route to their own pipelines (example entries and hand-typed URLs
         // share this one entry point).
@@ -523,7 +527,7 @@ export function initializeSrtSourceFeature() {
         if (route.kind === 'moq') {
             const { startMoqSession } =
                 await import('@/features/moq/application/moqController.js');
-            const result = await startMoqSession(url);
+            const result = await startMoqSession(url, { namespace });
             eventBus.dispatch(EVENTS.UI.SHOW_STATUS, {
                 message: result.ok
                     ? `MoQ session starting (${url}).`
