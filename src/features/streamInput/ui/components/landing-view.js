@@ -1,5 +1,5 @@
 import { eventBus } from '@/application/event-bus';
-import { exampleStreams } from '@/data/example-streams';
+import { exampleStreams, routeExampleUrl } from '@/data/example-streams';
 import {
     getLastUsedStreams,
     getPresets,
@@ -43,6 +43,27 @@ function protocolBadge(proto) {
 }
 
 const FEATURED_URL_HINTS = ['x36xhzz', 'livesim2', 'clear_cmaf_1080p_h265'];
+
+/**
+ * Display label for an example entry: LL variants win over the base
+ * protocol so the Low Latency group reads as LL-HLS/LL-DASH.
+ * @param {{protocol:string, category?:string, url?:string}} ex
+ */
+function exampleLabel(ex) {
+    const base =
+        ex.protocol === 'dash'
+            ? 'DASH'
+            : ex.protocol === 'hls'
+              ? 'HLS'
+              : ex.protocol === 'srt'
+                ? 'SRT'
+                : 'STREAM';
+    if (ex.category === 'Low Latency') {
+        return base === 'HLS' ? 'LL-HLS' : base === 'DASH' ? 'LL-DASH' : base;
+    }
+    if (ex.protocol === 'srt') return 'SRT';
+    return base;
+}
 
 class LandingViewComponent extends HTMLElement {
     constructor() {
@@ -146,8 +167,7 @@ class LandingViewComponent extends HTMLElement {
                 }
 
                 .mono {
-                    font-family:
-                        'Fira Code', Menlo, Monaco, monospace;
+                    font-family: 'Fira Code', Menlo, Monaco, monospace;
                 }
 
                 .panel {
@@ -194,9 +214,7 @@ class LandingViewComponent extends HTMLElement {
             history.find(
                 (s) => s && typeof s.url === 'string' && s.url.length > 0
             ) ?? null;
-        const earlier = history
-            .filter((s) => s && s !== latest)
-            .slice(0, 5);
+        const earlier = history.filter((s) => s && s !== latest).slice(0, 5);
 
         const template = html`
             ${styles}
@@ -206,9 +224,7 @@ class LandingViewComponent extends HTMLElement {
                     class="mx-auto w-full max-w-6xl px-5 sm:px-8 pb-10 pt-4 sm:pt-6 mount-fade"
                 >
                     <!-- Status bar -->
-                    <div
-                        class="flex justify-between items-center py-2"
-                    >
+                    <div class="flex justify-between items-center py-2">
                         <div class="flex items-center gap-2.5">
                             <div
                                 class="w-7 h-7 bg-emerald-400"
@@ -262,9 +278,9 @@ class LandingViewComponent extends HTMLElement {
                         <p
                             class="mt-3 text-slate-400 text-[15px] leading-relaxed"
                         >
-                            Paste a DASH or HLS manifest. The analyzer
-                            parses it locally and shows the ladder,
-                            compliance, and segments.
+                            Paste a DASH or HLS manifest. The analyzer parses it
+                            locally and shows the ladder, compliance, and
+                            segments.
                         </p>
                     </div>
 
@@ -283,8 +299,7 @@ class LandingViewComponent extends HTMLElement {
                                 >
                                     Manifest URL
                                 </h2>
-                                <span
-                                    class="mono text-[11px] text-slate-500"
+                                <span class="mono text-[11px] text-slate-500"
                                     >https .mpd or .m3u8</span
                                 >
                             </div>
@@ -294,14 +309,10 @@ class LandingViewComponent extends HTMLElement {
                             ></smart-input-component>
 
                             <div class="mt-4">
-                                <p
-                                    class="text-xs text-slate-500 mb-2"
-                                >
+                                <p class="text-xs text-slate-500 mb-2">
                                     No URL handy? Try one of these:
                                 </p>
-                                <div
-                                    class="flex flex-col gap-2"
-                                >
+                                <div class="flex flex-col gap-2">
                                     ${featured.map(
                                         (ex) => html`
                                             <button
@@ -311,33 +322,19 @@ class LandingViewComponent extends HTMLElement {
                                             >
                                                 <span
                                                     class="${protocolBadge(
-                                                        ex.protocol === 'dash'
-                                                            ? 'DASH'
-                                                            : ex.protocol ===
-                                                                'hls'
-                                                              ? 'HLS'
-                                                              : 'STREAM'
+                                                        exampleLabel(ex)
                                                     )}"
-                                                    >${ex.protocol === 'dash'
-                                                        ? 'DASH'
-                                                        : ex.protocol === 'hls'
-                                                          ? 'HLS'
-                                                          : 'STREAM'}</span
+                                                    >${exampleLabel(ex)}</span
                                                 >
-                                                <span
-                                                    class="min-w-0 grow"
-                                                >
+                                                <span class="min-w-0 grow">
                                                     <span
                                                         class="block text-sm font-semibold text-slate-200 truncate"
                                                         >${ex.name}</span
                                                     >
                                                     <span
                                                         class="mono block text-[11px] text-slate-500 truncate"
-                                                        >${safeHostname(
-                                                            ex.url
-                                                        )}
-                                                        ·
-                                                        ${ex.type}</span
+                                                        >${safeHostname(ex.url)}
+                                                        · ${ex.type}</span
                                                     >
                                                 </span>
                                                 <span
@@ -367,14 +364,10 @@ class LandingViewComponent extends HTMLElement {
                                       <div
                                           class="rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2.5 mb-3"
                                       >
-                                          <div
-                                              class="flex items-center gap-2"
-                                          >
+                                          <div class="flex items-center gap-2">
                                               <span
                                                   class="${protocolBadge(
-                                                      detectProtocol(
-                                                          latest.url
-                                                      )
+                                                      detectProtocol(latest.url)
                                                   )}"
                                                   >${detectProtocol(
                                                       latest.url
@@ -486,9 +479,7 @@ class LandingViewComponent extends HTMLElement {
                                           Paste a manifest to get a full
                                           readout:
                                       </p>
-                                      <ul
-                                          class="flex flex-col gap-2.5 mb-5"
-                                      >
+                                      <ul class="flex flex-col gap-2.5 mb-5">
                                           ${[
                                               'ABR ladder with every track listed',
                                               'Compliance checks for DASH-IF and HLS',
@@ -568,18 +559,18 @@ class LandingViewComponent extends HTMLElement {
                                     count: exampleStreams.length,
                                 },
                             ].map(
-                                (cell, i) => html`${i > 0
-                                    ? html`<span
-                                          class="text-slate-700"
-                                          >·</span
-                                      >`
-                                    : ''}<button
-                                        @click=${() =>
-                                            this._openLibrary(cell.tab)}
-                                        class="hover:text-emerald-300 transition-colors"
-                                    >
-                                        ${cell.label} (${cell.count})</button
-                                    >`
+                                (cell, i) =>
+                                    html`${i > 0
+                                            ? html`<span class="text-slate-700"
+                                                  >·</span
+                                              >`
+                                            : ''}<button
+                                            @click=${() =>
+                                                this._openLibrary(cell.tab)}
+                                            class="hover:text-emerald-300 transition-colors"
+                                        >
+                                            ${cell.label} (${cell.count})
+                                        </button>`
                             )}
                         </nav>
                     </div>
@@ -625,6 +616,22 @@ class LandingViewComponent extends HTMLElement {
             });
             return;
         }
+        // New transport technologies route through their own pipelines
+        // instead of the HTTP manifest flow.
+        const route = routeExampleUrl(url);
+        if (route.kind === 'srt') {
+            eventBus.dispatch(EVENTS.UI.SRT_SESSION_REQUESTED, { url });
+            showToast({
+                message: `Connecting to the local SRT helper for ${url}`,
+                type: 'info',
+            });
+            return;
+        }
+        if (route.kind === 'webrtc-pull' || route.kind === 'webrtc-push') {
+            eventBus.dispatch(EVENTS.UI.SRT_SESSION_REQUESTED, { url });
+            return;
+        }
+
         analysisActions.setStreamInputs([{ ...stream, url }]);
         const { streamInputs } = useAnalysisStore.getState();
         eventBus.dispatch(EVENTS.UI.STREAM_ANALYSIS_REQUESTED, {
@@ -708,4 +715,5 @@ class LandingViewComponent extends HTMLElement {
 
 customElements.define('landing-view-component', LandingViewComponent);
 
-export const landingViewTemplate = () => html`<landing-view-component></landing-view-component>`;
+export const landingViewTemplate = () =>
+    html`<landing-view-component></landing-view-component>`;

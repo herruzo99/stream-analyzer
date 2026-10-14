@@ -1,7 +1,8 @@
 /**
- * A curated list of public DASH & HLS streams for testing and demonstration purposes.
- * Verified as of late 2025.
- * @typedef {'dash' | 'hls'} Protocol
+ * A curated list of public DASH, HLS, SRT and low-latency streams for testing
+ * and demonstration purposes. Every entry is verified against the live source
+ * before landing (see the per-entry `verified` field).
+ * @typedef {'dash' | 'hls' | 'srt' | 'whep' | 'whip'} Protocol
  * @typedef {'vod' | 'live'} StreamType
  * @typedef {object} ExampleStream
  * @property {string} name - A descriptive name for the stream.
@@ -10,6 +11,8 @@
  * @property {StreamType} type - The stream type (VOD or Live).
  * @property {string} source - The provider of the stream.
  * @property {string} category - A sub-category for better organization.
+ * @property {string} [verified] - ISO date the URL was last verified live.
+ * @property {string} [notes] - What makes this example worth analyzing.
  * @property {object} [auth] - Authentication details.
  * @property {object} [drmAuth] - DRM authentication details.
  * @property {string | {[key: string]: string}} [drmAuth.licenseServerUrl] - The license server URL(s) for Widevine/PlayReady. Can be a single string or an object mapping key system names to URLs.
@@ -49,6 +52,28 @@ const createDrmAuth = (token) => ({
     licenseServerUrl: v10LicenseServers,
     headers: [{ id: 1, key: 'X-AxDRM-Message', value: token }],
 });
+
+/**
+ * Where an example entry should be routed, derived from its URL scheme.
+ * Pure — shared by the landing view, the library modal and tests.
+ *
+ * @param {string} url
+ * @returns {{kind: 'srt'|'webrtc-pull'|'webrtc-push'|'manifest', transport: string}}
+ */
+export function routeExampleUrl(url) {
+    const value = String(url ?? '').trim();
+    if (value.startsWith('srt://')) {
+        return { kind: 'srt', transport: 'srt' };
+    }
+    const lower = value.toLowerCase();
+    if (lower.includes('/whep')) {
+        return { kind: 'webrtc-pull', transport: 'webrtc' };
+    }
+    if (lower.includes('/whip')) {
+        return { kind: 'webrtc-push', transport: 'whip' };
+    }
+    return { kind: 'manifest', transport: 'http' };
+}
 
 export const exampleStreams = [
     // --- DASH VOD ---
@@ -135,5 +160,52 @@ export const exampleStreams = [
         type: 'vod',
         source: 'Apple',
         category: 'HLS VOD',
+    },
+
+    // --- SRT (Secure Reliable Transport) ---
+    // Public contribution beacons: continuously running UTC-timecode test
+    // signals. Sessions are capped (~30 min) by the provider; no account.
+    // Analysis requires the local helper binary (see README).
+    {
+        name: 'IN/OUT-SRT: LL contribution beacon (DE)',
+        url: 'srt://de.inoutsrt.com:6999?streamid=read:beacon&latency=200',
+        protocol: 'srt',
+        type: 'live',
+        source: 'IN/OUT-SRT',
+        category: 'SRT',
+        verified: '2026-10-14',
+        notes: 'Caller-mode pull over the public internet; exercise the helper, the synthetic façade and the SRT rule family.',
+    },
+    {
+        name: 'IN/OUT-SRT: LL contribution beacon (USA)',
+        url: 'srt://usa.inoutsrt.com:6999?streamid=read:beacon&latency=200',
+        protocol: 'srt',
+        type: 'live',
+        source: 'IN/OUT-SRT',
+        category: 'SRT',
+        verified: '2026-10-14',
+        notes: 'Second edge node: compare RTT/retransmission behavior between the DE and USA legs.',
+    },
+
+    // --- Low Latency (LL-HLS / LL-DASH) ---
+    {
+        name: 'OvenMediaEngine: LL-HLS live demo',
+        url: 'https://llhls-demo.ovenmediaengine.com/app/stream/llhls.m3u8',
+        protocol: 'hls',
+        type: 'live',
+        source: 'OvenMediaEngine',
+        category: 'Low Latency',
+        verified: '2026-10-14',
+        notes: 'Textbook LL-HLS: 12 EXT-X-PART per variant, PART-TARGET 1.0s, CAN-BLOCK-RELOAD=YES, PART-HOLD-BACK 3.0s, EXT-X-PROGRAM-DATE-TIME, multiple renditions plus audio/subtitle groups.',
+    },
+    {
+        name: 'Akamai: CMAF ultra-low-latency DASH',
+        url: 'https://cmafref.akamaized.net/cmaf/live-ull/2006350/akambr/out.mpd',
+        protocol: 'dash',
+        type: 'live',
+        source: 'Akamai (CMAF reference)',
+        category: 'Low Latency',
+        verified: '2026-10-14',
+        notes: 'LL-DASH reference stream used by the dash.js low-latency testplayer; carries ServiceDescription/Latency (target 3000 ms). Feeds the Low-Latency analysis view.',
     },
 ];

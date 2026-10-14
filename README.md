@@ -32,14 +32,19 @@ Run once, then forget it: download the binary for your platform from `/helper/<o
 
 Local development: `bash scripts/build-helper.sh "$PWD" "$(node -p "require('./package.json').version")"` builds the 7-platform matrix + manifest; `bash scripts/smoke-srt.sh` runs a real end-to-end test with ffmpeg as the SRT peer.
 
-**Testing against a real public SRT source** (no local publisher needed): the free IN/OUT-SRT beacons serve a continuously running UTC-timecode test signal over SRT in caller/pull mode:
+**Testing against real public sources** (nothing to build locally — all verified live 2026-10-14, and shipped as one-click entries in the analyzer's example list):
 
-```
-srt://us.inoutsrt.com:6999?streamid=read:beacon    # USA node
-srt://de.inoutsrt.com:6999?streamid=read:beacon    # Germany node
-```
+- **SRT contribution beacons** (free IN/OUT-SRT UTC-timecode test signals, caller/pull, sessions capped ~30 min):
+    ```
+    srt://de.inoutsrt.com:6999?streamid=read:beacon&latency=200
+    srt://usa.inoutsrt.com:6999?streamid=read:beacon&latency=200
+    ```
+    Paste either URL into the SRT Monitor (Connect) — the helper dials out and telemetry + the synthetic façade populate within seconds.
+- **LL-HLS**: `https://llhls-demo.ovenmediaengine.com/app/stream/llhls.m3u8` — OvenMediaEngine live demo (12 `EXT-X-PART` per variant, `PART-TARGET=1.0`, `CAN-BLOCK-RELOAD=YES`, `PART-HOLD-BACK=3.0`). Analyze as usual, then open the **Low-Latency** view.
+- **LL-DASH**: `https://cmafref.akamaized.net/cmaf/live-ull/2006350/akambr/out.mpd` — the Akamai CMAF ultra-low-latency reference (the stream the dash.js low-latency testplayer uses), with `ServiceDescription/Latency`.
+- **WHIP/WHEP**: there is currently no stable _public_ WHIP/WHEP test endpoint worth curating (the community demos are down or certificate-broken, and cloud ones need accounts). The adapters are fully implemented and were live-verified against a local MediaMTX (`aiortc` publisher → WHIP, WHEP playback); to spin up your own: download the MediaMTX single binary and point the Monitor's transport selector at `http://host:8889/live/whip` or `/live/whep`.
 
-Paste either URL into the analyzer's SRT Monitor (Connect) — the helper dials out, and telemetry + the synthetic façade populate within seconds. Sessions on the beacon are limited to ~30 minutes. Recordings are capped by `-max-record-mb` (default 2048 MiB; 0 = unlimited) and flagged `truncated` in `/recordings` when the budget is hit.
+Recordings are capped by `-max-record-mb` (default 2048 MiB; 0 = unlimited) and flagged `truncated` in `/recordings` when the budget is hit.
 
 ## Local Development
 

@@ -18,6 +18,7 @@ import {
     validateManifest,
 } from '@/infrastructure/helper/versionCompat.js';
 import { parseSrtUrl, redactSrtUrl } from '@/infrastructure/srt/urlContract.js';
+import { routeExampleUrl } from '@/data/example-streams.js';
 import {
     DEFAULT_THRESHOLDS,
     describeBreach,
@@ -515,6 +516,23 @@ export function initializeSrtSourceFeature() {
     eventBus.subscribe(EVENTS.UI.SRT_SESSION_REQUESTED, async (payload) => {
         const url = typeof payload === 'string' ? payload : payload?.url;
         if (!url) return;
+        // The URL itself carries the transport: srt://, .../whep or .../whip
+        // route to their own pipelines (example entries and hand-typed URLs
+        // share this one entry point).
+        const route = routeExampleUrl(url);
+        if (route.kind === 'webrtc-pull' || route.kind === 'webrtc-push') {
+            const result =
+                route.kind === 'webrtc-pull'
+                    ? await startWebrtcSession(url)
+                    : await startWhipSession(url);
+            eventBus.dispatch(EVENTS.UI.SHOW_STATUS, {
+                message: result.ok
+                    ? `WebRTC session starting (${url}).`
+                    : `WebRTC session failed: ${result.error}`,
+                type: result.ok ? 'success' : 'warn',
+            });
+            return;
+        }
         const result = await startSrtSession(url, {
             record: Boolean(payload?.record),
         });
