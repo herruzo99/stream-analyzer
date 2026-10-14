@@ -2,7 +2,7 @@
  * A curated list of public DASH, HLS, SRT and low-latency streams for testing
  * and demonstration purposes. Every entry is verified against the live source
  * before landing (see the per-entry `verified` field).
- * @typedef {'dash' | 'hls' | 'srt' | 'whep' | 'whip' | 'moq'} Protocol
+ * @typedef {'dash' | 'hls' | 'srt' | 'whep' | 'whip' | 'moq' | 'rtmp'} Protocol
  * @typedef {'vod' | 'live'} StreamType
  * @typedef {object} ExampleStream
  * @property {string} name - A descriptive name for the stream.
@@ -61,7 +61,7 @@ const createDrmAuth = (token) => ({
  * Pure — shared by the landing view, the library modal and tests.
  *
  * @param {string} url
- * @returns {{kind: 'srt'|'moq'|'webrtc-pull'|'webrtc-push'|'manifest', transport: string}}
+ * @returns {{kind: 'srt'|'moq'|'rtmp'|'webrtc-pull'|'webrtc-push'|'manifest', transport: string}}
  */
 export function routeExampleUrl(url) {
     const value = String(url ?? '').trim();
@@ -70,6 +70,9 @@ export function routeExampleUrl(url) {
     }
     if (value.startsWith('moqt://')) {
         return { kind: 'moq', transport: 'moq' };
+    }
+    if (value.startsWith('rtmp://') || value.startsWith('rtmps://')) {
+        return { kind: 'rtmp', transport: 'rtmp' };
     }
     const lower = value.toLowerCase();
     if (lower.includes('/whep')) {
