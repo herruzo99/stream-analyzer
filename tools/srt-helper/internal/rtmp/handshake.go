@@ -35,46 +35,60 @@ func RandomBody() ([]byte, error) {
 	return body, nil
 }
 
-// Handshake performs the client side of the RTMP handshake and returns the
-// one-shot latency estimate in milliseconds (0 if the peer answered before
-// the local clock ticked).
+// HandshakeOutcome records the anomalies an analyzer wants to surface but
+// must not fail on: real servers violate the spec in small ways.
+type HandshakeOutcome struct {
+	// S1ZeroFieldNonZero is set when the peer put a non-zero value in the
+	// bytes the spec reserves (§5.2.3 says they MUST be zero).
+	S1ZeroFieldNonZero bool
+	// ServerVersionEchoed reports the S0 byte the peer chose.
+	ServerVersionEchoed byte
+}
+
+// Handshake performs the client side of the RTMP handshake: C0+C1, S0+S1,
+// C2, and — required by §5.2.1 — S2 before the chunk stream starts. Skipping
+// S2 leaves its 1536 bytes queued ahead of the first chunk and desynchronizes
+// the reader, so this always waits for it.
 //
-// Sequence: C0+C1, wait S0+S1, C2 (echoing S1), S2 expected but RTMP clients
-// commonly continue without waiting for it — the caller decides via waitS2.
-func Handshake(conn net.Conn, waitS2 bool) (rttMs float64, err error) {
+// Returns the one-shot latency estimate in milliseconds (from the S1/S2 time
+// fields) plus any non-fatal anomalies observed.
+func Handshake(conn net.Conn) (rttMs float64, outcome HandshakeOutcome, err error) {
 	start := time.Now()
 
 	if err := conn.SetDeadline(start.Add(10 * time.Second)); err != nil {
-		return 0, fail("deadline", err)
+		return 0, outcome, fail("deadline", err)
 	}
 
 	// C0 + C1.
 	body, err := RandomBody()
 	if err != nil {
-		return 0, fail("random", err)
+		return 0, outcome, fail("random", err)
 	}
 	c0 := []byte{HandshakeVersion}
 	if err := writeFull(conn, c0); err != nil {
-		return 0, fail("send C0", err)
+		return 0, outcome, fail("send C0", err)
 	}
 	if err := writeFull(conn, body); err != nil {
-		return 0, fail("send C1", err)
+		return 0, outcome, fail("send C1", err)
 	}
 
 	// S0 + S1.
 	s0 := make([]byte, 1)
 	if _, err := io.ReadFull(conn, s0); err != nil {
-		return 0, fail("read S0", err)
+		return 0, outcome, fail("read S0", err)
 	}
 	if s0[0] != HandshakeVersion {
-		return 0, fail("read S0", errors.New("unsupported version "+itoa(int(s0[0]))))
+		return 0, outcome, fail("read S0", errors.New("unsupported version "+itoa(int(s0[0]))))
 	}
 	s1 := make([]byte, HandshakeLength)
 	if _, err := io.ReadFull(conn, s1); err != nil {
-		return 0, fail("read S1", err)
+		return 0, outcome, fail("read S1", err)
 	}
+	outcome.ServerVersionEchoed = s0[0]
+	// The spec requires the zero field to be zero; some servers do not. An
+	// analyzer records the violation and continues (ffmpeg behaves the same).
 	if binary.BigEndian.Uint32(s1[4:8]) != 0 {
-		return 0, fail("read S1", errors.New("zero field is not zero"))
+		outcome.S1ZeroFieldNonZero = true
 	}
 
 	// C2 echoes S1 with our read time; the peer computes our RTT from it.
@@ -83,13 +97,13 @@ func Handshake(conn net.Conn, waitS2 bool) (rttMs float64, err error) {
 	readAt := time.Now()
 	binary.BigEndian.PutUint32(c2[4:8], uint32(readAt.UnixMilli()))
 	if err := writeFull(conn, c2); err != nil {
-		return 0, fail("send C2", err)
+		return 0, outcome, fail("send C2", err)
 	}
 
-	if waitS2 {
+	{
 		s2 := make([]byte, HandshakeLength)
 		if _, err := io.ReadFull(conn, s2); err != nil {
-			return 0, fail("read S2", err)
+			return 0, outcome, fail("read S2", err)
 		}
 		// The server echoes our C1 time in the first field.
 		serverReadAt := int64(binary.BigEndian.Uint32(s2[4:8])) // when it read our C1
@@ -103,12 +117,13 @@ func Handshake(conn net.Conn, waitS2 bool) (rttMs float64, err error) {
 				rttMs = 0
 			}
 		}
-	} else {
-		// Best effort: how long the server took to answer C1 with S1.
-		rttMs = float64(readAt.Sub(start).Microseconds()) / 1000.0
 	}
 	_ = conn.SetDeadline(time.Time{})
-	return rttMs, nil
+	// Fallback estimate: how long the server took to answer C1 with S1.
+	if rttMs == 0 {
+		rttMs = float64(readAt.Sub(start).Microseconds()) / 1000.0
+	}
+	return rttMs, outcome, nil
 }
 
 func writeFull(conn net.Conn, b []byte) error {

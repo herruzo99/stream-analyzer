@@ -174,6 +174,23 @@ shape, subgroup header decode source, alias-before-reply buffering, first-object
 Cloudflare's public relay is draft-14 and wire-incompatible with this client; the bundled Go
 relay is the verification path.
 
+### Item 5 — RTMP/RTMPS — IMPLEMENTED (pending a public-endpoint follow-up)
+- Standards: `standard/rtmp-v1-0-spec.txt` (extracted from the vendored PDF) and
+  `standard/enhanced-rtmp-v2.md`
+- Engine decision: hand-rolled (ai/rtmp-integration-analysis.md) — the two pure-Go
+  libraries are Boost-licensed and hide the chunk-level internals the analyzer reports
+- Browser: 14 heux contract tests + `src/infrastructure/rtmp/urlContract.js`,
+  `src/features/rtmpSource/domain/{flv,telemetry}.js`, controller, SRT Monitor
+  transport + RTMP panel (counters, codec/audio inventory, AMF0 command log)
+- Helper: `internal/rtmp` (url, amf0, chunk reader, chunk writer, handshake, client
+  session) wired into the session manager + `/sessions/{id}/rtmp`; 23 Go tests
+  including an in-process lifecycle integration test and the telemetry mapping
+- Real-world verification: the live test caught three genuine bugs (fmt-3 timestamp
+  double-add, S2 desynchronization when skipped, fmt-3 between distinct control
+  messages) and one spec-violation anomaly now recorded instead of fatal. The
+  indexforce public endpoint remains unresolved (Wowza silence to our connect) —
+  documented in the README as the follow-up.
+
 ### Verification summary
 - 132/132 node tests (63 baseline + 69 new heux/integration across all SRT
   work), ESLint 0, tsc at the 43-error main baseline, production build green.

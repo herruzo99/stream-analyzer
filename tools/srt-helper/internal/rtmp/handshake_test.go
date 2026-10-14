@@ -43,9 +43,12 @@ func handshakeServer(t *testing.T, conn net.Conn) {
 	if !bytesEqual(c2[8:], body[8:]) {
 		t.Error("C2 did not echo the S1 random data")
 	}
-	// S2 echoes C1's payload with the time fields.
+	// S2 echoes C1's payload with the time fields; the client waits for it.
 	s2 := make([]byte, HandshakeLength)
 	copy(s2, c1)
+	if _, err := conn.Write(s2); err != nil {
+		t.Errorf("write S2: %v", err)
+	}
 }
 
 func readFullHelper(conn net.Conn, b []byte) (int, error) {
@@ -83,7 +86,7 @@ func TestHandshakeSequence(t *testing.T) {
 		close(done)
 	}()
 
-	rtt, err := Handshake(c, false)
+	rtt, _, err := Handshake(c)
 	if err != nil {
 		t.Fatalf("handshake: %v", err)
 	}
@@ -107,7 +110,7 @@ func TestHandshakeRejectsBadVersion(t *testing.T) {
 		readFullHelper(s, buf)
 		s.Write([]byte{0x99})
 	}()
-	_, err := Handshake(c, false)
+	_, _, err := Handshake(c)
 	if err == nil {
 		t.Fatal("expected a version rejection")
 	}

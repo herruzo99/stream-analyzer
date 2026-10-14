@@ -17,19 +17,17 @@ type Writer struct {
 	mu        sync.Mutex
 	chunkSize uint32
 
-	// Per-chunk-stream previous header state, so the writer can emit the
-	// cheapest format for each chunk.
-	prevTimestamp map[uint32]uint32
-	prevHeader    map[uint32]bool
+	// Per-chunk-stream state: whether a full header was already sent, so the
+	// writer can pick fmt 1 for later messages instead of fmt 3 (see below).
+	prevHeader map[uint32]bool
 }
 
 // NewWriter returns a writer with the 128-byte default outbound chunk size.
 func NewWriter(w io.Writer) *Writer {
 	return &Writer{
-		w:             w,
-		chunkSize:     DefaultChunkSize,
-		prevTimestamp: map[uint32]uint32{},
-		prevHeader:    map[uint32]bool{},
+		w:          w,
+		chunkSize:  DefaultChunkSize,
+		prevHeader: map[uint32]bool{},
 	}
 }
 
@@ -116,15 +114,22 @@ func (w *Writer) WriteMessage(msg Message) error {
 	for first || len(payload) > 0 {
 		if first {
 			switch {
-			case !w.prevHeader[msg.ChunkStreamID] || w.prevTimestamp[msg.ChunkStreamID] != msg.Timestamp:
+			case !w.prevHeader[msg.ChunkStreamID]:
+				// First message on this chunk stream: the full header.
 				writeBasic(0)
 				out = appendUint24(out, ts)
 				out = appendUint24(out, uint32(len(payload)))
 				out = append(out, msg.MessageType)
 				out = append(out, byte(msg.MessageStreamID>>0), byte(msg.MessageStreamID>>8), byte(msg.MessageStreamID>>16), byte(msg.MessageStreamID>>24))
 			default:
-				// Continuation of an identical header: fmt 3.
-				writeBasic(3)
+				// Subsequent message, same message stream id: fmt 1 carries the
+				// delta/length/type and omits only the message stream id. Reusing
+				// fmt 3 here would make the peer re-interpret the header of the
+				// *previous* message, which desynchronizes the stream.
+				writeBasic(1)
+				out = appendUint24(out, ts)
+				out = appendUint24(out, uint32(len(payload)))
+				out = append(out, msg.MessageType)
 			}
 			if extended {
 				out = appendUint32(out, msg.Timestamp)
@@ -142,7 +147,6 @@ func (w *Writer) WriteMessage(msg Message) error {
 	}
 
 	w.prevHeader[msg.ChunkStreamID] = true
-	w.prevTimestamp[msg.ChunkStreamID] = msg.Timestamp
 
 	if _, err := w.w.Write(out); err != nil {
 		return &writeError{err.Error()}

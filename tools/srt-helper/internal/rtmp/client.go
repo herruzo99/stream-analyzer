@@ -7,6 +7,7 @@ package rtmp
 
 import (
 	"encoding/binary"
+	"fmt"
 	"net"
 	"strings"
 	"sync"
@@ -54,11 +55,12 @@ type Stats struct {
 	ServerChunkSize uint32  `json:"serverChunkSize"`
 	HandshakeRTTMs  float64 `json:"handshakeRttMs"`
 
-	VideoCodecs  map[uint32]*codecCounter `json:"videoCodecs"`
-	AudioCodecs  map[uint32]*codecCounter `json:"audioCodecs"`
-	Keyframes    uint64                   `json:"videoKeyframes"`
-	Metadata     map[string]any           `json:"onMetaData,omitempty"`
-	MetadataSeen bool                     `json:"metadataSeen"`
+	VideoCodecs        map[uint32]*codecCounter `json:"videoCodecs"`
+	AudioCodecs        map[uint32]*codecCounter `json:"audioCodecs"`
+	Keyframes          uint64                   `json:"videoKeyframes"`
+	Metadata           map[string]any           `json:"onMetaData,omitempty"`
+	MetadataSeen       bool                     `json:"metadataSeen"`
+	S1ZeroFieldNonZero bool                     `json:"s1ZeroFieldNonZero,omitempty"`
 
 	commands     []Command
 	messageTypes map[byte]uint64
@@ -83,11 +85,12 @@ type StatsSnapshot struct {
 	ServerChunkSize uint32  `json:"serverChunkSize"`
 	HandshakeRTTMs  float64 `json:"handshakeRttMs"`
 
-	VideoCodecs  map[uint32]*codecCounter `json:"videoCodecs"`
-	AudioCodecs  map[uint32]*codecCounter `json:"audioCodecs"`
-	Keyframes    uint64                   `json:"videoKeyframes"`
-	Metadata     map[string]any           `json:"onMetaData,omitempty"`
-	MetadataSeen bool                     `json:"metadataSeen"`
+	VideoCodecs        map[uint32]*codecCounter `json:"videoCodecs"`
+	AudioCodecs        map[uint32]*codecCounter `json:"audioCodecs"`
+	Keyframes          uint64                   `json:"videoKeyframes"`
+	Metadata           map[string]any           `json:"onMetaData,omitempty"`
+	MetadataSeen       bool                     `json:"metadataSeen"`
+	S1ZeroFieldNonZero bool                     `json:"s1ZeroFieldNonZero,omitempty"`
 }
 
 // Snapshot copies the counters under the lock, deep-copying the codec maps.
@@ -95,23 +98,24 @@ func (s *Stats) Snapshot() StatsSnapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := StatsSnapshot{
-		BytesRecvTotal:  s.BytesRecvTotal,
-		BytesSentTotal:  s.BytesSentTotal,
-		ChunkCount:      s.ChunkCount,
-		MessageCount:    s.MessageCount,
-		AudioTags:       s.AudioTags,
-		VideoTags:       s.VideoTags,
-		ScriptTags:      s.ScriptTags,
-		AudioBytes:      s.AudioBytes,
-		VideoBytes:      s.VideoBytes,
-		AckSequence:     s.AckSequence,
-		WindowAckSize:   s.WindowAckSize,
-		PeerBandwidth:   s.PeerBandwidth,
-		NegotiatedChunk: s.NegotiatedChunk,
-		ServerChunkSize: s.ServerChunkSize,
-		HandshakeRTTMs:  s.HandshakeRTTMs,
-		Keyframes:       s.Keyframes,
-		MetadataSeen:    s.MetadataSeen,
+		BytesRecvTotal:     s.BytesRecvTotal,
+		BytesSentTotal:     s.BytesSentTotal,
+		ChunkCount:         s.ChunkCount,
+		MessageCount:       s.MessageCount,
+		AudioTags:          s.AudioTags,
+		VideoTags:          s.VideoTags,
+		ScriptTags:         s.ScriptTags,
+		AudioBytes:         s.AudioBytes,
+		VideoBytes:         s.VideoBytes,
+		AckSequence:        s.AckSequence,
+		WindowAckSize:      s.WindowAckSize,
+		PeerBandwidth:      s.PeerBandwidth,
+		NegotiatedChunk:    s.NegotiatedChunk,
+		ServerChunkSize:    s.ServerChunkSize,
+		HandshakeRTTMs:     s.HandshakeRTTMs,
+		Keyframes:          s.Keyframes,
+		MetadataSeen:       s.MetadataSeen,
+		S1ZeroFieldNonZero: s.S1ZeroFieldNonZero,
 	}
 	out.VideoCodecs = map[uint32]*codecCounter{}
 	for k, v := range s.VideoCodecs {
@@ -207,13 +211,14 @@ func Dial(parts rtmpurl.Parts) (*Session, error) {
 	}
 	s.conn = conn
 
-	rtt, err := Handshake(conn, false)
+	rtt, outcome, err := Handshake(conn)
 	if err != nil {
 		conn.Close()
 		return nil, err
 	}
 	s.stats.mu.Lock()
 	s.stats.HandshakeRTTMs = rtt
+	s.stats.S1ZeroFieldNonZero = outcome.S1ZeroFieldNonZero
 	s.stats.NegotiatedChunk = DefaultChunkSize
 	s.stats.ServerChunkSize = DefaultChunkSize
 	s.stats.mu.Unlock()
@@ -223,6 +228,12 @@ func Dial(parts rtmpurl.Parts) (*Session, error) {
 
 	// Announce our acknowledgement behaviour and a larger outbound chunk size,
 	// exactly like the classic Flash player did (128 → 4096 cuts overhead).
+	// Set Peer Bandwidth is what librtmp/FMLE send before the connect gets
+	// answered by Wowza-family servers.
+	if err := s.writer.SetPeerBandwidth(8_000_000); err != nil {
+		conn.Close()
+		return nil, err
+	}
 	if err := s.writer.WindowAckSize(2_500_000); err != nil {
 		conn.Close()
 		return nil, err
@@ -237,6 +248,9 @@ func Dial(parts rtmpurl.Parts) (*Session, error) {
 
 	go s.readLoop()
 	if err := s.connect(); err != nil {
+		if readErr := s.Err(); readErr != nil {
+			err = fmt.Errorf("%w (read loop: %v)", err, readErr)
+		}
 		s.Close()
 		return nil, err
 	}
@@ -478,8 +492,12 @@ func (s *Session) nextTxn() float64 {
 	return s.txnCounter
 }
 
-// sendCommand writes one AMF0 command on our control chunk stream.
+// sendCommand writes one AMF0 command on our control chunk stream and records
+// it in the command log (direction "client") for the forensics view.
 func (s *Session) sendCommand(payload []byte) error {
+	if c := s.parseCommand(payload, "client"); c != nil && s.OnCommand != nil {
+		s.OnCommand(*c)
+	}
 	msg := Message{
 		ChunkStreamID:   s.chunkStreamID,
 		Timestamp:       0,
@@ -511,6 +529,20 @@ func (s *Session) connect() error {
 	e.EncodeString("FMLE/3.0 (stream-analyzer helper)")
 	e.EncodePropertyName("tcUrl")
 	e.EncodeString(s.URL.TcURL)
+	// The classic Flash connect object; servers in the wild (Wowza, FMS and
+	// their forks) gate on these.
+	e.EncodePropertyName("fpad")
+	e.EncodeBoolean(false)
+	e.EncodePropertyName("capabilities")
+	e.EncodeNumber(15)
+	e.EncodePropertyName("audioCodecs")
+	e.EncodeNumber(4071)
+	e.EncodePropertyName("videoCodecs")
+	e.EncodeNumber(252)
+	e.EncodePropertyName("videoFunction")
+	e.EncodeNumber(1)
+	e.EncodePropertyName("objectEncoding")
+	e.EncodeNumber(0) // AMF0
 	if v, ok := s.URL.Params["token"]; ok {
 		e.EncodePropertyName("token")
 		e.EncodeString(v)
