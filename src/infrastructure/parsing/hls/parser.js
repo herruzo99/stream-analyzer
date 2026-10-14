@@ -698,21 +698,11 @@ export async function parseManifest(
                     currentSegment.gap = true;
                     currentSegment.flags.push('gap');
                 }
-                const { finalizedSegment, nextRangeState } =
-                    finalizeCurrentSegment(
-                        currentSegment,
-                        currentByteRange,
-                        lastSeenUri,
-                        lastRangeState,
-                        baseUrl
-                    );
-                parsed.segmentGroups[parsed.segmentGroups.length - 1].push(
-                    finalizedSegment
-                );
-                lastRangeState = nextRangeState;
-                cumulativeDuration += currentSegment.duration;
-                currentSegment = null;
-                isGap = false;
+                // LL-HLS playlists list EXT-X-PART tags AFTER the segment URI
+                // (parts belong to the segment that precedes them). The
+                // segment therefore stays open until the next EXTINF or EOF;
+                // finalizeCurrentSegment at those points uses `lastSeenUri`,
+                // which is exactly this URI.
             }
         }
     }

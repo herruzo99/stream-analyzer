@@ -224,32 +224,39 @@ export function hlsLlCompliance(timeline) {
 }
 
 /**
- * LL-DASH latency view from period ServiceDescription elements.
+ * LL-DASH latency view from ServiceDescription elements. The DASH spec
+ * allows them at both MPD and Period level, so both sources are merged.
  *
  * @param {Array<object>} periods DASH IR periods
+ * @param {Array<object>} [mpdServiceDescriptions] MPD-level ServiceDescription elements
  * @returns {{protocol:'dash', isLowLatency:boolean, targets:Array<{periodId:string|null, scope:string[], targetMs:number|null, minMs:number|null, maxMs:number|null, referenceId:number|null}>, playbackRates:Array<object>}}
  */
-export function buildDashLatencyView(periods) {
+export function buildDashLatencyView(periods, mpdServiceDescriptions) {
     const targets = [];
     const playbackRates = [];
-    for (const period of Array.isArray(periods) ? periods : []) {
-        for (const sd of period.serviceDescriptions ?? []) {
-            const scope = (sd.scopes ?? []).map(
-                (s) => s.schemeIdUri ?? 'unknown'
-            );
-            for (const rate of sd.playbackRates ?? [])
-                playbackRates.push({ ...rate, scope });
-            for (const lat of sd.latencies ?? []) {
-                targets.push({
-                    periodId: period.id ?? null,
-                    scope,
-                    targetMs: lat.target,
-                    minMs: lat.min,
-                    maxMs: lat.max,
-                    referenceId: lat.referenceId,
-                });
-            }
+    const ingest = (sd, periodId) => {
+        const scope = (sd.scopes ?? []).map((s) => s.schemeIdUri ?? 'unknown');
+        for (const rate of sd.playbackRates ?? [])
+            playbackRates.push({ ...rate, scope });
+        for (const lat of sd.latencies ?? []) {
+            targets.push({
+                periodId,
+                scope,
+                targetMs: lat.target,
+                minMs: lat.min,
+                maxMs: lat.max,
+                referenceId: lat.referenceId,
+            });
         }
+    };
+    // MPD-level entries first (document order), then period-level.
+    for (const sd of Array.isArray(mpdServiceDescriptions)
+        ? mpdServiceDescriptions
+        : [])
+        ingest(sd, null);
+    for (const period of Array.isArray(periods) ? periods : []) {
+        for (const sd of period.serviceDescriptions ?? [])
+            ingest(sd, period.id ?? null);
     }
     return {
         protocol: 'dash',
@@ -355,7 +362,10 @@ export function analyzeLowLatency(stream) {
         };
     }
     if (stream?.type === 'dash' || stream?.periods) {
-        const view = buildDashLatencyView(stream.periods ?? []);
+        const view = buildDashLatencyView(
+            stream.periods ?? [],
+            stream.manifest?.serviceDescriptions
+        );
         if (!view.isLowLatency) {
             return { protocol: 'dash', isLowLatency: false, issues: [], view };
         }

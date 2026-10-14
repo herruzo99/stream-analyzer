@@ -212,7 +212,11 @@ function hlsPanel(stream) {
 
 function dashPanel(stream) {
     const periods = stream?.manifest?.periods ?? [];
-    const analysis = analyzeLowLatency({ type: 'dash', periods });
+    const analysis = analyzeLowLatency({
+        type: 'dash',
+        periods,
+        manifest: stream?.manifest,
+    });
     if (!analysis.isLowLatency) {
         return html`
             <section
