@@ -23,6 +23,7 @@ import {
     startWebrtcSession,
     startWhipSession,
 } from '@/features/srtSource/application/srtController.js';
+import { startMoqSession } from '@/features/moq/application/moqController.js';
 import { analyzeTsChunk } from '@/features/srtSource/domain/tsAnalytics.js';
 import { analyzeAvSync } from '@/features/srtSource/domain/avSync.js';
 import {
@@ -205,13 +206,18 @@ function sessionCard(state, id) {
     // SRT sessions are helper-backed (segments, façade, TS analysis);
     // WebRTC/WebTransport sessions exist only in this browser.
     const isNative =
-        s.mode === 'webrtc' || s.mode === 'webtransport' || s.mode === 'whip';
+        s.mode === 'webrtc' ||
+        s.mode === 'webtransport' ||
+        s.mode === 'whip' ||
+        s.mode === 'moq';
     const title = isNative
         ? s.mode === 'webrtc'
             ? 'WebRTC (WHEP)'
             : s.mode === 'whip'
               ? 'WebRTC (WHIP publish)'
-              : 'WebTransport'
+              : s.mode === 'moq'
+                ? 'MoQ (WebTransport)'
+                : 'WebTransport'
         : s.mode === 'push'
           ? 'Listener'
           : 'Caller';
@@ -403,6 +409,7 @@ function newSessionForm() {
                     <option value="webrtc">WebRTC (WHEP)</option>
                     <option value="webtransport">WebTransport</option>
                     <option value="whip">WebRTC WHIP (publish)</option>
+                    <option value="moq">MoQ (WebTransport)</option>
                 </select>
                 <input
                     class="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs font-mono"
@@ -412,7 +419,9 @@ function newSessionForm() {
                           ? 'http://host:8889/live/whep'
                           : transportDraft === 'whip'
                             ? 'http://host:8889/live/whip'
-                            : 'https://host:4433/live'}
+                            : transportDraft === 'moq'
+                              ? 'moqt://relay.example/anon'
+                              : 'https://host:4433/live'}
                     @input=${(e) => {
                         draft = e.target.value;
                     }}
@@ -430,7 +439,9 @@ function newSessionForm() {
                                       ? await startWebrtcSession(url)
                                       : transportDraft === 'whip'
                                         ? await startWhipSession(url)
-                                        : await startWebTransportSession(url);
+                                        : transportDraft === 'moq'
+                                          ? await startMoqSession(url)
+                                          : await startWebTransportSession(url);
                         } catch (err) {
                             result = {
                                 ok: false,
@@ -853,6 +864,91 @@ function sessionReport(id) {
     );
 }
 
+function moqPanel(state) {
+    const moqSessions = Object.values(state.sessions).filter(
+        (s) => s.mode === 'moq'
+    );
+    if (moqSessions.length === 0) return html``;
+    return html`
+        ${moqSessions.map((s) => {
+            const catalog = state.moqCatalogs?.[s.url] ?? null;
+            const subs = state.moqSubscriptions?.[s.url] ?? [];
+            const rows = (catalog?.tracks ?? []).map(
+                (t) => html`
+                    <tr class="border-t border-slate-700 text-xs">
+                        <td class="py-1 pr-3 text-slate-300">
+                            ${t.namespace ?? '(inherit)'}
+                        </td>
+                        <td class="py-1 pr-3 font-mono">${t.name}</td>
+                        <td class="py-1 pr-3">${t.packaging ?? '—'}</td>
+                        <td class="py-1 pr-3">${t.role ?? '—'}</td>
+                        <td class="py-1 pr-3 font-mono">
+                            ${t.targetLatencyMs ?? '—'} ms
+                        </td>
+                        <td class="py-1 font-mono text-slate-400">
+                            ${t.bitrate
+                                ? Math.round(t.bitrate / 1000) + ' kbps'
+                                : '—'}
+                        </td>
+                    </tr>
+                `
+            );
+            return html`
+                <section
+                    class="rounded-lg border border-slate-700 bg-slate-800/60 p-4 space-y-3"
+                >
+                    <h3 class="text-sm font-semibold">
+                        MoQ catalog — ${s.url}
+                    </h3>
+                    ${catalog
+                        ? html`<table class="w-full text-left">
+                              <thead class="text-xs text-slate-500">
+                                  <tr>
+                                      <th>namespace</th>
+                                      <th>track</th>
+                                      <th>packaging</th>
+                                      <th>role</th>
+                                      <th>target latency</th>
+                                      <th>bitrate</th>
+                                  </tr>
+                              </thead>
+                              <tbody>
+                                  ${rows}
+                              </tbody>
+                          </table>`
+                        : html`<p class="text-xs text-slate-500">
+                              No catalog received yet.
+                          </p>`}
+                    <div>
+                        <p class="text-xs text-slate-500 mb-1">Subscriptions</p>
+                        ${subs.length
+                            ? html`<ul
+                                  class="text-xs text-slate-300 space-y-0.5"
+                              >
+                                  ${subs.map(
+                                      (sub) =>
+                                          html`<li class="font-mono">
+                                              ${sub.namespace}/${sub.name} —
+                                              ${sub.status}${sub.subscribeRttMs !=
+                                              null
+                                                  ? html` (${Math.round(
+                                                        sub.subscribeRttMs
+                                                    )}
+                                                    ms)`
+                                                  : ''}
+                                          </li>`
+                                  )}
+                              </ul>`
+                            : html`<p class="text-xs text-slate-500">
+                                  No subscriptions.
+                              </p>`}
+                    </div>
+                </section>
+            `;
+        })}
+    `;
+}
+
 function renderView() {
     if (!container) return;
     const state = { ...srtStore.getState(), contents: contentsCache };
@@ -881,7 +977,7 @@ function renderView() {
                 ${state.focusedSessionId
                     ? handshakeCard(state, state.focusedSessionId)
                     : html``}
-                ${failoverCard(state)}
+                ${failoverCard(state)} ${moqPanel(state)}
                 <p class="text-xs text-slate-500">
                     SRT support: your helper owns the UDP sockets; this panel
                     shows normalized telemetry (RTT, loss, retransmissions,

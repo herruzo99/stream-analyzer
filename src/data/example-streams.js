@@ -58,12 +58,15 @@ const createDrmAuth = (token) => ({
  * Pure — shared by the landing view, the library modal and tests.
  *
  * @param {string} url
- * @returns {{kind: 'srt'|'webrtc-pull'|'webrtc-push'|'manifest', transport: string}}
+ * @returns {{kind: 'srt'|'moq'|'webrtc-pull'|'webrtc-push'|'manifest', transport: string}}
  */
 export function routeExampleUrl(url) {
     const value = String(url ?? '').trim();
     if (value.startsWith('srt://')) {
         return { kind: 'srt', transport: 'srt' };
+    }
+    if (value.startsWith('moqt://')) {
+        return { kind: 'moq', transport: 'moq' };
     }
     const lower = value.toLowerCase();
     if (lower.includes('/whep')) {

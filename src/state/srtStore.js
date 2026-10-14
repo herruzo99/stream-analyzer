@@ -19,6 +19,12 @@ const createInitialSrtState = () => ({
     issues: [],
     /** @type {Array<object>} threshold alert history (transitions only) */
     alerts: [],
+    /** @type {Record<string, object>} session id -> MSF catalog model */
+    moqCatalogs: {},
+    /** @type {Record<string, Array<object>>} session id -> MoQ subscriptions */
+    moqSubscriptions: {},
+    /** @type {Record<string, Array<object>>} session id -> MoQ rule issues */
+    moqIssues: {},
     /** @type {boolean} */
     probing: false,
     /** @type {string | null} session id the monitor view should focus */
@@ -76,6 +82,23 @@ export const srtStore = createStore((set, get) => ({
         set({ issues });
     },
 
+    setMoqCatalog(url, catalog) {
+        if (!url) return;
+        set((s) => ({ moqCatalogs: { ...s.moqCatalogs, [url]: catalog } }));
+    },
+
+    setMoqSubscriptions(url, list) {
+        if (!url) return;
+        set((s) => ({
+            moqSubscriptions: { ...s.moqSubscriptions, [url]: list ?? [] },
+        }));
+    },
+
+    setMoqIssues(url, issues) {
+        if (!url) return;
+        set((s) => ({ moqIssues: { ...s.moqIssues, [url]: issues ?? [] } }));
+    },
+
     pushAlert(alert) {
         if (!alert?.sessionId || !alert.metric) return;
         set((s) => {
@@ -104,6 +127,10 @@ export const srtActions = {
     setSessions: (v) => srtStore.getState().setSessions(v),
     pushTelemetry: (a, b) => srtStore.getState().pushTelemetry(a, b),
     setIssues: (v) => srtStore.getState().setIssues(v),
+    setMoqCatalog: (a, b) => srtStore.getState().setMoqCatalog(a, b),
+    setMoqSubscriptions: (a, b) =>
+        srtStore.getState().setMoqSubscriptions(a, b),
+    setMoqIssues: (a, b) => srtStore.getState().setMoqIssues(a, b),
     pushAlert: (v) => srtStore.getState().pushAlert(v),
     focusSession: (v) => srtStore.getState().focusSession(v),
     reset: () => srtStore.getState().reset(),

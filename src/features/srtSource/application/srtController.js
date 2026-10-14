@@ -520,6 +520,18 @@ export function initializeSrtSourceFeature() {
         // route to their own pipelines (example entries and hand-typed URLs
         // share this one entry point).
         const route = routeExampleUrl(url);
+        if (route.kind === 'moq') {
+            const { startMoqSession } =
+                await import('@/features/moq/application/moqController.js');
+            const result = await startMoqSession(url);
+            eventBus.dispatch(EVENTS.UI.SHOW_STATUS, {
+                message: result.ok
+                    ? `MoQ session starting (${url}).`
+                    : `MoQ session failed: ${result.error}`,
+                type: result.ok ? 'success' : 'warn',
+            });
+            return;
+        }
         if (route.kind === 'webrtc-pull' || route.kind === 'webrtc-push') {
             const result =
                 route.kind === 'webrtc-pull'
