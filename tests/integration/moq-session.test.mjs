@@ -29,7 +29,10 @@ function streamFromChunks(chunks) {
     return {
         getReader() {
             return {
-                read: async () => (i < chunks.length ? { value: chunks[i++], done: false } : { value: undefined, done: true }),
+                read: async () =>
+                    i < chunks.length
+                        ? { value: chunks[i++], done: false }
+                        : { value: undefined, done: true },
                 cancel: async () => {},
             };
         },
@@ -42,7 +45,9 @@ function writableSink() {
         written,
         getWriter() {
             return {
-                write: async (chunk) => { written.push(chunk); },
+                write: async (chunk) => {
+                    written.push(chunk);
+                },
                 close: async () => {},
                 releaseLock: () => {},
             };
@@ -50,28 +55,41 @@ function writableSink() {
     };
 }
 
-function makeFakeTransport({ serverControlBytes, subgroupChunks, datagrams, objects } = {}) {
+function makeFakeTransport({
+    serverControlBytes,
+    subgroupChunks,
+    datagrams,
+    objects,
+} = {}) {
     const uniStreams = [];
-    if (serverControlBytes) uniStreams.push(streamFromChunks([serverControlBytes]));
-    for (const chunks of subgroupChunks ?? []) uniStreams.push(streamFromChunks(chunks));
+    if (serverControlBytes)
+        uniStreams.push(streamFromChunks([serverControlBytes]));
+    for (const chunks of subgroupChunks ?? [])
+        uniStreams.push(streamFromChunks(chunks));
     const biStreams = [];
     return {
         ready: Promise.resolve(),
-        closed: false,
+        // A real WebTransport exposes a `closed` promise that settles when the
+        // transport goes away; the fake must model that, not a boolean.
+        closed: new Promise(() => {}),
         incomingUnidirectionalStreams: (async function* () {
             for (const s of uniStreams) yield s;
-            await new Promise(() => {});
         })(),
         datagrams: {
             readable: streamFromChunks(datagrams ?? []),
         },
         createUnidirectionalStream: async () => writableSink(),
         createBidirectionalStream: async () => {
-            const s = { writable: writableSink(), readable: streamFromChunks([]) };
+            const s = {
+                writable: writableSink(),
+                readable: streamFromChunks([]),
+            };
             biStreams.push(s);
             return s;
         },
-        close: async function () { this.closed = true; },
+        close: async function () {
+            this.closed = Promise.resolve(false);
+        },
         biStreams,
     };
 }
@@ -81,19 +99,34 @@ function makeFakeTransport({ serverControlBytes, subgroupChunks, datagrams, obje
 test('IT-MOQ-01 URL helpers map moqt paths to namespaces and https', async () => {
     const { namespaceFromUrl, webTransportUrl } = await loadSession();
     assert.deepEqual(namespaceFromUrl('moqt://relay.example/anon'), ['anon']);
-    assert.deepEqual(namespaceFromUrl('moqt://relay.example/anon/bbb'), ['anon', 'bbb']);
+    assert.deepEqual(namespaceFromUrl('moqt://relay.example/anon/bbb'), [
+        'anon',
+        'bbb',
+    ]);
     assert.deepEqual(namespaceFromUrl('moqt://relay.example'), ['anon']);
-    assert.equal(webTransportUrl('moqt://relay.example/anon'), 'https://relay.example/anon');
-    assert.equal(webTransportUrl('https://relay.example/x'), 'https://relay.example/x');
+    assert.equal(
+        webTransportUrl('moqt://relay.example/anon'),
+        'https://relay.example/anon'
+    );
+    assert.equal(
+        webTransportUrl('https://relay.example/x'),
+        'https://relay.example/x'
+    );
 });
 
 test('IT-MOQ-02 session runs setup exchange, catalog subscription and object delivery', async () => {
-    const { ByteReader, decodeControlMessage, encodeSetup, encodeSubscribe, encodeVarint } = await import('../src/infrastructure/moq/wire.js').then(
-        (m) => m
-    ).catch(async () => {
-        // wire.js is pure; import directly.
-        return await import(join(ROOT, 'src/infrastructure/moq/wire.js'));
-    });
+    const {
+        ByteReader,
+        decodeControlMessage,
+        encodeSetup,
+        encodeSubscribe,
+        encodeVarint,
+    } = await import('../src/infrastructure/moq/wire.js')
+        .then((m) => m)
+        .catch(async () => {
+            // wire.js is pure; import directly.
+            return await import(join(ROOT, 'src/infrastructure/moq/wire.js'));
+        });
 
     // Build a server-side SETUP control stream: SETUP type + length 0.
     const setupBytes = encodeSetup([]);
@@ -102,15 +135,19 @@ test('IT-MOQ-02 session runs setup exchange, catalog subscription and object del
     const okBody = new Uint8Array(64);
     const okView = new DataView(okBody.buffer);
     let off = 0;
-    const wv = (v, o) => { // varint writer helper
+    const wv = (v, o) => {
+        // varint writer helper
         let size = 1;
         if (v >= 2 ** 7) size = 2;
         if (size === 1) okView.setUint8(o, v);
-        else okView.setUint8(o, 0x80 | (v >> 8)), okView.setUint8(o + 1, v & 0xff);
+        else
+            (okView.setUint8(o, 0x80 | (v >> 8)),
+                okView.setUint8(o + 1, v & 0xff));
         return size;
     };
     off += wv(4, off); // SUBSCRIBE_OK
-    okView.setUint16(off, 3, false); off += 2; // body: alias + 0 params + 0 properties
+    okView.setUint16(off, 3, false);
+    off += 2; // body: alias + 0 params + 0 properties
     off += wv(9, off); // track alias
     off += wv(0, off); // zero parameters
     off += wv(0, off); // zero track properties
@@ -121,7 +158,9 @@ test('IT-MOQ-02 session runs setup exchange, catalog subscription and object del
     const { connectMoq } = await loadSession();
     const events = [];
     const { session } = await connectMoq('moqt://relay.example/anon', {
-        WebTransportImpl: function () { return fake; },
+        WebTransportImpl: function () {
+            return fake;
+        },
         onEvent: (e) => events.push(e),
         onState: () => {},
     });
@@ -133,13 +172,18 @@ test('IT-MOQ-02 session runs setup exchange, catalog subscription and object del
         assert.ok(subWritten, 'SUBSCRIBE was written to the bidi stream');
         // Feed the SUBSCRIBE_OK reply back on that stream's readable.
         fake.biStreams[0].readable = streamFromChunks([okBytes]);
-        await session.readSubscribeReply(fake.biStreams[0], 1);
+        await session.readSubscribeReply(fake.biStreams[0], 0);
 
         await new Promise((r) => setTimeout(r, 80));
         const kinds = events.map((e) => e.type);
         assert.ok(kinds.includes('setup'), 'SETUP exchanged');
-        assert.ok(kinds.includes('subscription'), 'subscription events emitted');
-        const ok = events.find((e) => e.type === 'subscription' && e.status === 'ok');
+        assert.ok(
+            kinds.includes('subscription'),
+            'subscription events emitted'
+        );
+        const ok = events.find(
+            (e) => e.type === 'subscription' && e.status === 'ok'
+        );
         assert.ok(ok, 'SUBSCRIBE_OK correlated to the pending subscription');
         assert.equal(ok.trackAlias, 9);
         assert.ok(ok.rttMs >= 0, 'subscribe RTT measured');
@@ -147,5 +191,6 @@ test('IT-MOQ-02 session runs setup exchange, catalog subscription and object del
     } finally {
         await session.close();
     }
-    assert.equal(fake.closed, true);
+    // `closed` mirrors the WebTransport API: a promise that settles on close.
+    assert.equal(await fake.closed, false);
 });

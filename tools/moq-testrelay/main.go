@@ -40,6 +40,8 @@ import (
 const catalogPayload = `{"version":"1.0","generatedAt":"2026-10-14T09:00:00Z","isComplete":true,"tracks":[{"namespace":"anon","name":"video.high","packaging":"loc","role":"video","isLive":true,"targetLatency":2000,"bitrate":5000000,"mimeType":"video/mp4","width":1920,"height":1080,"codec":"avc1.640028"},{"name":"audio.en","packaging":"loc","role":"audio","isLive":true,"targetLatency":2000,"bitrate":128000,"mimeType":"audio/mp4","samplerate":48000,"channels":2}]}`
 
 // varint encodes per draft §8.1.
+var errShort = errors.New("short read")
+
 func varint(v uint64) []byte {
 	switch {
 	case v < 1<<7:
@@ -145,6 +147,73 @@ func issueFromCA(caCertPath, caKeyPath string) (tls.Certificate, error) {
 	}, nil
 }
 
+// bufReader parses a control-message payload.
+type bufReader struct {
+	b   []byte
+	off int
+	err error
+}
+
+func (r *bufReader) varint() (uint64, error) {
+	if r.err != nil {
+		return 0, r.err
+	}
+	v, n, err := varintBytes(r.b[r.off:])
+	if err != nil {
+		r.err = err
+		return 0, err
+	}
+	r.off += n
+	return v, nil
+}
+
+func (r *bufReader) bytes(n int) ([]byte, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	if r.off+n > len(r.b) {
+		r.err = errShort
+		return nil, r.err
+	}
+	out := r.b[r.off : r.off+n]
+	r.off += n
+	return out, nil
+}
+
+// varintBytes decodes one varint from a byte slice.
+func varintBytes(b []byte) (uint64, int, error) {
+	if len(b) == 0 {
+		return 0, 0, errShort
+	}
+	size := 1
+	switch {
+	case b[0]&0x80 != 0:
+		size = 2
+		if b[0]&0xc0 == 0xc0 {
+			size = 4
+			if b[0]&0xe0 == 0xe0 {
+				size = 8
+			}
+		}
+	}
+	if size > len(b) {
+		return 0, 0, errShort
+	}
+	var v uint64
+	switch size {
+	case 1:
+		v = uint64(b[0])
+	case 2:
+		v = uint64(b[0]&0x3f)<<8 | uint64(b[1])
+	case 4:
+		v = uint64(b[0]&0x0f)<<24 | uint64(b[1])<<16 | uint64(b[2])<<8 | uint64(b[3])
+	case 8:
+		v = uint64(b[0]&0x01)<<56 | uint64(b[1])<<48 | uint64(b[2])<<40 | uint64(b[3])<<32 |
+			uint64(b[4])<<24 | uint64(b[5])<<16 | uint64(b[6])<<8 | uint64(b[7])
+	}
+	return v, size, nil
+}
+
 func main() {
 	addr := flag.String("addr", ":4443", "WebTransport/HTTP-3 listen address")
 	spkiPath := flag.String("spki-out", "", "write the base64 SPKI hash of the server certificate to this file")
@@ -229,6 +298,53 @@ func main() {
 	}
 }
 
+// subscribeMsg is a SUBSCRIBE request per §9.9: Request ID, Track Namespace
+// (field count + length-prefixed fields), Track Name, parameter count.
+type subscribeMsg struct {
+	requestID uint64
+	namespace []string
+	name      string
+}
+
+func parseSubscribe(payload []byte) (subscribeMsg, error) {
+	var m subscribeMsg
+	r := &bufReader{b: payload}
+	id, err := r.varint()
+	if err != nil {
+		return m, err
+	}
+	m.requestID = id
+	nfields, err := r.varint()
+	if err != nil {
+		return m, err
+	}
+	fields := int(nfields)
+	for i := 0; i < fields; i++ {
+		n, err := r.varint()
+		if err != nil {
+			return m, err
+		}
+		b, err := r.bytes(int(n))
+		if err != nil {
+			return m, err
+		}
+		m.namespace = append(m.namespace, string(b))
+	}
+	nameLen, err := r.varint()
+	if err != nil {
+		return m, err
+	}
+	nb, err := r.bytes(int(nameLen))
+	if err != nil {
+		return m, err
+	}
+	m.name = string(nb)
+	if _, err := r.varint(); err != nil { // Number of Parameters
+		return m, err
+	}
+	return m, r.err
+}
+
 func handleSession(sess *webtransport.Session) {
 	// Consume the client's control stream (SETUP).
 	go func() {
@@ -284,10 +400,18 @@ func handleSession(sess *webtransport.Session) {
 			if err != nil {
 				return
 			}
-			logJSON("request", map[string]any{"type": t, "payloadBytes": len(payload)})
 			if t != 0x03 { // SUBSCRIBE
+				logJSON("request", map[string]any{"type": t, "payloadBytes": len(payload)})
 				return
 			}
+			// Parse the request per §9.9 — an independently written parser is
+			// the point of this relay, so a malformed client frame must fail.
+			subMsg, err := parseSubscribe(payload)
+			if err != nil {
+				logJSON("subscribe-malformed", map[string]any{"error": err.Error(), "payloadBytes": len(payload)})
+				return
+			}
+			logJSON("request", map[string]any{"type": "SUBSCRIBE", "requestId": subMsg.requestID, "namespace": subMsg.namespace, "name": subMsg.name})
 			// SUBSCRIBE_OK: track alias 42, no params, no properties.
 			ok := frame(0x04, append(varint(42), 0x00, 0x00))
 			if _, err := str.Write(ok); err != nil {

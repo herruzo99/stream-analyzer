@@ -163,7 +163,7 @@ SMPTE ST 2110/2022-7 (plant hardware, not WAN), Zixi/NDI (proprietary SDKs).
   independent markers), LL-DASH latency table, checks panel; wired into the
   shell navigation.
 
-### Item 3 — MoQ (draft-22) — DONE
+### Item 3 — MoQ (draft-22 + draft-16 interop) — DONE
 Browser-side MOQT client (`src/infrastructure/moq/`: varint + wire + session), MSF catalog
 normalization + telemetry derivation (`src/features/moq/domain/`), controller/store wiring
 and SRT Monitor integration (transport selector, catalog and subscription panels).

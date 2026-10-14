@@ -8,10 +8,14 @@
 
 import {
     MOQ_MESSAGE,
+    M16,
     decodeControlMessage,
     decodeObjectDatagram,
+    decodeObjectDatagram16,
     encodeSetup,
+    encodeSetup16,
     encodeSubscribe,
+    encodeTrackStatus,
 } from './wire.js';
 import { encodeVarint, readVarint } from './varint.js';
 import {
@@ -137,7 +141,7 @@ async function readKvps(buf, count) {
 }
 
 /** Length-prefixed control message read shared by control and reply streams. */
-async function readControlFrame(buf) {
+async function readControlFrame(buf, dialect = 'draft22') {
     const type = await buf.readVarint();
     const len = await buf.readBytes(2);
     const payloadLen = (len[0] << 8) | len[1];
@@ -149,7 +153,7 @@ async function readControlFrame(buf) {
     full.set(prefix, 0);
     full.set(len, prefix.length);
     full.set(payload, prefix.length + 2);
-    return decodeControlMessage(full);
+    return decodeControlMessage(full, dialect);
 }
 
 /**
@@ -232,6 +236,9 @@ async function openTransport(WT, url, init) {
  * @param {string} url moqt:// or https:// endpoint
  * @param {object} [options]
  * @param {typeof globalThis.WebTransport} [options.WebTransportImpl]
+ * @param {'draft22'|'draft16'|'auto'} [options.dialect] wire dialect; 'auto'
+ *   (default) tries draft-22 first and falls back to draft-16, which is what
+ *   every public relay currently deploys
  * @param {string[]} [options.namespace] catalog namespace (default: URL path)
  * @param {boolean} [options.subscribeCatalog] subscribe to the catalog track automatically
  * @param {(e: object) => void} [options.onEvent]
@@ -241,11 +248,52 @@ export async function connectMoq(url, options = {}) {
     const WT = options.WebTransportImpl ?? globalThis.WebTransport;
     if (!WT) throw new Error('WebTransport unsupported in this browser');
 
+    const dialect = options.dialect ?? 'auto';
+    if (dialect !== 'auto') return openSession(url, dialect, options, WT);
+
+    // Version probing: draft-22 is the newest spec text, draft-16 is what the
+    // public relays speak. The two are not wire-compatible at the first
+    // message, so the dialect is chosen by attempting them in order.
+    let lastError = null;
+    for (const candidate of ['draft22', 'draft16']) {
+        let attempt = null;
+        try {
+            attempt = await openSession(url, candidate, options, WT);
+            return attempt;
+        } catch (e) {
+            lastError = e;
+            // A half-open session keeps reader loops alive; release it before
+            // probing the next dialect.
+            await attempt?.session?.close?.().catch(() => {});
+        }
+    }
+    throw lastError ?? new Error('no MoQ dialect succeeded');
+}
+
+/** Open one session on one dialect; throws when the peer will not talk to it. */
+async function openSession(url, dialect, options, WT) {
     const namespace = options.namespace?.length
         ? options.namespace
         : namespaceFromUrl(url);
-    const session = new MoqSession(url, namespace, options);
+    const session = new MoqSession(url, namespace, options, dialect);
+    try {
+        return await openSessionInner(
+            session,
+            url,
+            dialect,
+            options,
+            WT,
+            namespace
+        );
+    } catch (e) {
+        // Never leave a half-open session (reader loops, telemetry timer)
+        // behind when the peer refuses this dialect.
+        await session.close?.().catch(() => {});
+        throw e;
+    }
+}
 
+async function openSessionInner(session, url, dialect, options, WT, namespace) {
     // Loopback gets the relay's dev certificate pinned (see webTransportInit).
     // If a locally trusted certificate is used instead (mkcert-style CA), the
     // pin cannot match, so fall back to plain TLS once.
@@ -257,33 +305,51 @@ export async function connectMoq(url, options = {}) {
         session.transport = await openTransport(WT, url, undefined);
     }
 
-    session.onState('connecting');
     await session.transport.ready;
     session.onState('connected');
 
-    // Control stream: SETUP is the first message (§6.3).
-    // createUnidirectionalStream() resolves to the WritableStream itself.
-    const control = await session.transport.createUnidirectionalStream();
-    const w = control.getWriter();
-    await w.write(encodeSetup([]));
-    session.controlWriter = w;
-    session.onState('setup-sent');
-
-    session.consumeStreams();
-    session.consumeDatagrams();
+    if (dialect === 'draft16') {
+        // §3.3 (draft-16): one client-initiated bidirectional control stream
+        // carries CLIENT_SETUP, SUBSCRIBE and the matching replies.
+        const control = await session.transport.createBidirectionalStream();
+        const writer = control.writable.getWriter();
+        await writer.write(encodeSetup16());
+        session.controlWriter = writer;
+        session.onState('setup-sent');
+        session.consumeStreams();
+        session.consumeDatagrams();
+        session.consumeControl16(control.readable);
+    } else {
+        session.onState('connecting');
+        // Control stream: SETUP is the first message (§6.3 of draft-22).
+        // createUnidirectionalStream() resolves to the WritableStream itself.
+        const control = await session.transport.createUnidirectionalStream();
+        const w = control.getWriter();
+        await w.write(encodeSetup([]));
+        session.controlWriter = w;
+        session.onState('setup-sent');
+        session.consumeStreams();
+        session.consumeDatagrams();
+        await session.awaitSetup();
+    }
 
     if (options.subscribeCatalog !== false) {
         // MSF §5: the catalog track is named 'catalog' in the broadcast namespace.
-        await session.subscribe(1, namespace, CATALOG_TRACK_NAME);
+        await session.subscribe(
+            session.nextRequestId(),
+            namespace,
+            CATALOG_TRACK_NAME
+        );
     }
     return { session };
 }
 
 export class MoqSession {
-    constructor(url, namespace, options = {}) {
+    constructor(url, namespace, options = {}, dialect = 'draft22') {
         this.url = url;
         this.namespace = namespace;
         this.options = options;
+        this.dialect = dialect;
         this.transport = null;
         this.controlWriter = null;
         this.setupComplete = false;
@@ -299,6 +365,8 @@ export class MoqSession {
         // before the SUBSCRIBE_OK reply) are buffered briefly (draft §3.1.3.1).
         this.pendingByAlias = new Map();
         this.pendingAliasBudget = 4096;
+        /** @type {Map<number, (r: object) => void>} outstanding TRACK_STATUS probes */
+        this.trackStatusWaiters = new Map();
         this.catalog = null;
         this.continuityGaps = 0;
         this.lastSample = null;
@@ -312,7 +380,63 @@ export class MoqSession {
             since: Date.now(),
         };
         this._lastSubscribeRttMs = 0;
-        this._requestCounter = 100;
+        // §6.4.2.1 / §9.1: the client's Request IDs are even, start at 0 and
+        // increment by 2; the peer closes the session on a wrong sequence.
+        this._requestCounter = 0;
+        // Resolved when the peer's SETUP lands; awaited by dialect probing.
+        this._setupResolve = null;
+        this._setupPromise = new Promise((r) => {
+            this._setupResolve = r;
+        });
+    }
+
+    /** Resolve the setup promise (idempotent). */
+    _resolveSetup() {
+        this._setupResolve?.();
+        this._setupResolve = null;
+    }
+
+    /**
+     * Wait for the peer's SETUP reply, bounded by a timeout. Used by dialect
+     * probing: a server that will not answer the setup on this dialect closes
+     * the connection or stays silent, both of which must fail fast.
+     */
+    async awaitSetup(timeoutMs = 4000) {
+        let timer;
+        const racers = [
+            new Promise((_, reject) => {
+                timer = setTimeout(
+                    () =>
+                        reject(
+                            new Error(`no SETUP reply within ${timeoutMs}ms`)
+                        ),
+                    timeoutMs
+                );
+            }),
+        ];
+        // Only real WebTransport promises can be raced; guard for test doubles
+        // (and older implementations) that expose `closed` as a non-promise.
+        const closed = this.transport?.closed;
+        if (closed && typeof closed.then === 'function') {
+            racers.push(
+                closed.then(
+                    (i) =>
+                        Promise.reject(
+                            new Error(
+                                `transport closed before SETUP: ${i?.reason ?? 'peer'}`
+                            )
+                        ),
+                    (e) => Promise.reject(e)
+                )
+            );
+        }
+        racers.push(this._setupPromise);
+        try {
+            await Promise.race(racers);
+        } finally {
+            clearTimeout(timer);
+        }
+        return true;
     }
 
     onState(state) {
@@ -334,7 +458,10 @@ export class MoqSession {
                 const buf = new StreamByteReader(reader);
                 const peeked = await buf.peekVarint();
                 if (peeked === null) continue;
-                if (peeked.value === BigInt(MOQ_MESSAGE.SETUP)) {
+                if (
+                    peeked.value === BigInt(MOQ_MESSAGE.SETUP) ||
+                    peeked.value === BigInt(M16.SERVER_SETUP)
+                ) {
                     this.readControlStream(buf);
                 } else if (
                     peeked.size === 1 &&
@@ -352,12 +479,92 @@ export class MoqSession {
     async readControlStream(buf) {
         try {
             for (;;) {
-                const msg = await readControlFrame(buf);
-                if (msg.type === 'SETUP') {
+                const msg = await readControlFrame(buf, this.dialect);
+                if (msg.type === 'SETUP' || msg.type === 'SERVER_SETUP') {
                     this.setupComplete = true;
                     this.onState('setup-complete');
                     this._emit({ type: 'setup', options: msg.options ?? [] });
+                    this._resolveSetup();
                     this.startTelemetry();
+                    continue;
+                }
+                this.handleControlMessage(msg);
+            }
+        } catch {
+            /* control stream ended */
+        }
+    }
+
+    /**
+     * draft-16 control loop: the bidirectional control stream carries
+     * SERVER_SETUP, SUBSCRIBE_OK and REQUEST_ERROR, each SUBSCRIBE_OK
+     * carrying its Request ID (§9.10).
+     */
+    async consumeControl16(readable) {
+        const reader = readable.getReader();
+        const buf = new StreamByteReader(reader);
+        try {
+            for (;;) {
+                const msg = await readControlFrame(buf, 'draft16');
+                if (
+                    msg.type === 'SERVER_SETUP' ||
+                    msg.type === 'CLIENT_SETUP'
+                ) {
+                    this.setupComplete = true;
+                    this.onState('setup-complete');
+                    this._emit({ type: 'setup', options: msg.params ?? [] });
+                    this._resolveSetup();
+                    this.startTelemetry();
+                    continue;
+                }
+                if (msg.type === 'SUBSCRIBE_OK') {
+                    const requestId = msg.requestId;
+                    const sub = this.subscriptions.get(requestId);
+                    if (sub) {
+                        sub.trackAlias = msg.trackAlias;
+                        sub.status = 'ok';
+                        sub.subscribeRttMs = Date.now() - sub.openedAt;
+                        this._lastSubscribeRttMs = sub.subscribeRttMs;
+                        this.aliasToRequest.set(msg.trackAlias, requestId);
+                        this._emit({
+                            type: 'subscription',
+                            requestId,
+                            status: 'ok',
+                            trackAlias: msg.trackAlias,
+                            rttMs: sub.subscribeRttMs,
+                            trackProperties: msg.trackProperties,
+                        });
+                        this.flushAlias(msg.trackAlias);
+                    }
+                    continue;
+                }
+                if (msg.type === 'REQUEST_ERROR') {
+                    const waiter = this.trackStatusWaiters.get(msg.requestId);
+                    if (waiter) {
+                        this.trackStatusWaiters.delete(msg.requestId);
+                        waiter({
+                            ok: false,
+                            code: msg.code,
+                            reason: msg.reason,
+                        });
+                        continue;
+                    }
+                    const sub = this.subscriptions.get(msg.requestId);
+                    if (sub) sub.status = 'error';
+                    this._emit({
+                        type: 'subscription',
+                        requestId: msg.requestId,
+                        status: 'error',
+                        error: msg.reason,
+                        code: msg.code,
+                    });
+                    continue;
+                }
+                if (msg.type === 'REQUEST_OK') {
+                    const waiter = this.trackStatusWaiters.get(
+                        this._lastStatusId
+                    );
+                    void waiter;
                     continue;
                 }
                 this.handleControlMessage(msg);
@@ -415,11 +622,61 @@ export class MoqSession {
      * on the same bidirectional stream and is correlated by request id.
      * @returns {Promise<number>} request id
      */
+    /**
+     * Ask a relay whether a track exists, without subscribing (draft-16
+     * §9.19). Used for broadcast discovery: Cloudflare-style relays publish
+     * their own set of tracks, so the catalog track name is not universal.
+     * @returns {Promise<{ok: boolean, code?: number, reason?: string}>}
+     */
+    probeTrack(namespace, name) {
+        if (this.dialect !== 'draft16') {
+            return Promise.resolve({
+                ok: false,
+                reason: 'track discovery is draft-16 only',
+            });
+        }
+        const id = this.nextRequestId();
+        this._lastStatusId = id;
+        return new Promise((resolve) => {
+            const timer = setTimeout(() => {
+                this.trackStatusWaiters.delete(id);
+                resolve({ ok: false, reason: 'no TRACK_STATUS reply' });
+            }, 4000);
+            this.trackStatusWaiters.set(id, (r) => {
+                clearTimeout(timer);
+                resolve(r);
+            });
+            this.controlWriter
+                .write(encodeTrackStatus(id, namespace, name, M16.TRACK_STATUS))
+                .catch((e) => {
+                    clearTimeout(timer);
+                    this.trackStatusWaiters.delete(id);
+                    resolve({ ok: false, reason: String(e?.message ?? e) });
+                });
+        });
+    }
+
+    /** Next client Request ID: even, starting at 0, +2 per request. */
+    nextRequestId() {
+        const id = this._requestCounter;
+        this._requestCounter += 2;
+        return id;
+    }
+
     async subscribe(requestId, namespace, name) {
-        const id = requestId ?? this._requestCounter++;
-        const stream = await this.transport.createBidirectionalStream();
-        const writer = stream.writable.getWriter();
-        await writer.write(encodeSubscribe(id, namespace, name, []));
+        const id = requestId ?? this.nextRequestId();
+        if (this.dialect === 'draft16') {
+            // Requests share the single bidirectional control stream (§3.3);
+            // replies arrive there and are routed by their Request ID.
+            await this.controlWriter.write(
+                encodeSubscribe(id, namespace, name, [])
+            );
+        } else {
+            const stream = await this.transport.createBidirectionalStream();
+            const writer = stream.writable.getWriter();
+            await writer.write(encodeSubscribe(id, namespace, name, []));
+            this.readSubscribeReply(stream, id);
+        }
         this.subscriptions.set(id, {
             requestId: id,
             namespace,
@@ -438,7 +695,6 @@ export class MoqSession {
             namespace,
             name,
         });
-        this.readSubscribeReply(stream, id);
         return id;
     }
 
@@ -503,7 +759,10 @@ export class MoqSession {
     }
 
     handleObjectDatagram(bytes) {
-        const obj = decodeObjectDatagram(bytes);
+        const obj =
+            this.dialect === 'draft16'
+                ? decodeObjectDatagram16(bytes)
+                : decodeObjectDatagram(bytes);
         this._accountObject('datagram', obj);
     }
 
@@ -643,7 +902,10 @@ export class MoqSession {
     // --- telemetry -----------------------------------------------------------------------
 
     startTelemetry() {
-        if (this.telemetryTimer) return;
+        // A session can be closed before the peer's SETUP frame arrives (the
+        // reader loops run concurrently), so never arm the timer on a dead
+        // session.
+        if (this.telemetryTimer || this.closed) return;
         this.telemetryTimer = setInterval(() => {
             const now = Date.now();
             const intervalMs = now - this._interval.since;

@@ -103,9 +103,10 @@ test('AT-MOQ-CTRL-02 SUBSCRIBE round-trips namespace, name, request id', () => {
     const body = new ByteReader(bytes, r.offset);
     body.end = Math.min(r.offset + len, bytes.length);
     const requestId = body.varint();
-    const nsLen = body.varint();
-    const nsBytes = body.bytes_(nsLen);
-    const namespace = decodeTrackNamespace(new ByteReader(nsBytes));
+    // §9.9: the Track Namespace follows the Request ID directly — it is
+    // self-delimiting (field count + length-prefixed fields), with no
+    // length prefix of its own.
+    const namespace = decodeTrackNamespace(body);
     const nameLen = body.varint();
     const name = new TextDecoder().decode(body.bytes_(nameLen));
     assert.equal(requestId, 42);
@@ -118,9 +119,21 @@ test('AT-MOQ-CTRL-03 namespace tuple encoding round-trips', () => {
     encodeTrackNamespace(w, ['anon', 'bbb']);
     const decoded = decodeTrackNamespace(new ByteReader(w.finish()));
     assert.deepEqual(decoded, ['anon', 'bbb']);
-    const numeric = new ByteWriter(64);
-    encodeTrackNamespace(numeric, [0, 'x']);
-    assert.deepEqual(decodeTrackNamespace(new ByteReader(numeric.finish())), [0, 'x']);
+});
+
+test('AT-MOQ-CTRL-03b namespace fields are count-prefixed byte strings', () => {
+    // §8.7 (draft-22) / §2.4.1 (draft-16): Number of Fields, then
+    // Length + Value per field — no delta-typed KVP encoding.
+    const w = new ByteWriter(64);
+    encodeTrackNamespace(w, ['anon', 'bbb']);
+    const bytes = w.finish();
+    assert.deepEqual(Array.from(bytes), [
+        2, // two fields
+        4, 0x61, 0x6e, 0x6f, 0x6e, // 'anon'
+        3, 0x62, 0x62, 0x62, // 'bbb'
+    ]);
+    const bad = new ByteReader(Uint8Array.of(33, 0x61));
+    assert.throws(() => decodeTrackNamespace(bad), /> 32/);
 });
 
 test('AT-MOQ-CTRL-04 unknown control types decode losslessly', () => {

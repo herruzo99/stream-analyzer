@@ -151,39 +151,28 @@ export class ByteWriter {
     }
 }
 
-// --- Track namespaces (§8.7): tuples of KVP pairs ------------------------------
-
+/**
+ * Track namespace fields (§8.7 in -22, §2.4.1 in -16): the encoding is
+ * identical in both dialects — a field count followed by length-prefixed
+ * byte strings. No delta-typed KVP encoding is involved.
+ */
 export function decodeTrackNamespace(r) {
     const count = r.varint();
+    if (count > 32) throw new Error(`namespace has ${count} fields (> 32)`);
     const out = [];
-    let prev = 0;
     for (let i = 0; i < count; i++) {
-        const delta = r.varint();
-        prev += delta;
-        if (prev % 2 === 0) {
-            out.push(Number(r.varint()));
-        } else {
-            const len = r.varint();
-            out.push(new TextDecoder().decode(r.bytes_(len)));
-        }
+        const len = r.varint();
+        out.push(new TextDecoder().decode(r.bytes_(len)));
     }
     return out;
 }
 
 export function encodeTrackNamespace(w, namespace) {
     w.varint(namespace.length);
-    let prev = 0;
     for (const part of namespace) {
-        const type = typeof part === 'number' ? part : 1; // even = integer, odd = string placeholder
-        w.varint(type - prev);
-        if (typeof part === 'number') {
-            w.varint(part);
-        } else {
-            const bytes = new TextEncoder().encode(part);
-            w.varint(bytes.length);
-            w.raw(bytes);
-        }
-        prev = type;
+        const bytes = new TextEncoder().encode(String(part));
+        w.varint(bytes.length);
+        w.raw(bytes);
     }
 }
 
@@ -207,12 +196,46 @@ export function encodeSetup(payload = []) {
     return w.finish();
 }
 
-export function encodeSubscribe(requestId, namespace, name, params = []) {
+/**
+ * TRACK_STATUS (§9.19 in draft-16): identical wire shape to SUBSCRIBE, but
+ * answered with REQUEST_OK carrying the parameters a SUBSCRIBE_OK would have.
+ */
+export function encodeTrackStatus(requestId, namespace, name, messageType) {
     const ns = new ByteWriter(128);
     encodeTrackNamespace(ns, namespace);
     const body = new ByteWriter(256);
     body.varint(requestId);
-    body.varint(ns.offset);
+    body.raw(ns.finish());
+    const nameBytes = new TextEncoder().encode(name);
+    body.varint(nameBytes.length);
+    body.raw(nameBytes);
+    body.varint(0); // Number of Parameters
+    const w = new ByteWriter(16);
+    messageHeader(w, messageType, body.offset);
+    w.raw(body.finish());
+    return w.finish();
+}
+
+/**
+ * draft-16 CLIENT_SETUP (§9.3): Type 0x20, Length, Number of Parameters,
+ * Setup Parameters. We send none — every parameter is optional, and unknown
+ * ones must be ignored by the server anyway.
+ */
+export function encodeSetup16() {
+    const w = new ByteWriter(16);
+    messageHeader(w, M16.CLIENT_SETUP, 1);
+    w.varint(0); // Number of Parameters
+    return w.finish();
+}
+
+export function encodeSubscribe(requestId, namespace, name, params = []) {
+    // SUBSCRIBE (§9.9 of both dialects): Request ID, Track Namespace,
+    // Track Name Length, Track Name, parameter count, parameters. The
+    // namespace is self-delimiting — there is no length prefix on it.
+    const ns = new ByteWriter(128);
+    encodeTrackNamespace(ns, namespace);
+    const body = new ByteWriter(256);
+    body.varint(requestId);
     body.raw(ns.finish());
     const nameBytes = new TextEncoder().encode(name);
     body.varint(nameBytes.length);
@@ -225,7 +248,7 @@ export function encodeSubscribe(requestId, namespace, name, params = []) {
     return w.finish();
 }
 
-export function encodeTrackStatus(requestId, namespace, name) {
+export function encodeTrackStatus22(requestId, namespace, name) {
     return encodeSubscribe(requestId, namespace, name, []);
 }
 
@@ -234,12 +257,14 @@ export function encodeSubscribeNamespace(
     namespace,
     subscribe = true
 ) {
+    // SUBSCRIBE_NAMESPACE (§9.25 in -22): Request ID, Track Namespace
+    // Prefix, parameter count, parameters — again no namespace length.
     const ns = new ByteWriter(128);
     encodeTrackNamespace(ns, namespace);
     const body = new ByteWriter(16);
     body.varint(requestId);
-    body.varint(ns.offset);
     body.raw(ns.finish());
+    body.varint(0);
     const w = new ByteWriter(16);
     messageHeader(
         w,
@@ -252,14 +277,98 @@ export function encodeSubscribeNamespace(
     return w.finish();
 }
 
+// --- draft-ietf-moq-transport-16 (the dialect real relays deploy) ---------------
+//
+// Drafts up to 16 differ from draft-22 in the control plane: SETUP is split
+// into CLIENT_SETUP (0x20) / SERVER_SETUP (0x21) with a parameter count
+// prefix, the control stream is a single bidirectional stream, SUBSCRIBE_OK
+// and REQUEST_ERROR carry the Request ID, and OBJECT_DATAGRAM has no 0x40
+// datagram marker bit (it uses 0b00X0XXXX with the STATUS bit at 0x20).
+// Subgroup headers share draft-22's layout, so decodeSubgroupHeader and
+// decodeSubgroupObject are reused unchanged.
+
+export const M16 = Object.freeze({
+    CLIENT_SETUP: 0x20,
+    SERVER_SETUP: 0x21,
+    REQUEST_ERROR: 0x05,
+    REQUEST_OK: 0x07,
+    SUBSCRIBE: 0x03,
+    SUBSCRIBE_OK: 0x04,
+    TRACK_STATUS: 0x0d,
+    SUBSCRIBE_NAMESPACE: 0x11,
+});
+
+/** draft-16 datagram flag bits (0b00X0XXXX, §10.3.1). */
+export const DATAGRAM16_FLAGS = Object.freeze({
+    EXTENSIONS: 0x01,
+    END_OF_GROUP: 0x02,
+    ZERO_OBJECT_ID: 0x04,
+    DEFAULT_PRIORITY: 0x08,
+    STATUS: 0x20,
+});
+
+/** draft-16 OBJECT_DATAGRAM: no Length field, payload runs to the datagram end. */
+export function decodeObjectDatagram16(bytes) {
+    const r = new ByteReader(bytes);
+    const flags = r.varint();
+    const valid =
+        (flags <= 0x0f && (flags & 0x10) === 0) ||
+        (flags >= 0x20 && flags <= 0x2f && (flags & 0x10) === 0);
+    if (!valid) {
+        throw new Error(`datagram type 0x${flags.toString(16)} not 0b00X0XXXX`);
+    }
+    if (
+        (flags & DATAGRAM16_FLAGS.STATUS) !== 0 &&
+        (flags & DATAGRAM16_FLAGS.END_OF_GROUP) !== 0
+    ) {
+        throw new Error('datagram sets STATUS and END_OF_GROUP together');
+    }
+    const trackAlias = r.varint();
+    const groupId = r.varint();
+    const objectId =
+        (flags & DATAGRAM16_FLAGS.ZERO_OBJECT_ID) !== 0 ? 0 : r.varint();
+    const priority =
+        (flags & DATAGRAM16_FLAGS.DEFAULT_PRIORITY) !== 0 ? null : r.uint8();
+    let properties = null;
+    if ((flags & DATAGRAM16_FLAGS.EXTENSIONS) !== 0) {
+        const n = r.varint();
+        properties = decodeKvpList(r, n);
+    }
+    const endOfGroup = (flags & DATAGRAM16_FLAGS.END_OF_GROUP) !== 0;
+    if ((flags & DATAGRAM16_FLAGS.STATUS) !== 0) {
+        const status = r.varint();
+        return {
+            trackAlias,
+            groupId,
+            objectId,
+            payload: null,
+            status,
+            priority,
+            endOfGroup,
+            properties,
+        };
+    }
+    return {
+        trackAlias,
+        groupId,
+        objectId,
+        payload: r.rest(),
+        status: OBJECT_STATUS.NORMAL,
+        priority,
+        endOfGroup,
+        properties,
+    };
+}
+
 // --- Control message decoders ----------------------------------------------------
 
-export function decodeControlMessage(bytes) {
+export function decodeControlMessage(bytes, dialect = 'draft22') {
     const r = new ByteReader(bytes);
     const type = r.varint();
     const len = (r.uint8() << 8) | r.uint8();
     const body = new ByteReader(bytes, r.offset);
     body.end = Math.min(r.offset + len, bytes.length);
+    const d16 = dialect === 'draft16';
     switch (type) {
         case MOQ_MESSAGE.SETUP: {
             // Setup Options span the entire payload; there is no count prefix
@@ -267,10 +376,36 @@ export function decodeControlMessage(bytes) {
             const options = body.remaining > 0 ? decodeKvpListToEnd(body) : [];
             return { type: 'SETUP', options };
         }
+        case M16.CLIENT_SETUP:
+        case M16.SERVER_SETUP: {
+            // §9.3: Type, Length, Number of Parameters, Setup Parameters.
+            const nParams = body.varint();
+            const params = decodeKvpList(body, nParams);
+            return {
+                type:
+                    type === M16.CLIENT_SETUP ? 'CLIENT_SETUP' : 'SERVER_SETUP',
+                params,
+            };
+        }
         case MOQ_MESSAGE.SUBSCRIBE_OK: {
+            // draft-16 leads with the Request ID (§9.10); draft-22 does not.
+            const requestId = d16 ? Number(body.varint()) : null;
             const alias = body.varint();
             const nParams = body.varint();
             const params = decodeKvpList(body, nParams);
+            if (d16) {
+                const extLen = body.varint();
+                const trackExtensions = body.bytes_(extLen);
+                const propsReader = new ByteReader(trackExtensions);
+                return {
+                    type: 'SUBSCRIBE_OK',
+                    requestId,
+                    trackAlias: alias,
+                    params,
+                    trackExtensions,
+                    trackProperties: decodeKvpListToEnd(propsReader),
+                };
+            }
             const nProps = body.varint();
             const properties = decodeKvpList(body, nProps);
             return {
@@ -293,14 +428,34 @@ export function decodeControlMessage(bytes) {
                 trackProperties: properties,
             };
         }
-        case MOQ_MESSAGE.REQUEST_OK: {
-            const nParams = body.varint();
-            const params = decodeKvpList(body, nParams);
-            const nProps = body.varint();
-            const properties = decodeKvpList(body, nProps);
-            return { type: 'REQUEST_OK', params, trackProperties: properties };
+        case MOQ_MESSAGE.REQUEST_OK:
+        case M16.REQUEST_OK: {
+            // §9.7: Request ID, Number of Parameters, Parameters (and the
+            // draft-22 track-properties list). The reply echoes what a
+            // SUBSCRIBE_OK would have carried for the same track.
+            const requestId = Number(body.varint());
+            const params = decodeKvpList(body, body.varint());
+            const trackProperties = d16
+                ? decodeKvpListToEnd(body)
+                : decodeKvpList(body, body.varint());
+            return { type: 'REQUEST_OK', requestId, params, trackProperties };
         }
         case MOQ_MESSAGE.REQUEST_ERROR: {
+            if (d16) {
+                // §9.8 (draft-16): Request ID, Error Code, Retry Interval, Reason.
+                const requestId = Number(body.varint());
+                const code = body.varint();
+                const retry = body.varint();
+                const reasonLen = body.varint();
+                const reason = new TextDecoder().decode(body.bytes_(reasonLen));
+                return {
+                    type: 'REQUEST_ERROR',
+                    requestId,
+                    code,
+                    retryIntervalMs: retry,
+                    reason,
+                };
+            }
             const code = body.varint();
             const retry = body.varint();
             const reasonLen = body.varint();
