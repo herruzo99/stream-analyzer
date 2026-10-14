@@ -3,6 +3,7 @@
 // 'srt' route key. Pure lit-html rendering over the srtStore.
 import { html, render } from 'lit-html';
 import { eventBus } from '@/application/event-bus.js';
+import { showToast } from '@/ui/components/toast.js';
 import { appLog } from '@/shared/utils/debug';
 import {
     refreshSrtStatus,
@@ -418,16 +419,29 @@ function newSessionForm() {
                 />
                 <button
                     class="px-3 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-xs"
-                    @click=${() => {
+                    @click=${async () => {
                         const url = draft.trim();
-                        if (transportDraft === 'srt') {
-                            startSrtSession(url);
-                        } else if (transportDraft === 'webrtc') {
-                            startWebrtcSession(url);
-                        } else if (transportDraft === 'whip') {
-                            startWhipSession(url);
-                        } else {
-                            startWebTransportSession(url);
+                        let result;
+                        try {
+                            result =
+                                transportDraft === 'srt'
+                                    ? await startSrtSession(url)
+                                    : transportDraft === 'webrtc'
+                                      ? await startWebrtcSession(url)
+                                      : transportDraft === 'whip'
+                                        ? await startWhipSession(url)
+                                        : await startWebTransportSession(url);
+                        } catch (err) {
+                            result = {
+                                ok: false,
+                                error: String(err?.message ?? err),
+                            };
+                        }
+                        if (result && result.ok === false) {
+                            showToast({
+                                message: `Connect failed: ${result.error}`,
+                                type: 'fail',
+                            });
                         }
                     }}
                 >
