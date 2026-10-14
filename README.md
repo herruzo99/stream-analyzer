@@ -17,6 +17,8 @@ An advanced, browser-based tool for analyzing and comparing DASH & HLS streaming
 - **Timeline Visualization**: Visual representation of segments, events, and ad breaks.
 - **Feature Analysis**: A summary of which streaming features (e.g., low latency, multi-period, DRM) are being used.
 - **Live Stream Monitoring**: Automatically fetch and diff manifest updates for live streams, highlighting changes and new compliance issues.
+- **WebRTC (WHEP playback / WHIP publish)**: native browser transport with getStats-derived telemetry (RTT, loss, NACKs, quality limitation) in the same monitor, charts, rules and exports as SRT.
+- **Low-Latency analysis**: part-level LL-HLS (EXT-X-PART / EXT-X-PART-INF / server-control) timeline and LL-DASH ServiceDescription latency view with LL conformance checks.
 
 ### SRT (Secure Reliable Transport) support
 

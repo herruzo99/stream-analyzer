@@ -25,6 +25,8 @@ VSF 23009-5 (DASH), ITU H.222, SCTE-35, RFC 6381, and the SRT RFC draft
 
 ## Implementation order
 
+> **STATUS: IMPLEMENTED (2026-10-14, commit in `feat/srt-integration`) — see §Implementation log.**
+
 ### 1. WebRTC WHIP (publish) — P1, ~2-4 days
 **Why first:** RFC 9725 is final; the WHEP adapter is built and live-verified.
 Mirroring it gives full browser-native coverage (pull AND push) and completes
@@ -37,6 +39,8 @@ Fetch list:
 - `W3C "Identifiers for WebRTC's Statistics API"` (webrtc-stats) — canonical
   field names for the getStats normalizer (already implemented, tightens tests)
 - latest `draft-ietf-wish-whep` — parity reference for the egress side
+
+> **STATUS: IMPLEMENTED (2026-10-14) — see §Implementation log.**
 
 ### 2. LL-HLS / LL-DASH part-level analysis — quick win, ~3-5 days
 **Why second:** zero new transport work; the parsers already emit parts; the
@@ -122,6 +126,45 @@ the ISOBMFF parser.
 
 ### Excluded (by design, from the expansion analysis)
 SMPTE ST 2110/2022-7 (plant hardware, not WAN), Zixi/NDI (proprietary SDKs).
+
+---
+
+---
+
+## Implementation log
+
+### Item 1 — WHIP (publish) — DONE
+- `src/infrastructure/webrtc/adapter.js`: `connectWhip()` + `normalizePublishStats()`
+  — sendonly transceivers with track attachment, RFC 9725 offer/answer
+  handshake, 1 Hz publish-side telemetry (packetsSent/bytesSent → mbpsSend,
+  server-side loss from remote-inbound-rtp, RTT, NACKs, quality limitation,
+  DTLS state as the encryption signal).
+- 5 heux contract tests (`tests/heux/whip-contract.test.mjs`).
+- Wiring: `startWhipSession`/`stopWhipSession` in the SRT controller (getUserMedia
+  track source with graceful fallback), stopAnySession routing, SRT Monitor
+  transport selector, session titles, report taxonomy.
+- **Live-verified**: aiortc publisher → MediaMTX WHIP endpoint → 202 packets,
+  DTLS connected; the captured real stats normalize through
+  `normalizePublishStats` (LIVE-WHIP-E2E pass).
+
+### Item 2 — LL-HLS / LL-DASH part analysis — DONE
+- `src/features/lowLatency/domain/llAnalysis.js` (pure): HLS part timeline
+  (PART-TARGET, server control, per-segment parts, independent flags,
+  preload hints), LL-HLS conformance checks (target drift, missing
+  independent parts, part-sum mismatch, PART-INF presence), LL-DASH
+  ServiceDescription/Latency view + range checks, playlist-declared latency
+  accounting (never fabricating measured values).
+- 8 heux contract tests + **4 integration tests** that bundle the REAL
+  parsers (HLS + DASH) via esbuild and feed the domain module
+  (`tests/integration/ll-integration.test.mjs`, wired into `npm test`).
+- UI: `low-latency` route — per-variant part timeline (bar rendering with
+  independent markers), LL-DASH latency table, checks panel; wired into the
+  shell navigation.
+
+### Verification summary
+- 132/132 node tests (63 baseline + 69 new heux/integration across all SRT
+  work), ESLint 0, tsc at the 43-error main baseline, production build green.
+- Go suite green; ffmpeg SRT smoke passes.
 
 ---
 

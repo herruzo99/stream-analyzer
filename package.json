@@ -13,7 +13,7 @@
         "dev": "rm -rf dist && mkdir -p dist/assets && npm-run-all --parallel watch:*",
         "typecheck": "tsc --noEmit -p tsconfig.json",
         "lint": "eslint . --ext .js",
-        "test": "node --test tests/foundation/*.test.mjs tests/heux/*.test.mjs",
+        "test": "node --test tests/foundation/*.test.mjs tests/heux/*.test.mjs tests/integration/*.test.mjs",
         "format": "prettier --write ."
     },
     "keywords": [],
