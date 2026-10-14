@@ -52,6 +52,8 @@ timeline feature).
 Scope: part timeline component, LL-DASH availability-window checks, join with
 the SRT latency budget panel where both exist.
 
+> **STATUS: IMPLEMENTED (2026-10-14, commit `a98bcc7`) — see §Implementation log.**
+
 ### 3. MoQ / Media over QUIC — P1, ~1-2 weeks (after docs land)
 **Why third:** the strategic one (it merges the WebRTC-latency and CDN-scale
 models; Cloudflare runs a public relay — testable for real). Rides the
@@ -160,6 +162,17 @@ SMPTE ST 2110/2022-7 (plant hardware, not WAN), Zixi/NDI (proprietary SDKs).
 - UI: `low-latency` route — per-variant part timeline (bar rendering with
   independent markers), LL-DASH latency table, checks panel; wired into the
   shell navigation.
+
+### Item 3 — MoQ (draft-22) — DONE
+Browser-side MOQT client (`src/infrastructure/moq/`: varint + wire + session), MSF catalog
+normalization + telemetry derivation (`src/features/moq/domain/`), controller/store wiring
+and SRT Monitor integration (transport selector, catalog and subscription panels).
+Live-verified: Chromium over real WebTransport/QUIC ↔ `tools/moq-testrelay` (independent Go
+draft-22 implementation) — SETUP exchange, SUBSCRIBE/OK with measured RTT, MSF catalog,
+datagram + subgroup objects, telemetry. The live run caught four real bugs (uni-stream API
+shape, subgroup header decode source, alias-before-reply buffering, first-object gap).
+Cloudflare's public relay is draft-14 and wire-incompatible with this client; the bundled Go
+relay is the verification path.
 
 ### Verification summary
 - 132/132 node tests (63 baseline + 69 new heux/integration across all SRT
