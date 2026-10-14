@@ -524,6 +524,18 @@ export function initializeSrtSourceFeature() {
         // route to their own pipelines (example entries and hand-typed URLs
         // share this one entry point).
         const route = routeExampleUrl(url);
+        if (route.kind === 'rtmp') {
+            const { startRtmpSession } =
+                await import('@/features/rtmpSource/application/rtmpController.js');
+            const result = await startRtmpSession(url);
+            eventBus.dispatch(EVENTS.UI.SHOW_STATUS, {
+                message: result.ok
+                    ? `RTMP session starting (${url}).`
+                    : `RTMP session failed: ${result.error}`,
+                type: result.ok ? 'success' : 'warn',
+            });
+            return;
+        }
         if (route.kind === 'moq') {
             const { startMoqSession } =
                 await import('@/features/moq/application/moqController.js');

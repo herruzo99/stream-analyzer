@@ -24,6 +24,10 @@ import {
     startWhipSession,
 } from '@/features/srtSource/application/srtController.js';
 import { startMoqSession } from '@/features/moq/application/moqController.js';
+import {
+    getRtmpDetailFor,
+    startRtmpSession,
+} from '@/features/rtmpSource/application/rtmpController.js';
 import { analyzeTsChunk } from '@/features/srtSource/domain/tsAnalytics.js';
 import { analyzeAvSync } from '@/features/srtSource/domain/avSync.js';
 import {
@@ -410,6 +414,7 @@ function newSessionForm() {
                     <option value="webtransport">WebTransport</option>
                     <option value="whip">WebRTC WHIP (publish)</option>
                     <option value="moq">MoQ (WebTransport)</option>
+                    <option value="rtmp">RTMP (helper)</option>
                 </select>
                 <input
                     class="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs font-mono"
@@ -441,7 +446,11 @@ function newSessionForm() {
                                         ? await startWhipSession(url)
                                         : transportDraft === 'moq'
                                           ? await startMoqSession(url)
-                                          : await startWebTransportSession(url);
+                                          : transportDraft === 'rtmp'
+                                            ? await startRtmpSession(url)
+                                            : await startWebTransportSession(
+                                                  url
+                                              );
                         } catch (err) {
                             result = {
                                 ok: false,
@@ -949,6 +958,139 @@ function moqPanel(state) {
     `;
 }
 
+function rtmpPanel(state) {
+    const rtmpSessions = Object.values(state.sessions).filter(
+        (s) => s.mode === 'rtmp'
+    );
+    if (rtmpSessions.length === 0) return html``;
+    return html`
+        ${rtmpSessions.map((s) => {
+            const detail = getRtmpDetailFor(s.url) ?? {};
+            const stats = detail.stats ?? null;
+            const commands = detail.commands ?? [];
+            const videoCodecs = Object.entries(stats?.videoCodecs ?? {});
+            const audioCodecs = Object.entries(stats?.audioCodecs ?? {});
+            const codecName = (id) =>
+                ({
+                    2: 'Sorenson H.263',
+                    3: 'Screen video',
+                    4: 'On2 VP6',
+                    5: 'On2 VP6 (alpha)',
+                    6: 'Screen video v2',
+                    7: 'AVC (H.264)',
+                    9: 'HEVC (early)',
+                    12: 'HEVC',
+                    13: 'AV1 (E-RTMP)',
+                    14: 'VP9 (E-RTMP)',
+                })[id] ?? 'unknown (' + id + ')';
+            const soundName = (id) =>
+                ({
+                    2: 'MP3',
+                    10: 'AAC',
+                    20: 'Opus (E-RTMP)',
+                    21: 'FLAC (E-RTMP)',
+                })[id] ?? 'unknown (' + id + ')';
+            return html`
+                <section
+                    class="rounded-lg border border-slate-700 bg-slate-800/60 p-4 space-y-3"
+                >
+                    <h3 class="text-sm font-semibold">
+                        RTMP session — ${s.url}
+                    </h3>
+                    ${stats
+                        ? html`<div
+                              class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs"
+                          >
+                              ${statCell('video tags', stats.videoTags)}
+                              ${statCell('audio tags', stats.audioTags)}
+                              ${statCell('script tags', stats.scriptTags)}
+                              ${statCell('keyframes', stats.videoKeyframes)}
+                              ${statCell('messages', stats.messageCount)}
+                              ${statCell('chunks', stats.chunkCount)}
+                              ${statCell('window ack', stats.windowAckSize)}
+                              ${statCell(
+                                  'out chunk',
+                                  stats.negotiatedChunkSize,
+                                  'B'
+                              )}
+                          </div>`
+                        : html`<p class="text-xs text-slate-500">
+                              Waiting for the helper's counters…
+                          </p>`}
+                    <div>
+                        <p class="text-xs text-slate-500 mb-1">Video codecs</p>
+                        ${videoCodecs.length
+                            ? html`<ul
+                                  class="text-xs text-slate-300 space-y-0.5 font-mono"
+                              >
+                                  ${videoCodecs.map(
+                                      ([id, c]) =>
+                                          html`<li>
+                                              ${codecName(id)} — ${c.count} tags
+                                              (${c.bytes} B)
+                                          </li>`
+                                  )}
+                              </ul>`
+                            : html`<p class="text-xs text-slate-500">
+                                  No video yet.
+                              </p>`}
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-500 mb-1">Audio formats</p>
+                        ${audioCodecs.length
+                            ? html`<ul
+                                  class="text-xs text-slate-300 space-y-0.5 font-mono"
+                              >
+                                  ${audioCodecs.map(
+                                      ([id, c]) =>
+                                          html`<li>
+                                              ${soundName(id)} — ${c.count} tags
+                                              (${c.bytes} B)
+                                          </li>`
+                                  )}
+                              </ul>`
+                            : html`<p class="text-xs text-slate-500">
+                                  No audio yet.
+                              </p>`}
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-500 mb-1">
+                            AMF0 command log
+                        </p>
+                        ${commands.length
+                            ? html`<ul
+                                  class="text-xs text-slate-300 space-y-0.5 font-mono max-h-40 overflow-y-auto"
+                              >
+                                  ${commands
+                                      .slice(-12)
+                                      .map(
+                                          (c) =>
+                                              html`<li>
+                                                  ${c.direction} ${c.name}
+                                                  #${c.transactionId}
+                                                  ${c.description
+                                                      ? html`— ${c.description}`
+                                                      : ''}
+                                              </li>`
+                                      )}
+                              </ul>`
+                            : html`<p class="text-xs text-slate-500">
+                                  No commands yet.
+                              </p>`}
+                    </div>
+                </section>
+            `;
+        })}
+    `;
+}
+
+function statCell(label, value, unit = '') {
+    return html`<div class="rounded bg-slate-900/60 px-2 py-1.5">
+        <p class="text-[10px] text-slate-500">${label}</p>
+        <p class="text-sm font-mono text-slate-200">${value ?? 0}${unit}</p>
+    </div>`;
+}
+
 function renderView() {
     if (!container) return;
     const state = { ...srtStore.getState(), contents: contentsCache };
@@ -977,7 +1119,7 @@ function renderView() {
                 ${state.focusedSessionId
                     ? handshakeCard(state, state.focusedSessionId)
                     : html``}
-                ${failoverCard(state)} ${moqPanel(state)}
+                ${failoverCard(state)} ${moqPanel(state)} ${rtmpPanel(state)}
                 <p class="text-xs text-slate-500">
                     SRT support: your helper owns the UDP sockets; this panel
                     shows normalized telemetry (RTT, loss, retransmissions,

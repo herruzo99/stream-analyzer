@@ -68,7 +68,7 @@ export function normalizeRtmpTelemetry(raw) {
  * @param {ReturnType<typeof normalizeRtmpTelemetry>} prev
  * @param {ReturnType<typeof normalizeRtmpTelemetry>} cur
  */
-export function rtmpAlerts(prev, cur) {
+export function evaluateRtmpRules(prev, cur) {
     const out = [];
     const prevRtmp = prev?.rtmp;
     const prevTags = prevRtmp ? prevRtmp.audioTags + prevRtmp.videoTags : 0;

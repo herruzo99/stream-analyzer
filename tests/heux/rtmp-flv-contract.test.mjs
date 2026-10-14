@@ -14,7 +14,7 @@ import {
 import {
     normalizeRtmpTelemetry,
     RTMP_RULE_IDS,
-    rtmpAlerts,
+    evaluateRtmpRules,
 } from '../../src/features/rtmpSource/domain/telemetry.js';
 
 // --- FLV analytics ---------------------------------------------------------------
@@ -164,13 +164,13 @@ test('AT-TEL-02 the RTMP rule family fires on documented failure modes', () => {
         videoTags: 1,
     });
     // A stillborn session (no tags in either window) reports no-media.
-    const ids = rtmpAlerts(neg, neg).map((a) => a.id);
+    const ids = evaluateRtmpRules(neg, neg).map((a) => a.id);
     assert.ok(
         ids.includes(RTMP_RULE_IDS.NO_MEDIA),
         `expected no-media rule, got ${ids}`
     );
     // One tag arriving must NOT trip no-media.
-    const arrived = rtmpAlerts(neg, quiet).map((a) => a.id);
+    const arrived = evaluateRtmpRules(neg, quiet).map((a) => a.id);
     assert.ok(!arrived.includes(RTMP_RULE_IDS.NO_MEDIA), 'media arrived');
     assert.ok(
         arrived.includes(RTMP_RULE_IDS.CHUNK_SIZE_DEFAULT),
@@ -185,7 +185,7 @@ test('AT-TEL-02 the RTMP rule family fires on documented failure modes', () => {
         videoTags: 1,
         negotiatedChunkSize: 4096,
     });
-    const ids2 = rtmpAlerts(quiet, stalled).map((a) => a.id);
+    const ids2 = evaluateRtmpRules(quiet, stalled).map((a) => a.id);
     assert.ok(
         ids2.includes(RTMP_RULE_IDS.MEDIA_STALL),
         'media stopped flowing is a stall'

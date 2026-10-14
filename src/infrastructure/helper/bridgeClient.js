@@ -166,6 +166,18 @@ export async function listSessions() {
     return await resp.json();
 }
 
+/** Counters + AMF0 command log for a helper-side RTMP session. */
+export async function getRtmpDetail(sessionId) {
+    const resp = await fetchWithTimeout(
+        `${origin()}/sessions/${sessionId}/rtmp`,
+        {
+            headers: await authHeaders(),
+        }
+    );
+    if (!resp.ok) return null;
+    return await resp.json();
+}
+
 export async function getHandshakes(sessionId) {
     const resp = await fetchWithTimeout(
         `${origin()}/sessions/${sessionId}/handshake`,
