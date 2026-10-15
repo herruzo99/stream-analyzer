@@ -28,6 +28,12 @@ import {
     getRtmpDetailFor,
     startRtmpSession,
 } from '@/features/rtmpSource/application/rtmpController.js';
+import {
+    getIcecastDetail,
+    readIcecastLive,
+    startIcecastSession,
+    stopIcecastSession,
+} from '@/features/icecastSource/application/icecastController.js';
 import { analyzeTsChunk } from '@/features/srtSource/domain/tsAnalytics.js';
 import { analyzeAvSync } from '@/features/srtSource/domain/avSync.js';
 import {
@@ -415,6 +421,7 @@ function newSessionForm() {
                     <option value="whip">WebRTC WHIP (publish)</option>
                     <option value="moq">MoQ (WebTransport)</option>
                     <option value="rtmp">RTMP (helper)</option>
+                    <option value="icecast">Icecast (audio)</option>
                 </select>
                 <input
                     class="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs font-mono"
@@ -448,9 +455,11 @@ function newSessionForm() {
                                           ? await startMoqSession(url)
                                           : transportDraft === 'rtmp'
                                             ? await startRtmpSession(url)
-                                            : await startWebTransportSession(
-                                                  url
-                                              );
+                                            : transportDraft === 'icecast'
+                                              ? await startIcecastSession(url)
+                                              : await startWebTransportSession(
+                                                    url
+                                                );
                         } catch (err) {
                             result = {
                                 ok: false,
@@ -1091,6 +1100,111 @@ function statCell(label, value, unit = '') {
     </div>`;
 }
 
+function icecastPanel(state) {
+    const rows = Object.values(state.sessions).filter(
+        (s) => s.mode === 'icecast'
+    );
+    if (rows.length === 0) return html``;
+    return html`
+        ${rows.map((s) => {
+            const detail = getIcecastDetail(s.url) ?? {};
+            const live = readIcecastLive(s.url) ?? s.latest ?? null;
+            const mount = detail.mount ?? null;
+            const events = (detail.events ?? []).slice(-8).reverse();
+            return html`
+                <section
+                    class="rounded-lg border border-slate-700 bg-slate-800/60 p-4 space-y-3"
+                >
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-semibold">
+                            Icecast — ${s.url}
+                        </h3>
+                        <span class="mono text-[10px] text-slate-500">
+                            ${s.status}
+                        </span>
+                    </div>
+                    ${mount
+                        ? html`<div
+                              class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs"
+                          >
+                              ${icecastCell('codec', mount.codecLabel)}
+                              ${icecastCell(
+                                  'advertised',
+                                  mount.bitrateKbps != null
+                                      ? mount.bitrateKbps + ' kbps'
+                                      : '—'
+                              )}
+                              ${icecastCell(
+                                  'measured',
+                                  live ? live.measuredKbps + ' kbps' : '—'
+                              )}
+                              ${icecastCell(
+                                  'in-band metadata',
+                                  mount.hasInbandMetadata
+                                      ? mount.metaIntBytes + ' B interval'
+                                      : 'none'
+                              )}
+                          </div>`
+                        : html`<p class="text-xs text-slate-500">
+                              Reading mount headers…
+                          </p>`}
+                    ${mount?.name
+                        ? html`<p class="text-xs text-slate-300">
+                              ${mount.name}
+                          </p>`
+                        : ''}
+                    <div>
+                        <p class="text-xs text-slate-500 mb-1">
+                            Metadata
+                            timeline${live && live.eventCount
+                                ? html` (${live.eventCount} events)`
+                                : ''}
+                        </p>
+                        ${events.length
+                            ? html`<ul
+                                  class="text-xs text-slate-300 space-y-0.5 font-mono max-h-32 overflow-y-auto"
+                              >
+                                  ${events.map(
+                                      (ev) =>
+                                          html`<li>
+                                              ${new Date(
+                                                  ev.atMs
+                                              ).toLocaleTimeString()}
+                                              — ${ev.title ?? '(empty)'}
+                                          </li>`
+                                  )}
+                              </ul>`
+                            : html`<p class="text-xs text-slate-500">
+                                  No metadata events yet.
+                              </p>`}
+                    </div>
+                    <div class="flex gap-2">
+                        <button
+                            class="text-xs px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200"
+                            @click=${() => stopIcecastSession(s.url)}
+                        >
+                            Stop
+                        </button>
+                        <button
+                            class="text-xs px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200"
+                            @click=${() => readIcecastLive(s.url)}
+                        >
+                            Refresh
+                        </button>
+                    </div>
+                </section>
+            `;
+        })}
+    `;
+}
+
+function icecastCell(label, value) {
+    return html`<div class="rounded bg-slate-900/60 px-2 py-1.5">
+        <p class="text-[10px] text-slate-500">${label}</p>
+        <p class="text-sm font-mono text-slate-200">${value}</p>
+    </div>`;
+}
+
 function renderView() {
     if (!container) return;
     const state = { ...srtStore.getState(), contents: contentsCache };
@@ -1120,6 +1234,7 @@ function renderView() {
                     ? handshakeCard(state, state.focusedSessionId)
                     : html``}
                 ${failoverCard(state)} ${moqPanel(state)} ${rtmpPanel(state)}
+                ${icecastPanel(state)}
                 <p class="text-xs text-slate-500">
                     SRT support: your helper owns the UDP sockets; this panel
                     shows normalized telemetry (RTT, loss, retransmissions,

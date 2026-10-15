@@ -13,6 +13,8 @@ const ALLOWED_PROTOCOLS = new Set([
     'whep',
     'whip',
     'moq',
+    'rtmp',
+    'icecast',
 ]);
 
 test('AT-EX-01 every entry is well-formed for its protocol', () => {
@@ -56,6 +58,18 @@ test('AT-EX-01 every entry is well-formed for its protocol', () => {
                 parseSrtUrl(ex.url).ok,
                 true,
                 `${ex.name}: srt URL must parse`
+            );
+        } else if (ex.protocol === 'icecast') {
+            // Curated mounts are verified live and may have no extension
+            // (http://host/MountName); the declared protocol is authoritative.
+            assert.match(
+                ex.url,
+                /^https?:\/\//,
+                `${ex.name}: icecast entry must be http(s)`
+            );
+            assert.ok(
+                ex.verified,
+                `${ex.name}: icecast entry must be verified live`
             );
         } else if (ex.protocol === 'moq') {
             // The bundled relay uses moqt://; public relays behind WebTransport

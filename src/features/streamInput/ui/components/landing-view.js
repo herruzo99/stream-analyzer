@@ -637,6 +637,14 @@ class LandingViewComponent extends HTMLElement {
             eventBus.dispatch(EVENTS.UI.SRT_SESSION_REQUESTED, { url });
             return;
         }
+        if (route.kind === 'icecast') {
+            eventBus.dispatch(EVENTS.UI.SRT_SESSION_REQUESTED, { url });
+            showToast({
+                message: `Connecting to the Icecast mount ${url}`,
+                type: 'info',
+            });
+            return;
+        }
         if (route.kind === 'moq') {
             eventBus.dispatch(EVENTS.UI.SRT_SESSION_REQUESTED, {
                 url,

@@ -2,7 +2,7 @@
  * A curated list of public DASH, HLS, SRT and low-latency streams for testing
  * and demonstration purposes. Every entry is verified against the live source
  * before landing (see the per-entry `verified` field).
- * @typedef {'dash' | 'hls' | 'srt' | 'whep' | 'whip' | 'moq' | 'rtmp'} Protocol
+ * @typedef {'dash' | 'hls' | 'srt' | 'whep' | 'whip' | 'moq' | 'rtmp' | 'icecast'} Protocol
  * @typedef {'vod' | 'live'} StreamType
  * @typedef {object} ExampleStream
  * @property {string} name - A descriptive name for the stream.
@@ -61,7 +61,7 @@ const createDrmAuth = (token) => ({
  * Pure — shared by the landing view, the library modal and tests.
  *
  * @param {string} url
- * @returns {{kind: 'srt'|'moq'|'rtmp'|'webrtc-pull'|'webrtc-push'|'manifest', transport: string}}
+ * @returns {{kind: 'srt'|'moq'|'rtmp'|'icecast'|'webrtc-pull'|'webrtc-push'|'manifest', transport: string}}
  */
 export function routeExampleUrl(url) {
     const value = String(url ?? '').trim();
@@ -73,6 +73,10 @@ export function routeExampleUrl(url) {
     }
     if (value.startsWith('rtmp://') || value.startsWith('rtmps://')) {
         return { kind: 'rtmp', transport: 'rtmp' };
+    }
+    // Icecast mounts are plain HTTP(S) URLs ending in an audio extension.
+    if (/\.(mp3|aac|aacp|ogg|oga|opus|flac)(\?|#|$)/i.test(value)) {
+        return { kind: 'icecast', transport: 'icecast' };
     }
     const lower = value.toLowerCase();
     if (lower.includes('/whep')) {
@@ -216,6 +220,30 @@ export const exampleStreams = [
         category: 'Low Latency',
         verified: '2026-10-14',
         notes: 'LL-DASH reference stream used by the dash.js low-latency testplayer; carries ServiceDescription/Latency (target 3000 ms). Feeds the Low-Latency analysis view.',
+    },
+
+    // --- Icecast / SHOUTcast (internet radio) ---
+    {
+        name: 'Classic FM: live classical radio (Dax/Icecast)',
+        url: 'http://icecast.thisisdax.com/ClassicFM',
+        protocol: 'icecast',
+        type: 'live',
+        source: 'thisisdax (Icecast 2.4)',
+        category: 'Icecast',
+        verified: '2026-10-15',
+        notes: 'AAC 48 kbps with ICY in-band metadata (icy-metaint 8000): the monitor decodes StreamTitle blocks live — titles arrive about every 1.3 s. Readable from the browser because the station allows CORS.',
+    },
+    {
+        // Radio Paradise serves no icy-br and no in-band metadata: the
+        // honest-null path on the measured-rate view.
+        name: 'Radio Paradise: MP3 192 (no in-band metadata)',
+        url: 'http://stream.radioparadise.com/mp3-192',
+        protocol: 'icecast',
+        type: 'live',
+        source: 'Radio Paradise',
+        category: 'Icecast',
+        verified: '2026-10-15',
+        notes: 'MP3 without ICY metadata headers: the panel reports the measured rate (~197 kbps) and leaves advertised rate/efficiency null instead of guessing.',
     },
 
     // --- MoQ (Media over QUIC) ---

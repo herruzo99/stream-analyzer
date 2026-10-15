@@ -524,6 +524,18 @@ export function initializeSrtSourceFeature() {
         // route to their own pipelines (example entries and hand-typed URLs
         // share this one entry point).
         const route = routeExampleUrl(url);
+        if (route.kind === 'icecast') {
+            const { startIcecastSession } =
+                await import('@/features/icecastSource/application/icecastController.js');
+            const result = await startIcecastSession(url);
+            eventBus.dispatch(EVENTS.UI.SHOW_STATUS, {
+                message: result.ok
+                    ? `Icecast session starting (${url}).`
+                    : `Icecast session failed: ${result.error}`,
+                type: result.ok ? 'success' : 'warn',
+            });
+            return;
+        }
         if (route.kind === 'rtmp') {
             const { startRtmpSession } =
                 await import('@/features/rtmpSource/application/rtmpController.js');

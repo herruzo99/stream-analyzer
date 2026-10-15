@@ -191,6 +191,21 @@ relay is the verification path.
   indexforce public endpoint remains unresolved (Wowza silence to our connect) —
   documented in the README as the follow-up.
 
+### Item 6 — Icecast / SHOUTcast — DONE
+- Standards: `standard/icecast-2.4_introduction.html` + live-reachable stations surveyed
+  (table in ai/icecast-integration-analysis.md); design note explains the ICY framing,
+  the doubled-quote escaping and the CORS/`Access-Control-Expose-Headers` reality
+- Browser: 13 heux contract tests + `src/features/icecastSource/domain/icy.js`
+  (header parse, metadata-block parse, chunk-boundary-safe framing state machine,
+  summary math) and `application/icecastController.js` (fetch stream → store, 1 Hz stats)
+- UI: Icecast transport in the SRT Monitor + panel (codec, advertised vs measured rate,
+  in-band metadata interval, station name, metadata timeline)
+- Live verified in Chromium: Classic FM (AAC 48 kbps, icy-metaint 8000, 20 metadata
+  events in 13 s, titles ~1.3 s apart) and Radio Paradise (MP3, no metadata → honest
+  nulls). SomaFM 403s non-browser clients and is reported verbatim
+- Follow-up (deliberately out of scope): live loudness QC via an AudioWorklet PCM tap on
+  top of the existing EBU R128 implementation
+
 ### Verification summary
 - 132/132 node tests (63 baseline + 69 new heux/integration across all SRT
   work), ESLint 0, tsc at the 43-error main baseline, production build green.
