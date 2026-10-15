@@ -15,6 +15,7 @@ const ALLOWED_PROTOCOLS = new Set([
     'moq',
     'rtmp',
     'icecast',
+    'mss',
 ]);
 
 test('AT-EX-01 every entry is well-formed for its protocol', () => {
@@ -58,6 +59,12 @@ test('AT-EX-01 every entry is well-formed for its protocol', () => {
                 parseSrtUrl(ex.url).ok,
                 true,
                 `${ex.name}: srt URL must parse`
+            );
+        } else if (ex.protocol === 'mss') {
+            assert.match(
+                ex.url,
+                /\.ism(?:\/|$)|SmoothStreamingMedia|smoothstreaming/i,
+                `${ex.name}: mss entry must point at an .ism/SmoothStreaming manifest`
             );
         } else if (ex.protocol === 'icecast') {
             // Curated mounts are verified live and may have no extension

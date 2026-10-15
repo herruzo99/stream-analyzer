@@ -222,6 +222,28 @@ export const exampleStreams = [
         notes: 'LL-DASH reference stream used by the dash.js low-latency testplayer; carries ServiceDescription/Latency (target 3000 ms). Feeds the Low-Latency analysis view.',
     },
 
+    // --- MSS (IIS Smooth Streaming) ---
+    {
+        name: 'Unified Streaming: Tears of Steel (MSS)',
+        url: 'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/Manifest',
+        protocol: 'mss',
+        type: 'vod',
+        source: 'Unified Streaming Platform',
+        category: 'MSS VOD',
+        verified: '2026-10-15',
+        notes: 'Smooth Streaming client manifest with audio (AAC) + video (5 renditions), StreamIndex Url templates with name-qualified {start time} placeholders, and explicit t on the first chunk.',
+    },
+    {
+        name: 'DirectTaps: Super Speedway 720p (MSS, classic IIS)',
+        url: 'https://playready.directtaps.net/smoothstreaming/SSWSS720H264/SuperSpeedway_720.ism/Manifest',
+        protocol: 'mss',
+        type: 'vod',
+        source: 'DirectTaps (PlayReady test)',
+        category: 'MSS VOD',
+        verified: '2026-10-15',
+        notes: 'Classic IIS-style manifest: d-only chunk runs, no TimeScale, hex CodecPrivateData. Its chunk timeline sums to 120.787 s while Duration says 120.951 s — the analyzer reports that mismatch instead of hiding it.',
+    },
+
     // --- Icecast / SHOUTcast (internet radio) ---
     {
         name: 'Classic FM: live classical radio (Dax/Icecast)',

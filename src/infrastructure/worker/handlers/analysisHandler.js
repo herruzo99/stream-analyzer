@@ -11,6 +11,10 @@ import { parseManifest as parseDashManifest } from '../../parsing/dash/parser.js
 import { parseAllSegmentUrls as parseDashSegments } from '../../parsing/dash/segment-parser.js';
 import { generateDashSummary } from '../../parsing/dash/summary-generator.js';
 import { parseManifest as parseHlsManifest } from '../../parsing/hls/index.js';
+import {
+    isMssManifest,
+    parseManifest as parseMssManifest,
+} from '../../parsing/mss/parser.js';
 import { generateHlsSummary } from '../../parsing/hls/summary-generator.js';
 
 import { appLog } from '../../../shared/utils/debug.js';
@@ -257,10 +261,8 @@ async function preProcessInput(input, signal) {
             protocol = 'hls';
         } else if (/<MPD/i.test(trimmedManifest)) {
             protocol = 'dash';
-        } else if (/<SmoothStreamingMedia/i.test(trimmedManifest)) {
-            throw new Error(
-                'Unsupported Format: Microsoft Smooth Streaming is not supported.'
-            );
+        } else if (isMssManifest(trimmedManifest)) {
+            protocol = 'mss';
         } else {
             if (manifestString.length < 500 && !manifestString.includes('<')) {
                 throw new Error('Unknown manifest format.');
@@ -269,9 +271,13 @@ async function preProcessInput(input, signal) {
         }
 
         isLive =
-            protocol === 'dash'
-                ? /<MPD[^>]*type\s*=\s*["']dynamic["']/i.test(trimmedManifest)
-                : false;
+            protocol === 'mss'
+                ? /<SmoothStreamingMedia[^>]*IsLive\s*=\s*["']TRUE["']/i.test(
+                      trimmedManifest
+                  )
+                : protocol === 'dash'
+                  ? /<MPD[^>]*type\s*=\s*["']dynamic["']/i.test(trimmedManifest)
+                  : false;
     }
 
     return { ...input, protocol, manifestString, finalUrl, isLive };
@@ -566,8 +572,8 @@ async function buildStreamObject(
                 id:
                     String(
                         event.scte35?.splice_command?.splice_event_id ||
-                        event.scte35?.descriptors?.[0]
-                            ?.segmentation_event_id
+                            event.scte35?.descriptors?.[0]
+                                ?.segmentation_event_id
                     ) || String(event.startTime),
                 startTime: event.startTime,
                 duration:
@@ -577,7 +583,7 @@ async function buildStreamObject(
                 scte35Signal: event.scte35,
                 adManifestUrl:
                     event.scte35?.descriptors?.[0]?.segmentation_upid_type ===
-                        0x0c
+                    0x0c
                         ? event.scte35.descriptors[0].segmentation_upid
                         : null,
                 creatives: [],
@@ -910,18 +916,41 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
                         postProgress
                     );
                     manifestIR = hlsResult.masterIR;
-                    serializedManifestObject = hlsResult.serializedManifestObject;
+                    serializedManifestObject =
+                        hlsResult.serializedManifestObject;
                     finalBaseUrl = hlsResult.finalUrl;
                     mediaPlaylists = hlsResult.mediaPlaylists;
                     preProcessed.isLive = manifestIR.type === 'dynamic';
 
-                    const hlsSummaryResult = await generateHlsSummary(manifestIR, {
-                        ...context,
-                        mediaPlaylists,
-                    });
+                    const hlsSummaryResult = await generateHlsSummary(
+                        manifestIR,
+                        {
+                            ...context,
+                            mediaPlaylists,
+                        }
+                    );
                     manifestIR.summary = hlsSummaryResult.summary;
                     segmentsToCache =
                         hlsSummaryResult.opportunisticallyCachedSegments;
+                } else if (preProcessed.protocol === 'mss') {
+                    const { manifest, serializedManifest, baseUrl } =
+                        await parseMssManifest(
+                            preProcessed.manifestString,
+                            preProcessed.finalUrl
+                        );
+                    manifestIR = manifest;
+                    serializedManifestObject = serializedManifest;
+                    finalBaseUrl = baseUrl;
+                    // The DASH segment parser reads the serialized manifest;
+                    // MSS fragments use the StreamIndex Url template, which the
+                    // MSS adapter resolves into the same representation shape.
+                    manifestIR.summary = {
+                        protocol: 'mss',
+                        streams: manifest.smoothStreaming.streamDurations,
+                        durationMismatchTicks:
+                            manifest.smoothStreaming
+                                .timelineDurationMismatchTicks,
+                    };
                 } else {
                     const { manifest, serializedManifest, baseUrl } =
                         await parseDashManifest(
@@ -1014,12 +1043,12 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
 
                 const coverageReport = input.isDebug
                     ? [
-                        ...(preProcessed.protocol === 'dash'
-                            ? analyzeDashCoverage(serializedManifestObject)
-                            : []),
-                        // @ts-ignore
-                        ...analyzeParserDrift(manifestIR),
-                    ]
+                          ...(preProcessed.protocol === 'dash'
+                              ? analyzeDashCoverage(serializedManifestObject)
+                              : []),
+                          // @ts-ignore
+                          ...analyzeParserDrift(manifestIR),
+                      ]
                     : [];
 
                 const semanticData = new Map();
@@ -1071,7 +1100,6 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
                     streamObject,
                     segmentsToCache: segmentsWithId,
                 });
-
             } catch (err) {
                 appLog(
                     'handleStartAnalysis',
@@ -1104,7 +1132,9 @@ export async function handleStartAnalysis({ inputs, postProgress }, signal) {
             'info',
             `Analysis complete in ${(
                 performance.now() - analysisStartTime
-            ).toFixed(2)}ms. Success: ${streamObjects.length}, Failed: ${failedInputs.length}`
+            ).toFixed(
+                2
+            )}ms. Success: ${streamObjects.length}, Failed: ${failedInputs.length}`
         );
 
         return {

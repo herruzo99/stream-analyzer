@@ -191,6 +191,23 @@ relay is the verification path.
   indexforce public endpoint remains unresolved (Wowza silence to our connect) —
   documented in the README as the follow-up.
 
+### Item 8 — MSS (Smooth Streaming) — DONE
+- Fixtures: two live public client manifests captured into `tests/fixtures/mss/`
+  (Unified Streaming Tears of Steel; DirectTaps Super Speedway 720p) and
+  hash-locked into the fixture inventory
+- Browser: `src/infrastructure/parsing/mss/{parser,adapter}.js` — client manifest →
+  the same DASH-shaped IR (periods → adaptationSets → representations), chunk-timeline
+  expansion with `r` run semantics, fragment-URL templates ({bitrate}, {start time},
+  {start_time}, name-qualified), codec strings from CodecPrivateData for both AVC
+  layouts, and a declared-Duration vs chunk-sum cross-check that flags the mismatch
+  the DirectTaps manifest contains
+- Worker: `analysisHandler` routes `<SmoothStreamingMedia>` to the MSS parser via the
+  contract-tested `isMssManifest`; the old "not supported" error is gone
+- 14 heux contract tests + 2 verified example entries; live manifests re-fetched at
+  verification time
+- Follow-up: MSS fragment (PIFF/ISOBMFF) inspection through the segment parser, and a
+  Smooth-Streaming-specific analysis panel (stream table + timeline + URL resolution)
+
 ### Item 6 — Icecast / SHOUTcast — DONE
 - Standards: `standard/icecast-2.4_introduction.html` + live-reachable stations surveyed
   (table in ai/icecast-integration-analysis.md); design note explains the ICY framing,

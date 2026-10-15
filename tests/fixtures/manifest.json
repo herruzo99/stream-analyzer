@@ -4,6 +4,13 @@
   "authoredBy": "streamAnalyzer migration project",
   "files": [
     {
+      "id": "dash-vod-basic",
+      "path": "dash/vod-basic.mpd",
+      "sha256": "d2761801debf7d50ffebd258562450e5dbb5003e593b25c68685ce596c74b92f",
+      "kind": "dash-mpd",
+      "expected": "valid"
+    },
+    {
       "id": "hls-master-basic",
       "path": "hls/master-basic.m3u8",
       "sha256": "45485f7c63275dd43e30904031b6f91966c219528d45440e6d7f1149680ba6a5",
@@ -16,27 +23,6 @@
       "sha256": "9bfbc09f298440b39c2e965f07b459b08c50b577b84d1e9fdfc52c1a4cab0542",
       "kind": "hls-media",
       "expected": "valid"
-    },
-    {
-      "id": "dash-vod-basic",
-      "path": "dash/vod-basic.mpd",
-      "sha256": "d2761801debf7d50ffebd258562450e5dbb5003e593b25c68685ce596c74b92f",
-      "kind": "dash-mpd",
-      "expected": "valid"
-    },
-    {
-      "id": "hls-truncated",
-      "path": "invalid/truncated-hls.m3u8",
-      "sha256": "a304c8d504ead2130b344ae7fd2344821c09851128cdd2279d11f9945303a027",
-      "kind": "hls-media",
-      "expected": "parser-error"
-    },
-    {
-      "id": "dash-malformed",
-      "path": "invalid/malformed-dash.mpd",
-      "sha256": "86bd55f3e043a3417a9e8040190e01ee546568e3c226763653ca52e5b490c901",
-      "kind": "dash-mpd",
-      "expected": "parser-error"
     },
     {
       "id": "input-empty",
@@ -53,6 +39,41 @@
       "expected": "unsupported-format"
     },
     {
+      "id": "dash-malformed",
+      "path": "invalid/malformed-dash.mpd",
+      "sha256": "86bd55f3e043a3417a9e8040190e01ee546568e3c226763653ca52e5b490c901",
+      "kind": "dash-mpd",
+      "expected": "parser-error"
+    },
+    {
+      "id": "hls-truncated",
+      "path": "invalid/truncated-hls.m3u8",
+      "sha256": "a304c8d504ead2130b344ae7fd2344821c09851128cdd2279d11f9945303a027",
+      "kind": "hls-media",
+      "expected": "parser-error"
+    },
+    {
+      "id": "mss-client-superspeedway",
+      "path": "mss/superspeedway.ismc",
+      "sha256": "381251b4bf5f12537893e02754aecdacedf9b77aa721bd23d0192181f400b75e",
+      "kind": "mss-client",
+      "expected": "valid"
+    },
+    {
+      "id": "mss-client-tos",
+      "path": "mss/tears-of-steel.ismc",
+      "sha256": "ebfc4005b6136831297dfb672089d9545caf2af69ad209d7f8555d893d90296d",
+      "kind": "mss-client",
+      "expected": "valid"
+    },
+    {
+      "id": "network-scenarios",
+      "path": "network/scenarios.json",
+      "sha256": "0eba640cbde243e85bb1249bd046297207be45a02ac560a5b448cc25faebea58",
+      "kind": "network-script",
+      "expected": "five-deterministic-scenarios"
+    },
+    {
       "id": "isobmff-minimal-init-hex",
       "path": "segments/minimal-init.hex",
       "sha256": "f868a18bf5f05fbc348140dc67673f3b3aa88f3d3b3dbccd1f2238b5f301ede2",
@@ -65,13 +86,6 @@
       "sha256": "bfe9ca1a6ec57611de0a11609e94b765b51c291ccebc2fc600805a6ee1d974d2",
       "kind": "isobmff-hex",
       "expected": "truncated-box"
-    },
-    {
-      "id": "network-scenarios",
-      "path": "network/scenarios.json",
-      "sha256": "0eba640cbde243e85bb1249bd046297207be45a02ac560a5b448cc25faebea58",
-      "kind": "network-script",
-      "expected": "five-deterministic-scenarios"
     }
   ],
   "generated": [
